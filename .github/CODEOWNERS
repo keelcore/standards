@@ -1,0 +1,31 @@
+# CODEOWNERS
+# Changes to these paths require review from the designated owners.
+# Owners are referenced by GitHub team or username.
+# The last matching rule takes precedence.
+
+# Default owner for everything
+*                                   @keelcore/platform-team
+
+# CI workflows — security/infra review required
+.github/workflows/                  @keelcore/platform-infra
+.github/CODEOWNERS                  @keelcore/platform-infra
+.github/dependabot.yml              @keelcore/platform-infra
+
+# Scripts — infra review required; author cannot self-approve
+scripts/                            @keelcore/platform-infra
+
+# Governance documents — ARB review required
+governance/                         @keelcore/arb
+docs/adr/                           @keelcore/arb
+docs/rfc/                           @keelcore/arb
+docs/break-glass.md                 @keelcore/arb @keelcore/platform-infra
+
+# Dependency manifests — infra review required
+go.mod                              @keelcore/platform-infra
+package.json                        @keelcore/platform-infra
+package-lock.json                   @keelcore/platform-infra
+pyproject.toml                      @keelcore/platform-infra
+
+# Version and changelog — ARB review required
+VERSION                             @keelcore/arb
+CHANGELOG.md                        @keelcore/arb

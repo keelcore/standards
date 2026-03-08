@@ -3,6 +3,10 @@
 These rules govern container design, orchestration, deployment, and policy compliance.
 They are non-negotiable unless explicitly superseded by a signed ADR.
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-09
+
 ## Containers and Artifacts
 
 ### Versioning

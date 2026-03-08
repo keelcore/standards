@@ -3,6 +3,10 @@
 These rules govern platform-level decisions across networking, DNS, TLS, WAF, and traffic management.
 They are non-negotiable unless explicitly superseded by a signed ADR.
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-09
+
 ## Governance Process
 
 ### Decision-Making (DACI)

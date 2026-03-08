@@ -1,7 +1,13 @@
 # ADR-NNNN: Title
 
 **Date:** YYYY-MM-DD
-**Status:** Proposed | Accepted | Deprecated | Superseded by ADR-XXXX
+**Status:** Proposed | Accepted | Rejected | Superseded | Deprecated
+**Driver:** Name or team responsible for shepherding this decision
+**Approver:** ARB | Name (default: ARB for architecture decisions)
+**Contributors:** Names or teams consulted before the decision
+**Informed:** Names, teams, or groups notified of the outcome
+**Supersedes:** N/A | ADR-XXXX
+**Superseded By:** N/A | ADR-XXXX
 
 ## Context
 
