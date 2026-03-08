@@ -2,6 +2,10 @@
 
 These rules govern metrics, logging, tracing, and alerting across all services. They are non-negotiable.
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-09
+
 ## Metrics
 
 ### Vendors and Retention

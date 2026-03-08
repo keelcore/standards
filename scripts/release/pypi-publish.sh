@@ -48,9 +48,11 @@ function build() {
 
 function publish() {
   log 'Publishing to PyPI...'
-  twine upload --non-interactive dist/* \
-    --username '__token__' \
-    --password "${PYPI_TOKEN}"
+  # PYPI_TOKEN is passed via environment variable, not as a positional argument,
+  # to prevent the secret from appearing in process listings or log output.
+  TWINE_USERNAME='__token__' \
+  TWINE_PASSWORD="${PYPI_TOKEN}" \
+    twine upload --non-interactive dist/*
   log '✅ Published to PyPI'
 }
 

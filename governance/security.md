@@ -3,6 +3,10 @@
 These rules govern identity and access management, encryption, key management, and data handling.
 They are non-negotiable unless explicitly superseded by a signed ADR.
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-09
+
 ## Identity and Access Management
 
 ### Federated Authentication

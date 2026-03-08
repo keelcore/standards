@@ -2,6 +2,10 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-09
+
 ## Core Principle
 
 CI workflow YAML is thin orchestration only. No build, test, lint, packaging, signing, or release logic lives

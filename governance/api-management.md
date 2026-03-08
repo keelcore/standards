@@ -3,6 +3,10 @@
 These rules govern API design, versioning, rate limiting, quotas, lifecycle management, and
 developer experience. They are non-negotiable unless explicitly superseded by a signed ADR.
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-09
+
 ## API Design
 
 ### Interface Contracts

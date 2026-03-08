@@ -2,6 +2,10 @@
 
 These rules govern all code edits in this project. They are non-negotiable.
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-09
+
 ## Core Preservation
 
 1. No drift — do not remove code, comments, structure, or behavior unless explicitly instructed or strictly required.

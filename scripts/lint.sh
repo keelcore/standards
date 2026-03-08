@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+1#!/usr/bin/env bash
 # scripts/lint.sh
 # Top-level lint entry point. Runs all linters for this repository.
 
@@ -17,6 +17,9 @@ function main() {
   log 'Running all linters...'
   run_markdown_lint
   run_shellcheck
+  run_adr_check
+  run_governance_check
+  run_rfc_check
   log '✅ All linters passed'
 }
 
@@ -28,6 +31,21 @@ function run_markdown_lint() {
 function run_shellcheck() {
   log 'Running shellcheck...'
   bash scripts/lint/shellcheck.sh
+}
+
+function run_adr_check() {
+  log 'Checking ADR metadata...'
+  bash scripts/check/adr-metadata.sh
+}
+
+function run_governance_check() {
+  log 'Checking governance metadata...'
+  bash scripts/check/governance-metadata.sh
+}
+
+function run_rfc_check() {
+  log 'Checking RFC metadata...'
+  bash scripts/check/rfc-metadata.sh
 }
 
 function log() {

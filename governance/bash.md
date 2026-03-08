@@ -2,6 +2,10 @@
 
 These rules govern all bash scripts in this project. They are non-negotiable.
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-09
+
 ## Portability and Shell Baseline
 
 1. Google Bash style unless overridden by rules below.
