@@ -10,6 +10,11 @@ Consumed by AI coding tools (Claude, Cursor, Copilot) and human contributors ali
 | [governance/coding.md](governance/coding.md) | All code edits — scope control, reviewability, safety |
 | [governance/ci.md](governance/ci.md) | CI workflows and scripts — supply chain, coverage, permissions |
 | [governance/bash.md](governance/bash.md) | Bash scripts — portability, structure, logging |
+| [governance/platform.md](governance/platform.md) | Platform architecture — governance process, DNS, TLS, WAF, networking |
+| [governance/observability.md](governance/observability.md) | Metrics, logging, tracing, alerting |
+| [governance/security.md](governance/security.md) | IAM, encryption, key management, data classification |
+| [governance/runtime.md](governance/runtime.md) | Containers, orchestration, deployment, compliance |
+| [governance/api-management.md](governance/api-management.md) | API design, versioning, rate limiting, quotas, gateway |
 
 ## Consumption
 
@@ -70,6 +75,18 @@ Copy the relevant adapter to your repo and adjust paths if needed.
 ADRs documenting standards design decisions live in [docs/adr/](docs/adr/).
 
 New ADRs use the template at [docs/adr/0000-template.md](docs/adr/0000-template.md).
+
+| ADR | Decision |
+|---|---|
+| [0001](docs/adr/0001-standards-as-submodule-and-package.md) | Standards distributed as both submodule and language package |
+| [0002](docs/adr/0002-coverage-baseline-in-repo.md) | Code coverage baseline stored in repository |
+| [0003](docs/adr/0003-architecture-governance-process.md) | Architecture governance via DACI, RFC, and ARB |
+| [0004](docs/adr/0004-workload-identity-spiffe-spire.md) | SPIFFE/SPIRE for workload identity |
+| [0005](docs/adr/0005-observability-opentelemetry.md) | OpenTelemetry as the unified observability framework |
+| [0006](docs/adr/0006-opa-centralized-policy-engine.md) | OPA as the centralized authorization policy engine |
+| [0007](docs/adr/0007-zero-downtime-deployment.md) | Zero-downtime deployment via blue/green and canary |
+| [0008](docs/adr/0008-rapid-key-rotation.md) | Rapid key rotation with a 5-minute platform SLA |
+| [0009](docs/adr/0009-gitops-change-management.md) | GitOps as the declarative change management mechanism |
 
 ## Versioning
 
