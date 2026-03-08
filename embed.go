@@ -7,5 +7,5 @@ import "embed"
 
 // Governance exposes the governance markdown files as an embedded filesystem.
 //
-//go:embed ../governance/*.md
+//go:embed governance/*.md
 var Governance embed.FS

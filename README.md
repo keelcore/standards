@@ -28,6 +28,7 @@ git submodule update --init --recursive
 Reference governance from your tool adapters via relative paths (`.standards/governance/coding.md`).
 
 Update to latest:
+
 ```bash
 git submodule update --remote .standards
 git add .standards && git commit -m "chore: update standards"
@@ -40,6 +41,7 @@ go get github.com/keelcore/standards/go
 ```
 
 Add to your repo:
+
 ```go
 //go:generate go run github.com/keelcore/standards/go/cmd/materialize .standards
 ```

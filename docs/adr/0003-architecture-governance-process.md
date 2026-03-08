@@ -17,6 +17,7 @@ We adopt a three-layer governance model:
 
 **1. DACI for decision ownership**
 Every architecture decision has four defined roles:
+
 - **Driver** — authors the RFC and owns shepherding it to a decision.
 - **Approver** — has final authority (ARB chair or delegate). One Approver per decision.
 - **Consulted** — stakeholders whose input is sought before the decision.
@@ -46,6 +47,7 @@ These three artifacts serve different audiences and retention horizons.
 ## Consequences
 
 **Positive:**
+
 - Every significant decision has a named Driver and Approver — no diffusion of responsibility.
 - RFC archives provide a historical record of what was considered and why alternatives were rejected.
 - ARB cadence ensures standards drift is detected and corrected quarterly.
@@ -53,6 +55,7 @@ These three artifacts serve different audiences and retention horizons.
 - Versioned Architecture Standards documents satisfy audit and compliance requirements.
 
 **Negative:**
+
 - RFC process adds latency to decisions. Teams under delivery pressure will feel friction.
 - The ARB can become a bottleneck if meeting cadence slips or quorum is not maintained.
 - DACI requires discipline to name roles before work starts, not retroactively.
@@ -61,21 +64,25 @@ These three artifacts serve different audiences and retention horizons.
 ## Alternatives Considered
 
 ### Informal consensus with documented outcomes
+
 Decision made by whoever is in the room; a Confluence page is written afterward. Rejected
 because there is no defined Approver, no accountability for reaching closure, and the record
 is easily lost or edited without audit trail.
 
 ### RFC-only (no DACI, no ARB)
+
 RFCs are written but there is no formal body to approve them. Rejected because RFCs can sit
 in review indefinitely without a defined Approver, and cross-cutting concerns have no forum
 for adjudication.
 
 ### Architecture Decision Records only
+
 ADRs capture decisions but do not prescribe a process for reaching them. Rejected as the sole
 mechanism because ADRs alone do not answer: who can approve this, how long does review take,
 and who is notified of the outcome.
 
 ### Centralized Architecture team makes all decisions
+
 A small team of architects approves all platform changes. Rejected because it creates an
 unsustainable bottleneck, reduces domain team ownership, and produces decisions divorced from
 implementation context.

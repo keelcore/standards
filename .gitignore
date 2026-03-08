@@ -1,0 +1,48 @@
+# IDE — JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE — VS Code
+.vscode/
+
+# IDE — Cursor
+.cursor/
+
+# IDE — Vim / Neovim
+*.swp
+*.swo
+*~
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.Python
+
+# Go
+/vendor/
+
+# Script log files (written by scripts/lint.sh, scripts/release/*.sh, etc.)
+/tmp/*.log
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Materialize output (consumers gitignore this in their own repos)
+.standards/

@@ -11,6 +11,7 @@ configuration drift between the declared and actual state, a history that is not
 the change management process, and no built-in rollback mechanism.
 
 Compliance requirements (SOC-2 Type II, change management controls) require:
+
 - Every production change is approved before execution.
 - Every change is attributable to a named actor.
 - Every change has an audit trail.
@@ -57,6 +58,7 @@ published docs site.
 ## Consequences
 
 **Positive:**
+
 - Every production change is a Git commit — automatically timestamped, attributed, and linked
   to a PR with approval records.
 - Rollback of any change is a `git revert` (or branch reset), which itself goes through the
@@ -68,6 +70,7 @@ published docs site.
   no separate ITSM ticket or change calendar.
 
 **Negative:**
+
 - GitOps adds latency to simple one-liner changes. Applying a single environment variable
   change requires a PR, approval, and reconciliation loop — minimum several minutes.
 - The GitOps controller is a critical infrastructure component; its unavailability means
@@ -82,6 +85,7 @@ published docs site.
 ## Alternatives Considered
 
 ### ITSM-Based Change Management (ServiceNow, Jira tickets)
+
 Changes are tracked in a ticketing system. Engineers apply changes manually or via runbooks
 after ticket approval.
 
@@ -90,6 +94,7 @@ says what was requested, not what was done. Drift is invisible. Rollback require
 reversing the change, which is error-prone. Compliance evidence collection is manual.
 
 ### Immutable Infrastructure with Full Redeploys
+
 Every change triggers a full infrastructure rebuild from scratch (immutable AMIs, full cluster
 replacement).
 
@@ -98,6 +103,7 @@ changes; not all infrastructure is immutable by nature (databases, stateful serv
 handles stateful configuration changes that cannot use immutable infrastructure patterns.
 
 ### Ansible / Chef / Puppet (mutable configuration management)
+
 A configuration management agent applies desired state to running infrastructure.
 
 Rejected because: these tools apply state to existing running systems (mutable), not declare
@@ -105,6 +111,7 @@ desired state in a version-controlled source of truth. Drift between the configu
 state and Git is possible. The PR review workflow integration is weaker than GitOps.
 
 ### Manual Runbooks with CLI
+
 Engineers follow documented runbooks to apply changes and log actions in an incident management
 system.
 

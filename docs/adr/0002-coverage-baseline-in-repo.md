@@ -34,6 +34,7 @@ identity, signed, and uses the message `chore: update coverage baseline to XX.X%
 ## Consequences
 
 **Positive:**
+
 - Full audit trail via git blame and log — every baseline change is attributed, timestamped,
   and linked to the merge commit that caused it.
 - Zero external dependencies — no coverage service, no separate database, no API keys, no
@@ -45,6 +46,7 @@ identity, signed, and uses the message `chore: update coverage baseline to XX.X%
   artificially (e.g. deleted tests).
 
 **Negative:**
+
 - The repository accumulates baseline update commits on the default branch. These are low-signal
   noise in `git log`. Mitigated by using a consistent commit message prefix (`chore: update coverage`)
   that can be filtered.
@@ -59,6 +61,7 @@ identity, signed, and uses the message `chore: update coverage baseline to XX.X%
 ## Alternatives Considered
 
 ### GitHub Actions Cache
+
 Store baseline as a cache entry keyed to the default branch.
 
 Rejected because: cache entries are not version-controlled, have a 7-day TTL requiring active
@@ -66,6 +69,7 @@ maintenance, are not auditable, can be evicted under storage pressure, and are n
 outside GitHub Actions (developers cannot check the baseline locally).
 
 ### GitHub Artifact
+
 Upload baseline as a workflow artifact after each merge.
 
 Rejected because: artifacts expire (default 90 days), require artifact ID resolution to fetch
@@ -73,6 +77,7 @@ the latest, are not version-controlled, and add workflow complexity to locate th
 baseline artifact across runs.
 
 ### External Coverage Service (Codecov, Coveralls, SonarCloud)
+
 Push coverage data to a third-party service; query the API in PR CI.
 
 Rejected because: introduces an external dependency that can be unavailable, requires API keys
@@ -80,6 +85,7 @@ rotated and managed as secrets, has cost at scale, and creates a data egress cha
 coverage metrics. Acceptable as a supplementary visualization layer, not as the enforcement gate.
 
 ### Dedicated `coverage` Branch
+
 Store baseline in a long-lived orphan branch (similar to `gh-pages`).
 
 Rejected because: orphan branches require non-standard git operations, are confusing to
@@ -87,6 +93,7 @@ contributors, and provide no meaningful benefit over committing to the default b
 that the file is small and the commit cadence is low.
 
 ### Environment Variable / Repository Variable
+
 Store the baseline as a GitHub repository variable updated by CI.
 
 Rejected because: repository variables have no history, no blame, no rollback, and no local

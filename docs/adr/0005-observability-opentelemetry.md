@@ -11,6 +11,7 @@ backend, producing fragmented observability: trace IDs do not propagate across l
 boundaries, dashboards are inconsistent, and switching backends requires touching every service.
 
 The observability framework must:
+
 - Work across all supported languages without per-language reimplementation of propagation logic.
 - Decouple instrumentation from the backend — changing from one metrics or tracing vendor to
   another must not require changes to application code.
@@ -46,6 +47,7 @@ configuration lives in the Collector, not in individual services.
 ## Consequences
 
 **Positive:**
+
 - Instrumentation code is portable: switching backends requires only Collector reconfiguration,
   not application changes.
 - W3C TraceContext propagates traces across all languages and across external services that
@@ -57,6 +59,7 @@ configuration lives in the Collector, not in individual services.
   code changes.
 
 **Negative:**
+
 - OTel SDKs are still evolving; API stability varies by language and signal (logs API is less
   mature than traces). Teams may encounter breaking SDK changes across minor versions.
 - The OTel Collector DaemonSet is a required infrastructure component; its failure degrades
@@ -69,6 +72,7 @@ configuration lives in the Collector, not in individual services.
 ## Alternatives Considered
 
 ### Per-Language Vendor SDK (Datadog, New Relic, Honeycomb)
+
 Each team uses the vendor's native SDK for their language.
 
 Rejected because: traces do not propagate across language boundaries without vendor-specific
@@ -76,6 +80,7 @@ propagation headers; switching vendors requires touching every service; vendor S
 backend choice in application code.
 
 ### Prometheus client + Jaeger client (no OTel)
+
 Use Prometheus client libraries for metrics and the Jaeger client for tracing directly.
 
 Rejected because: two separate SDKs do not share context propagation; logs remain a third
@@ -83,6 +88,7 @@ unconnected stream. OTel provides a unified context model across all three signa
 and Jaeger are viable backends but the instrumentation layer should be OTel.
 
 ### No framework (structured logging only)
+
 All observability via structured logs; derive metrics and traces from log parsing.
 
 Rejected because: log-derived metrics have high cardinality cost and latency; trace reconstruction

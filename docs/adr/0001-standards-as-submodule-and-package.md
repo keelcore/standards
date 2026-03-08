@@ -29,12 +29,14 @@ Both mechanisms consume the same `governance/` directory. The package manifests 
 ## Consequences
 
 **Positive:**
+
 - Single source of truth for all governance content.
 - Version pinning is explicit and auditable regardless of consumption mechanism.
 - Language-native teams get their familiar workflow; polyglot teams use submodule.
 - A single tag in the standards repo triggers all package ecosystem publications via CI.
 
 **Negative:**
+
 - Publishing to three package ecosystems requires CI maintenance.
 - Submodule UX remains awkward for engineers unfamiliar with it.
 - Consumer repos must choose and document their consumption mechanism.

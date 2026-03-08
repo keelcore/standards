@@ -15,7 +15,7 @@ import (
 	"os"
 	"path/filepath"
 
-	standards "github.com/keelcore/standards/go"
+	standards "github.com/keelcore/standards"
 )
 
 func main() {

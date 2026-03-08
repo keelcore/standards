@@ -6,6 +6,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
 ## API Design
 
 ### Interface Contracts
+
 1. Every API exposes a machine-readable interface definition. REST APIs use OpenAPI 3.1+.
    gRPC services use Protocol Buffers with buf schema registry publication. GraphQL schemas
    are registered in the central schema registry.
@@ -15,6 +16,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
    (GET, POST, PUT, PATCH, DELETE) for operations, and standard status codes.
 
 ### Versioning
+
 4. All APIs are versioned. The version is embedded in the URL path for REST (`/v1/`, `/v2/`).
    gRPC APIs encode the version in the package name (`keelcore.auth.v1`).
 5. A version is considered stable once it is deployed to production. Stable versions must not
@@ -28,7 +30,9 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
    and in the API catalog.
 
 ### Error Responses
+
 9. All error responses use a consistent envelope:
+
    ```json
    {
      "error": {
@@ -39,12 +43,14 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
      }
    }
    ```
+
 10. `code` is a machine-readable uppercase string constant. `message` is human-readable.
     HTTP status codes and `code` values are documented in the API catalog.
 11. Error messages must not include internal implementation details (stack traces, SQL queries,
     internal service names) in production responses.
 
 ### Pagination
+
 12. All list endpoints that may return more than 100 items support cursor-based pagination.
     Offset pagination is acceptable only for internal tooling APIs.
 13. Page size has a maximum (default 100, configurable per endpoint, maximum 1000). Requests
@@ -55,6 +61,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
 ## Rate Limiting
 
 ### Global Limits
+
 15. All API traffic passes through the centralized rate limiting layer before reaching service pods.
 16. Global rate limits protect the platform from aggregate overload. These are set by the platform
     team and documented in the API catalog.
@@ -62,6 +69,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
     sustained rate for a window of up to 5 seconds.
 
 ### Per-Service and Per-Client Limits
+
 18. Every API defines explicit rate limits per endpoint. Rate limits are documented in the API
     catalog alongside the endpoint specification.
 19. Rate limits are enforced per API key, per client identity (OAuth client ID), or per
@@ -73,6 +81,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
     in-memory rate limiting that can be bypassed by round-robin routing is prohibited.
 
 ### Rate Limit Responses
+
 22. Rate-limited requests receive HTTP 429 with:
     - `Retry-After` header (seconds until the client may retry)
     - `X-RateLimit-Limit` (requests allowed per window)
@@ -82,6 +91,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
 23. Rate limit headers (`X-RateLimit-*`) are included on every API response, not only on 429s.
 
 ### Quotas
+
 24. Usage quotas (distinct from rate limits) enforce longer-window consumption caps (daily,
     monthly) per API key or tenant. Quotas are configured in the API management platform.
 25. Quota exhaustion returns HTTP 429 with `code: QUOTA_EXCEEDED` and a `Retry-After` pointing
@@ -92,6 +102,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
 ## Authentication and Authorization
 
 ### API Key Management
+
 27. API keys are issued by the central API management platform. Hand-crafted keys are prohibited.
 28. API keys are associated with: an owner (human or service), a set of allowed scopes, an
     expiry date, and an environment (keys do not cross environment boundaries).
@@ -103,6 +114,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
     emergency bulk revocation for a compromised credential class.
 
 ### Scopes and Permissions
+
 32. API scopes are defined at the resource level and follow the pattern `{resource}:{action}`
     (e.g., `orders:read`, `orders:write`). Wildcard scopes are prohibited for non-admin APIs.
 33. Clients are issued only the scopes they need. Over-provisioned scopes are flagged in the
@@ -112,6 +124,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
 ## API Gateway
 
 ### Gateway Responsibilities
+
 35. The API gateway handles: routing, authentication verification, rate limiting, WAF enforcement,
     request/response logging, and protocol translation (where needed).
 36. Business logic must not reside in gateway configuration. Transformation rules that implement
@@ -120,6 +133,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
     application code. Manual console edits are prohibited in staging and production.
 
 ### Backend Health and Circuit Breaking
+
 38. The gateway enforces circuit breakers for each upstream service. A service that exceeds the
     error threshold (5xx rate > 50% for 10 seconds) is circuit-broken; traffic is rejected at
     the gateway with HTTP 503 until the upstream recovers.
@@ -127,6 +141,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
     upstreams.
 
 ### Observability at the Gateway
+
 40. The gateway emits per-endpoint metrics: request rate, error rate, latency (p50/p95/p99),
     and upstream latency. These are automatically included in each API's RED dashboard.
 41. Every request is tagged with a `request_id` injected or verified by the gateway. The
@@ -135,6 +150,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
 ## API Lifecycle
 
 ### Catalog and Discovery
+
 42. Every API is registered in the central API catalog before its first production deployment.
     Unregistered APIs are blocked by admission control.
 43. The catalog entry includes: service owner, SLO, rate limits, authentication requirements,
@@ -143,6 +159,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
     discoverability.
 
 ### Deprecation and Retirement
+
 45. API retirement follows a defined process: announce deprecation (Sunset header + catalog
     update), monitor usage, notify active consumers, enforce sunset date.
 46. An API version with active traffic cannot be retired without consumer migration or an
@@ -151,6 +168,7 @@ developer experience. They are non-negotiable unless explicitly superseded by a 
     consumed APIs, 30 days for internal-only APIs.
 
 ## Do Not
+
 - Publish an API without an OpenAPI/Protobuf spec in the central catalog.
 - Make breaking changes to a stable API version.
 - Issue API keys outside the central API management platform.

@@ -11,6 +11,7 @@ create credential sprawl, make rotation difficult, and produce credentials that 
 workloads they were issued for.
 
 The platform runs on Kubernetes with a service mesh. The identity system must be:
+
 - Cryptographically verifiable (not based on claimed headers or IP address).
 - Automatic — no human issues or rotates credentials for individual service instances.
 - Short-lived — credential lifetime is bounded by the workload lifetime, not a renewal schedule.
@@ -37,6 +38,7 @@ include a short `exp` claim (maximum 15 minutes).
 ## Consequences
 
 **Positive:**
+
 - No shared secrets or static API keys for service-to-service auth — credential sprawl eliminated.
 - Automatic rotation with 24-hour maximum lifetime limits blast radius of a compromised SVID.
 - SPIFFE IDs are platform-agnostic; workloads can move between Kubernetes clusters and on-prem
@@ -46,6 +48,7 @@ include a short `exp` claim (maximum 15 minutes).
 - SPIFFE is a CNCF graduated project with wide industry adoption and active maintenance.
 
 **Negative:**
+
 - SPIRE server is a critical infrastructure component; its unavailability prevents new
   workload identity issuance. High-availability SPIRE server deployment is required.
 - Teams unfamiliar with PKI concepts will need training to understand SVIDs and trust bundles.
@@ -57,6 +60,7 @@ include a short `exp` claim (maximum 15 minutes).
 ## Alternatives Considered
 
 ### Kubernetes Service Account Tokens with Projected Volumes
+
 Kubernetes issues OIDC-backed JWT tokens to pods via projected volumes. Tokens are short-lived
 (default 1 hour) and bound to the pod's service account.
 
@@ -66,6 +70,7 @@ cluster's Kubernetes API server and does not support multi-cluster or off-cluste
 without additional complexity.
 
 ### HashiCorp Vault AppRole / Kubernetes Auth
+
 Vault issues secrets to pods that authenticate via Kubernetes service account tokens.
 
 Rejected as the primary identity mechanism because: it adds Vault as a dependency on the
@@ -74,6 +79,7 @@ values, not for identity), but identity must not depend on a separate secret-inj
 per workload.
 
 ### Static mTLS Certificates per Service
+
 A PKI team issues long-lived certificates per service, distributed via Kubernetes secrets.
 
 Rejected because: manual issuance and rotation does not scale; long-lived certificates
@@ -81,6 +87,7 @@ Rejected because: manual issuance and rotation does not scale; long-lived certif
 path for compromised instances.
 
 ### Network-Level Identity (IP-based)
+
 Trust the source IP address to determine caller identity.
 
 Rejected immediately. IP addresses are not cryptographically bound to an identity; NAT and

@@ -11,6 +11,7 @@ check) requires coordinated changes across multiple services. There is no single
 what policies are in force or to verify that they are consistently applied.
 
 Authorization logic must be:
+
 - Centrally defined and auditable — one place to read and change policy.
 - Decoupled from application business logic — services query for decisions, not compute them.
 - Versioned and rollback-capable — bad policy changes must be reversible within minutes.
@@ -48,6 +49,7 @@ restrictive but not more permissive.
 ## Consequences
 
 **Positive:**
+
 - Single source of truth for all authorization policy — one PR to change behavior everywhere.
 - Rego is declarative and testable — policies can be verified in CI before deployment.
 - OPA provides a decision log that is ingested by the audit log pipeline — every authorization
@@ -56,6 +58,7 @@ restrictive but not more permissive.
 - OPA is a CNCF graduated project with wide adoption in Kubernetes environments.
 
 **Negative:**
+
 - Rego has a learning curve. Teams accustomed to imperative authorization code must learn a
   new language.
 - The sidecar OPA instance is a per-pod infrastructure component. It increases pod startup time
@@ -68,6 +71,7 @@ restrictive but not more permissive.
 ## Alternatives Considered
 
 ### Per-Service Authorization Logic
+
 Each service implements its own authorization in application code.
 
 Rejected because: policy is duplicated and diverges; changing platform-wide policy requires
@@ -75,12 +79,14 @@ coordinating deployments across every affected service; there is no unified audi
 authorization decisions; testing is service-scoped, not platform-scoped.
 
 ### Casbin (embedded library)
+
 Use the Casbin authorization library embedded in each service.
 
 Rejected because: while Casbin unifies the policy model, policies remain per-service; there
 is no centralized policy store; policy changes still require per-service deployments.
 
 ### Service Mesh Authorization Policy Only
+
 Use Istio/Linkerd authorization policies for all access control.
 
 Rejected because: service mesh policies are coarse-grained (service-to-service, L4/L7 path).
@@ -89,6 +95,7 @@ records where tenant_id matches their tenant"). OPA handles both coarse and fine
 authorization; mesh policy handles only the coarse layer.
 
 ### Cloud IAM (AWS IAM, GCP IAM)
+
 Use the cloud provider's IAM as the authorization engine.
 
 Rejected because: cloud IAM is scoped to cloud resources (S3, GCS, Pub/Sub). It cannot

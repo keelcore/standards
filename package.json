@@ -8,6 +8,10 @@
     "governance/"
   ],
   "scripts": {
-    "prepublishOnly": "node -e \"require('fs').readdirSync('./governance').forEach(f => console.log('governance:', f))\""
+    "prepublishOnly": "node -e \"require('fs').readdirSync('./governance').forEach(f => console.log('governance:', f))\"",
+    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\""
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "^0.17.0"
   }
 }

@@ -10,6 +10,7 @@ and connection draining. As the platform serves more traffic and upstream consum
 SLA requirements, even brief interruptions are unacceptable.
 
 Zero-downtime deployment requires coordination across four dimensions:
+
 1. Traffic — requests must not be dropped mid-deployment.
 2. API compatibility — old clients must be served correctly while new code is rolling out.
 3. Schema — database and event schemas must be readable and writable by both old and new code
@@ -42,6 +43,7 @@ See ADR on API versioning for the full lifecycle policy.
 
 **Schema migration (phased, non-breaking):**
 Database and event schema changes follow a phased approach:
+
 1. Deploy Phase 1: add new column/field, backward-compatible with old code (old code ignores it).
 2. Deploy Phase 2: new code writes both old and new; application is verified stable.
 3. Run data backfill/migration.
@@ -59,6 +61,7 @@ back the artifact. Flags are the rollback mechanism for behavior, not for code.
 ## Consequences
 
 **Positive:**
+
 - Zero dropped requests during deployments: connection draining and traffic shaping ensure
   in-flight requests complete before old pods are terminated.
 - Instant rollback for behavior changes without artifact rollback: toggle the feature flag.
@@ -68,6 +71,7 @@ back the artifact. Flags are the rollback mechanism for behavior, not for code.
   for a new rolling deploy.
 
 **Negative:**
+
 - Running two versions simultaneously during a deployment increases resource usage temporarily.
 - Phased schema migrations add latency — a schema change that would take minutes in a big-bang
   migration now spans multiple deployment cycles.
@@ -82,6 +86,7 @@ back the artifact. Flags are the rollback mechanism for behavior, not for code.
 ## Alternatives Considered
 
 ### Big-Bang (Recreate) Deployment
+
 Terminate all old pods, then start new pods.
 
 Rejected for production use because: unavoidable downtime during the transition window;
@@ -89,12 +94,14 @@ all traffic fails during pod startup; rollback requires another full cycle. Perm
 non-production environments where downtime is acceptable.
 
 ### In-Place Upgrade (patch running containers)
+
 Modify the running container image without stopping the pod.
 
 Rejected because: this is not a supported Kubernetes operation; it bypasses the pod lifecycle,
 probe evaluation, and resource allocation. It is unauditable and non-reproducible.
 
 ### Feature Flags as the Only Rollout Mechanism (no traffic shaping)
+
 Deploy 100% of traffic to new code instantly, use feature flags to gate new behavior.
 
 Rejected as the complete strategy because: flags gate behavior, not code. Code bugs (panics,
@@ -103,6 +110,7 @@ Traffic shaping ensures new code handles only a fraction of requests while its h
 verified.
 
 ### Manual Canary (human-driven promotion)
+
 SRE manually monitors the canary and promotes or rolls back based on judgment.
 
 Rejected as the primary mechanism because: human reaction time is too slow for high-traffic

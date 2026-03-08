@@ -14,6 +14,7 @@ Manual rotation procedures are too slow and error-prone under incident condition
 that require a restart to pick up new keys extend the rotation window and cause downtime.
 
 Requirements for key rotation:
+
 - Platform-wide propagation must complete in 5 minutes or less.
 - Services must not require a restart to reload keys.
 - Rotation must be triggered programmatically (automated schedule and emergency manual trigger).
@@ -32,6 +33,7 @@ or a push notification from the key management system (KMS webhook or watch API)
 not poll for key changes on a long interval; push-based notification is required.
 
 **Key material sources:**
+
 - SPIFFE SVIDs: rotated by SPIRE automatically; services reload via the Workload API watch stream.
   SPIRE is configured with a maximum SVID TTL of 24 hours and a rotation buffer of 50% of TTL.
 - Data-at-rest encryption keys: rotated by the KMS (HashiCorp Vault or cloud-native KMS).
@@ -60,6 +62,7 @@ staging triggers a remediation review.
 ## Consequences
 
 **Positive:**
+
 - A compromised key is rotated across the entire platform within 5 minutes, minimizing
   attacker dwell time after detection.
 - Signal-based reload means rotation is zero-downtime — no pod restarts are required.
@@ -69,6 +72,7 @@ staging triggers a remediation review.
 - Audit logs provide a complete rotation history for compliance and post-incident review.
 
 **Negative:**
+
 - Signal-based reload requires that applications implement a signal handler that atomically
   replaces key material in memory. This is a non-trivial implementation requirement that must
   be enforced via SDK-level support.
@@ -85,6 +89,7 @@ staging triggers a remediation review.
 ## Alternatives Considered
 
 ### Periodic Scheduled Rotation Only (No Emergency Path)
+
 Rotate keys on a fixed schedule (e.g., every 24 hours) via a cron job.
 
 Rejected because: scheduled rotation does not address the emergency case where a key is
@@ -92,6 +97,7 @@ known or suspected to be compromised. The attacker's dwell time is bounded only 
 rotation schedule, not by detection time.
 
 ### Restart-Based Reload
+
 Trigger a rolling restart of all pods to pick up new key material from the environment
 or mounted secret.
 
@@ -100,6 +106,7 @@ CPU and memory burst capacity; they trigger readiness probe failures and briefly
 serving capacity. A restart-based approach cannot meet the 5-minute SLA at scale.
 
 ### Long-Lived Keys with Revocation Lists
+
 Issue long-lived keys and maintain a Certificate Revocation List (CRL) or OCSP responder.
 
 Rejected because: CRL propagation delay can be hours or days; OCSP adds a synchronous
@@ -107,6 +114,7 @@ network call to every authentication; revocation list maintenance is operational
 Short-lived keys with rapid rotation are strictly better than long-lived keys with revocation.
 
 ### Manual Rotation Procedure
+
 Document a runbook and rely on human execution during incidents.
 
 Rejected because: human execution under incident pressure introduces errors; coordination
