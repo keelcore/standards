@@ -1,0 +1,13 @@
+{
+  "name": "@keelcore/standards",
+  "version": "0.1.0",
+  "description": "Engineering standards for keelcore projects — coding, CI, and bash.",
+  "keywords": ["standards", "engineering", "ci", "coding", "ai"],
+  "license": "MIT",
+  "files": [
+    "governance/"
+  ],
+  "scripts": {
+    "prepublishOnly": "node -e \"require('fs').readdirSync('./governance').forEach(f => console.log('governance:', f))\""
+  }
+}

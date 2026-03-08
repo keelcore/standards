@@ -1,0 +1,6 @@
+---
+description: CI standards — apply to all workflow and script work
+alwaysApply: true
+---
+
+@../../governance/ci.md
