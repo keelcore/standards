@@ -1,0 +1,6 @@
+---
+description: Security standards — apply to all code edits
+alwaysApply: true
+---
+
+@../../governance/security.md
