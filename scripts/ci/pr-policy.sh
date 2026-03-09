@@ -20,10 +20,10 @@ set -o errexit
 set -o pipefail
 
 # Conventional commit types allowed in PR titles.
-readonly CONVENTIONAL_TYPES='feat|fix|docs|chore|refactor|test|ci|perf|build|revert'
+readonly CONVENTIONAL_TYPES='feat|fix|docs|chore|refactor|test|ci|perf|build|revert|dependabot'
 
 # Branch naming pattern: type/short-description or username/short-description
-readonly BRANCH_PATTERN='^(feat|fix|docs|chore|refactor|test|ci|perf|build|revert|adr|rfc)/[a-z0-9-]+$'
+readonly BRANCH_PATTERN='^(feat|fix|docs|chore|refactor|test|ci|perf|build|revert|dependabot|adr|rfc)/[a-z0-9-]+$'
 
 # Minimum PR body length (characters) to reject template stubs.
 readonly MIN_BODY_LENGTH=50
