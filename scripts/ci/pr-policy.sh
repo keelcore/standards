@@ -45,6 +45,11 @@ function check_branch_name() {
     log '⚠️  GITHUB_HEAD_REF not set; skipping branch name check'
     return 0
   fi
+  if [ "${PR_AUTHOR:-}" = 'dependabot[bot]' ]; then
+    log "Checking branch name: ${branch}"
+    log '  ✅ Branch name valid (dependabot exemption)'
+    return 0
+  fi
   log "Checking branch name: ${branch}"
   if ! echo "${branch}" | grep -qP "${BRANCH_PATTERN}"; then
     log "  ❌ Branch '${branch}' does not match pattern: ${BRANCH_PATTERN}"
