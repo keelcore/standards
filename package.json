@@ -2,7 +2,13 @@
   "name": "@keelcore/standards",
   "version": "0.1.0",
   "description": "Engineering standards for keelcore projects — coding, CI, and bash.",
-  "keywords": ["standards", "engineering", "ci", "coding", "ai"],
+  "keywords": [
+    "standards",
+    "engineering",
+    "ci",
+    "coding",
+    "ai"
+  ],
   "license": "MIT",
   "files": [
     "governance/"
@@ -12,6 +18,6 @@
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\""
   },
   "devDependencies": {
-    "markdownlint-cli2": "^0.17.0"
+    "markdownlint-cli2": "^0.21.0"
   }
 }

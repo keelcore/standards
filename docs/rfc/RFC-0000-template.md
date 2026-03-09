@@ -52,7 +52,7 @@ What must be true for this RFC to be considered Implemented?
 ## RFC Lifecycle
 
 | Status | Meaning |
-|---|---|
+| --- | --- |
 | Draft | Author is preparing the proposal; not yet open for comment |
 | Under Discussion | PR is open; contributors are reviewing and commenting |
 | Accepted | Approver has signed off; RFC will proceed to implementation |

@@ -6,7 +6,7 @@ Consumed by AI coding tools (Claude, Cursor, Copilot) and human contributors ali
 ## Governance
 
 | File | Scope |
-|---|---|
+| --- | --- |
 | [governance/coding.md](governance/coding.md) | All code edits — scope control, reviewability, safety |
 | [governance/ci.md](governance/ci.md) | CI workflows and scripts — supply chain, coverage, permissions |
 | [governance/bash.md](governance/bash.md) | Bash scripts — portability, structure, logging |
@@ -67,7 +67,7 @@ pip install keelcore-standards
 Copy the relevant adapter to your repo and adjust paths if needed.
 
 | Tool | Adapter |
-|---|---|
+| --- | --- |
 | Claude Code | [adapters/claude/CLAUDE.md](adapters/claude/CLAUDE.md) |
 | Cursor | [adapters/cursor/](adapters/cursor/) |
 | GitHub Copilot | [adapters/copilot/copilot-instructions.md](adapters/copilot/copilot-instructions.md) |
@@ -79,7 +79,7 @@ ADRs documenting standards design decisions live in [docs/adr/](docs/adr/).
 New ADRs use the template at [docs/adr/0000-template.md](docs/adr/0000-template.md).
 
 | ADR | Decision |
-|---|---|
+| --- | --- |
 | [0001](docs/adr/0001-standards-as-submodule-and-package.md) | Standards distributed as both submodule and language package |
 | [0002](docs/adr/0002-coverage-baseline-in-repo.md) | Code coverage baseline stored in repository |
 | [0003](docs/adr/0003-architecture-governance-process.md) | Architecture governance via DACI, RFC, and ARB |
