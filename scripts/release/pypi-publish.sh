@@ -36,7 +36,15 @@ function validate_env() {
 
 function install_tooling() {
   log 'Installing hatch and twine...'
-  pip install --quiet hatch twine
+  if [ -n "${CI:-}" ]; then
+    # CI environments use plain pip without PEP 668 restrictions.
+    pip install --quiet hatch twine
+  else
+    # Locally, pip may refuse to install into a Homebrew-managed Python (PEP 668).
+    # Use pipx, which installs CLI tools into isolated environments.
+    command -v hatch >/dev/null 2>&1 || pipx install hatch
+    command -v twine >/dev/null 2>&1 || pipx install twine
+  fi
   log '✅ Tooling installed'
 }
 

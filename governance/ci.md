@@ -248,6 +248,80 @@ it does not duplicate their logic.
 - Encode target OS, architecture, and feature profile in artifact filenames.
 - Names must be explicit, stable, and reviewable.
 
+## Release Tagging
+
+### Versioning Specification
+
+All version numbers follow **Semantic Versioning 2.0.0** — [https://semver.org](https://semver.org).
+That document is canonical and must not be contradicted by project-specific rules.
+Version tags take the form `vMAJOR.MINOR.PATCH` with no pre-release or build-metadata
+extensions at this time.
+
+Specific semver.org rules in force:
+
+- **[Item 2](https://semver.org/#spec-item-2):** Version numbers take the form
+  `MAJOR.MINOR.PATCH` — non-negative integers, no leading zeroes.
+- **[Item 4](https://semver.org/#spec-item-4):** MAJOR is incremented for incompatible
+  API changes; MINOR and PATCH reset to 0.
+- **[Item 5](https://semver.org/#spec-item-5):** MINOR is incremented for new
+  backward-compatible functionality; PATCH resets to 0.
+- **[Item 6](https://semver.org/#spec-item-6):** PATCH is incremented for
+  backward-compatible bug fixes only.
+- **[Item 9](https://semver.org/#spec-item-9):** Major version zero (`0.y.z`) is for
+  initial development. The public API is not yet stable and anything may change.
+- **[Item 10](https://semver.org/#spec-item-10):** `1.0.0` defines the first stable
+  public API. Subsequent increments follow the rules above without exception.
+
+### Tagging is a Developer Action — Never CI
+
+- Release version tags (`vX.Y.Z`) are created exclusively by developers running
+  `scripts/release/create-release.sh` from a local checkout.
+- CI must never create, push, or move version tags under any circumstance.
+- This is a hard policy: no workflow file may contain `git tag`, `git push --tags`,
+  or equivalent tag-creation steps.
+- Rationale: a tag is a public commitment about what version of the software a
+  commit represents. That decision requires human judgment and cannot be delegated
+  to automation.
+
+### Automatic Tag Triggering Is Permitted
+
+- CI workflows *triggered by* a pushed tag (e.g. `on: push: tags: ['v*']`) are
+  permitted and expected — they run the release pipeline once a developer has
+  pushed a tag.
+- The distinction is: CI reacts to tags; CI does not create tags.
+
+### Version Computation
+
+- Bump level (major / minor / patch) is derived from `pkg/config/schema.yaml` by
+  diffing the field set at the previous tag against the field set at HEAD:
+  - Removed fields → breaking change → major bump
+    ([semver.org item 4](https://semver.org/#spec-item-4)).
+  - Added fields (no removals) → new feature → minor bump
+    ([semver.org item 5](https://semver.org/#spec-item-5)).
+  - No field surface change → patch bump
+    ([semver.org item 6](https://semver.org/#spec-item-6)).
+- `scripts/release/create-release.sh` performs this computation, presents
+  findings to the developer for approval, then creates and pushes the annotated
+  tag on confirmation.
+- `scripts/release/gen-schema.sh` regenerates `pkg/config/schema.yaml` from
+  `cmd/config-schema/main.go` after any change to the config struct. The
+  consistency suite enforces that `schema.yaml` is never stale.
+
+### --force Override Rules
+
+Developers may override the computed version with `--force vX.Y.Z`. Only bare
+`MAJOR.MINOR.PATCH` versions are accepted; pre-release identifiers (`-alpha.1`)
+and build metadata (`+sha`) are not supported by the tooling at this time.
+
+- **Pre-1.0 (major = 0):** Only versions in the `0.x.y` range or exactly `v1.0.0`
+  are accepted. Forcing `v1.1.0` or `v2.0.0` from a `0.x` base is rejected.
+- **Post-1.0 (major ≥ 1):** `--force` is restricted to exact single-step increments:
+  - Patch: `cur_maj.cur_min.(cur_pat+1)` — always allowed.
+  - Minor: `cur_maj.(cur_min+1).0` — always allowed (e.g. internal improvements).
+  - Major: only accepted when breaking changes are detected **and** the forced
+    version exactly matches the auto-computed version. `--force` cannot suppress
+    or redirect a breaking-change bump, and cannot skip versions.
+
 ## Do Not
 
 - Omit `workflow_dispatch:` from any workflow's trigger block.
@@ -264,3 +338,5 @@ it does not duplicate their logic.
 - Skip the PR policy gate for any PR regardless of urgency (break-glass procedure exists for emergencies).
 - Allow release jobs to run without environment protection and required human reviewers.
 - Ship release artifacts without provenance attestation, signatures, or checksums.
+- Create, push, or move version tags from CI. Tags are a developer action only.
+- Bypass the `create-release.sh` script to tag manually without the schema-diff approval step.
