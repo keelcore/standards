@@ -1,5 +1,9 @@
 # Release Policy
 
+**Maturity:** Required
+**Version:** 1.0.0
+**Last Reviewed:** 2026-03-11
+
 This document covers how Keel versions are tagged and released. The authoritative
 policy lives in the [keelcore/standards `ci.md`](ci.md)
 under **Release Tagging**. This document is the developer-facing how-to that
@@ -46,7 +50,7 @@ decision requires review and cannot be automated.
 ## Tooling
 
 | Script | Purpose |
-|---|---|
+| --- | --- |
 | `scripts/release/create-release.sh` | Compute, approve, tag, and push a release |
 | `scripts/release/gen-schema.sh` | Regenerate `pkg/config/schema.yaml` after config changes |
 | `cmd/config-schema/main.go` | Go tool: reflection-walk of `config.Config` → dotted YAML paths |
@@ -63,7 +67,7 @@ at `HEAD`. The schema lists every fully-flattened dotted YAML field path in
 `config.Config` (e.g. `sidecar.circuit_breaker.reset_timeout`).
 
 | Schema change | Bump level | semver.org rationale |
-|---|---|---|
+| --- | --- | --- |
 | One or more fields **removed** | **major** — breaking change | Removing a field is an incompatible API change ([item 4](https://semver.org/#spec-item-4)) |
 | One or more fields **added**, none removed | **minor** — new feature | New fields are backward-compatible additions ([item 5](https://semver.org/#spec-item-5)) |
 | No field surface changes | **patch** — internal improvements | No public API surface change ([item 6](https://semver.org/#spec-item-6)) |
@@ -72,7 +76,7 @@ at `HEAD`. The schema lists every fully-flattened dotted YAML field path in
 
 ## Normal Release Flow
 
-```
+```bash
 git checkout main && git pull --ff-only
 # ... merge your work ...
 ./scripts/release/create-release.sh
@@ -118,7 +122,7 @@ Once `1.0.0` is released the public API is stable. `--force` is restricted to
 exact single-step increments per semver.org's ordering rules:
 
 | `--force` target | Condition | Result |
-|---|---|---|
+| --- | --- | --- |
 | `cur_maj.cur_min.(cur_pat+1)` | any | **Allowed** — single patch step |
 | `cur_maj.(cur_min+1).0` | any | **Allowed** — single minor step (e.g. internal improvements not reflected in schema diff) |
 | `(cur_maj+1).0.0` | breaking changes detected AND matches computed version | **Allowed** |
