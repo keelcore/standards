@@ -35,6 +35,15 @@ YAML may only contain:
 One script per concern. Scripts are the canonical entry point for all CI logic. Workflow YAML invokes them;
 it does not duplicate their logic.
 
+## Makefile Entrypoints
+
+- Every `run:` step in workflow YAML MUST be `make <target>` and nothing else.
+- No `run:` may call bash, sh, bats, go, chmod, or any tool directly.
+- Each CI concern maps to exactly one Makefile target.
+- Multi-command steps must be aggregated into one target; YAML calls the target.
+- Setup steps (tooling, fixtures) are also Makefile targets (e.g. `make setup-bats`).
+- The Makefile is the single dev-facing interface: what CI calls, a developer can call locally.
+
 ## Build Platform vs. Target Platform
 
 - Prefer build-once, deploy/validate-everywhere.
@@ -325,7 +334,7 @@ and build metadata (`+sha`) are not supported by the tooling at this time.
 ## Do Not
 
 - Omit `workflow_dispatch:` from any workflow's trigger block.
-- Embed build/test/lint commands directly in YAML `run:` blocks when a script exists for that concern.
+- Call bash, tools, or scripts directly from any YAML `run:` step — every `run:` must be `make <target>`.
 - Rebuild artifacts in downstream jobs that could download a previously built artifact.
 - Use per-OS build matrices when cross-compilation achieves the same result.
 - Mix concerns (build + test + publish) in one script or one job.
