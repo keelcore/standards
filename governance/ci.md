@@ -43,6 +43,60 @@ it does not duplicate their logic.
 - Multi-command steps must be aggregated into one target; YAML calls the target.
 - Setup steps (tooling, fixtures) are also Makefile targets (e.g. `make setup-bats`).
 - The Makefile is the single dev-facing interface: what CI calls, a developer can call locally.
+- Every `scripts/**/*.sh` file (except sourced library files under `scripts/lib/`) MUST have a
+  Makefile target that invokes it — the script path must appear in a Makefile recipe.
+
+## Universal Canonical Makefile Targets
+
+Every project MUST define these language-independent targets. They form a stable, tool-agnostic
+interface for humans and CI alike.
+
+| Target | Responsibility |
+|---|---|
+| `make build` | Build the default artifact (binary, image, package). |
+| `make lint` | Run all linters (format check + static analysis). |
+| `make test` | Run the full test suite (unit + integration). |
+| `make unit-test` | Run unit tests only. |
+| `make integration-test` | Run integration/BATS/end-to-end tests only. |
+| `make clean` | Remove build artifacts and generated files. |
+| `make audit` | Run the CI/standards compliance auditor. |
+
+Rules:
+- These names are fixed; projects may not rename or skip them.
+- Targets may delegate to other targets or scripts but must exist.
+- Language-specific subtargets (e.g. `make lint-go`, `make test-unit`) are additive; they do not
+  replace the universal targets.
+
+## CI Auditor
+
+- Every project MUST include `scripts/ci/audit-make-targets.sh`.
+- The auditor enforces the three invariants:
+  1. All workflow `run:` steps are `make <target>`.
+  2. All `scripts/**/*.sh` files (except `scripts/lib/`) have a Makefile target.
+  3. All universal canonical targets exist in the Makefile.
+- `make audit` invokes the auditor.
+- The auditor MUST be a required CI step (add to the workflow as `run: make audit`).
+- The auditor MUST be wired into the pre-commit hook, gated on changes to
+  `.github/workflows/`, `scripts/`, or `Makefile`.
+
+## Canonical CI Scripts
+
+Every project MUST include the following scripts. Their names and responsibilities are fixed.
+
+| Script | Makefile target | Responsibility |
+|---|---|---|
+| `scripts/ci/pr-policy.sh` | `make ci-pr-policy` | PR policy gate (title, body, branch, linked issue). |
+| `scripts/ci/secret-scan.sh` | `make ci-secret-scan` | Secret scanning on every PR and push to default branch. |
+| `scripts/ci/dco-check.sh` | `make ci-dco` | DCO Signed-off-by trailer verification. |
+| `scripts/ci/audit-make-targets.sh` | `make audit` | CI/Makefile standards compliance auditor. |
+| `scripts/lint/newlines.sh` | `make lint-newlines` | Trailing newline enforcement for text files. |
+
+## Source File Formatting Invariants
+
+- Every `.md`, `.sh`, and `.go` file (and other text-format source files) MUST end with a single
+  trailing newline (`\n`). Files without a trailing newline fail the pre-commit hook and CI.
+- Enforce via `scripts/lint/newlines.sh`; auto-fix via `scripts/lint/newlines.sh --fix`.
+- The pre-commit hook checks staged files; `make lint-newlines` checks the full tree.
 
 ## Build Platform vs. Target Platform
 
