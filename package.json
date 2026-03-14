@@ -10,6 +10,10 @@
     "ai"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/keelcore/standards"
+  },
   "files": [
     "governance/"
   ],
