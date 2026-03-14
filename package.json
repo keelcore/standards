@@ -1,6 +1,6 @@
 {
   "name": "@keelcore/standards",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Engineering standards for keelcore projects — coding, CI, and bash.",
   "keywords": [
     "standards",

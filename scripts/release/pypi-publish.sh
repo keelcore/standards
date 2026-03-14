@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # scripts/release/pypi-publish.sh
 # Builds the keelcore-standards wheel and sdist for PyPI.
+# Version is derived from the git tag (GITHUB_REF_NAME or INPUT_TAG).
 # Upload is handled by pypa/gh-action-pypi-publish (Trusted Publisher / OIDC)
 # in CI, or manually via twine locally.
 
@@ -18,7 +19,23 @@ function main() {
   exec 5>&1
   validate_env
   install_tooling
+  local tag version
+  tag="$(resolve_tag)"
+  version="${tag#v}"
+  log "Building keelcore-standards==${version}..."
+  hatch version "${version}"
   build
+}
+
+function resolve_tag() {
+  if [ -n "${GITHUB_REF_NAME:-}" ]; then
+    printf '%s' "${GITHUB_REF_NAME}"
+  elif [ -n "${INPUT_TAG:-}" ]; then
+    printf '%s' "${INPUT_TAG}"
+  else
+    log '❌ Cannot resolve tag: GITHUB_REF_NAME and INPUT_TAG are both unset'
+    exit 1
+  fi
 }
 
 function validate_env() {
