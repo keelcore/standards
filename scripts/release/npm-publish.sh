@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/release/npm-publish.sh
 # Publishes @keelcore/standards to the npm registry.
-# Requires NODE_AUTH_TOKEN to be set in the environment.
+# Uses OIDC trusted publishing — no token required in CI.
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -21,10 +21,6 @@ function main() {
 
 function validate_env() {
   log 'Validating environment...'
-  if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-    log '❌ NODE_AUTH_TOKEN is not set'
-    exit 1
-  fi
   if [ ! -f 'package.json' ]; then
     log '❌ package.json not found; run from the repository root'
     exit 1
