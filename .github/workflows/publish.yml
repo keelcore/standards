@@ -60,7 +60,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Attest npm provenance
-        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669e5  # v2.3.0
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
         with:
           subject-path: "*.tgz"
 
@@ -85,7 +85,7 @@ jobs:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
       - name: Attest PyPI provenance
-        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669e5  # v2.3.0
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
         with:
           subject-path: "dist/*"
 

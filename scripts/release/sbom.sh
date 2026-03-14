@@ -39,8 +39,8 @@ function generate_sbom() {
   log "Generating SBOM → ${OUTPUT_FILE}..."
   syft scan dir:. \
     --output spdx-json="${OUTPUT_FILE}" \
-    --exclude '.git' \
-    --exclude 'node_modules'
+    --exclude './.git' \
+    --exclude '**/node_modules'
   log "✅ SBOM generated: ${OUTPUT_FILE}"
 }
 

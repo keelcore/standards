@@ -46,3 +46,4 @@ venv/
 
 # Materialize output (consumers gitignore this in their own repos)
 .standards/
+.claude

@@ -14,7 +14,7 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
-readonly MODULE='github.com/keelcore/standards/go'
+readonly MODULE='github.com/keelcore/standards'
 
 function main() {
   exec 5>&1
