@@ -14,6 +14,14 @@ permissions:
   contents: read
 
 jobs:
+  audit:
+    name: audit / makefile
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - run: make audit
+
   pr-policy:
     name: policy / pr
     runs-on: ubuntu-latest
@@ -28,7 +36,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 2
-      - run: bash scripts/ci/pr-policy.sh
+      - run: make ci-pr-policy
 
   check-governance:
     name: check / governance metadata
@@ -36,9 +44,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - run: bash scripts/check/adr-metadata.sh
-      - run: bash scripts/check/governance-metadata.sh
-      - run: bash scripts/check/rfc-metadata.sh
+      - run: make check-adr-metadata
+      - run: make check-governance-metadata
+      - run: make check-rfc-metadata
 
   lint-markdown:
     name: lint / markdown
@@ -53,7 +61,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: "package-lock.json"
 
-      - run: bash scripts/lint/markdown.sh
+      - run: make setup-markdownlint
+      - run: make lint-newlines
+      - run: make lint-md
 
   lint-bash:
     name: lint / bash
@@ -62,10 +72,8 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
-      - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
-
-      - run: bash scripts/lint/shellcheck.sh
+      - run: make setup-shellcheck
+      - run: make lint-bash
 
   verify-go:
     name: verify / go module
@@ -79,4 +87,4 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - run: bash scripts/verify/go.sh
+      - run: make verify-go

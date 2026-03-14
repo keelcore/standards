@@ -109,24 +109,44 @@ replace the universal targets.
 - The auditor MUST be wired into the pre-commit hook, gated on changes to
   `.github/workflows/`, `scripts/`, or `Makefile`.
 
+### Canonical Script Source of Truth
+
+The source-of-truth copies of all canonical scripts live in the `keelcore/standards` repository
+(`scripts/` directory). Downstream repos MUST keep their copies byte-identical to the standards
+versions. Any change to a canonical script must be made first in `keelcore/standards` and then
+propagated to all downstream repos.
+
+To verify that a downstream repo's canonical scripts match the standards source of truth, run:
+
+```bash
+make verify-canonical REPO=<path-to-downstream-repo-root>
+```
+
+from the `keelcore/standards` repository root. This compares `sha256sum` of each mandatory script
+and reports PASS/FAIL per file, exiting 1 if any mismatch is found.
+
 ## Canonical CI Scripts
 
 Scripts whose names and responsibilities are fixed across all projects. Projects must not rename
 these scripts or move their canonical logic elsewhere.
 
+The source of truth for all canonical scripts is the `keelcore/standards` repository. Downstream
+repo copies must be byte-identical to the standards versions for the scripts marked **canonical**.
+Use `make verify-canonical REPO=<path>` from the standards repo to verify compliance.
+
 ### Always required
 
-| Script | Makefile target | Responsibility |
-|---|---|---|
-| `scripts/ci/audit-make-targets.sh` | `make audit` | CI/Makefile standards compliance auditor. |
-| `scripts/ci/pr-policy.sh` | `make ci-pr-policy` | PR policy gate: title, body, branch naming, linked issue. |
-| `scripts/ci/secret-scan.sh` | `make ci-secret-scan` | Secret scanning on every PR and default-branch push. |
-| `scripts/ci/dco-check.sh` | `make ci-dco` | DCO Signed-off-by trailer verification. |
-| `scripts/lint/newlines.sh` | `make lint-newlines` | Trailing newline enforcement for `.md`, `.sh`, `.go` files. |
-| `scripts/test/coverage.sh` | `make coverage` | Coverage report: total %, uncovered statements, total lines. |
-| `scripts/test/coverage-delta.sh` | `make ci-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold). |
-| `scripts/check-legal-drift.sh` | `make check-legal-drift` | Verify copied legal files match the source of truth. |
-| `scripts/lib/paths.sh` | _(sourced; no target)_ | Shared path-filter helpers; sourced by other scripts. |
+| Script | Makefile target | Responsibility | Source of truth |
+|---|---|---|---|
+| `scripts/ci/audit-make-targets.sh` | `make audit` | CI/Makefile standards compliance auditor. | keelcore/standards |
+| `scripts/ci/pr-policy.sh` | `make ci-pr-policy` | PR policy gate: title, body, branch naming, linked issue. | project-specific |
+| `scripts/ci/secret-scan.sh` | `make ci-secret-scan` | Secret scanning on every PR and default-branch push. | keelcore/standards |
+| `scripts/ci/dco-check.sh` | `make ci-dco` | DCO Signed-off-by trailer verification. | keelcore/standards |
+| `scripts/lint/newlines.sh` | `make lint-newlines` | Trailing newline enforcement for `.md`, `.sh`, `.go` files. | keelcore/standards |
+| `scripts/test/coverage.sh` | `make coverage` | Coverage report: total %, uncovered statements, total lines. | keelcore/standards |
+| `scripts/test/coverage-delta.sh` | `make ci-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold). | keelcore/standards |
+| `scripts/check-legal-drift.sh` | `make check-legal-drift` | Verify copied legal files match the source of truth. | project-specific |
+| `scripts/lib/paths.sh` | _(sourced; no target)_ | Shared path-filter helpers; sourced by other scripts. | keelcore/standards |
 
 ### Required for projects with releases
 
