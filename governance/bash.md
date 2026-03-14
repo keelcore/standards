@@ -115,3 +115,33 @@ function main() {
 # ... helper functions ...
 main "${@:-}"
 ```
+
+## GitHub Actions `validate_args` Quirk
+
+In GitHub Actions, `shell: bash` expands an empty `$@` to a single empty-string argument when
+using `"${@:-}"`. Unadjusted, this triggers the argument check spuriously. Apply the following
+fixups based on script type:
+
+**Zero-argument scripts** — tolerate the single-empty-string artifact; reject any real arg:
+
+```bash
+function validate_args() {
+  if [ "${#}" -gt 1 ] || [ -n "${1:-}" ]; then
+    log '❌ Error: Unexpected argument'
+    exit 1
+  fi
+}
+```
+
+**Argument-taking scripts** — tolerate the artifact; still catch multiple or non-empty extra args:
+
+```bash
+function validate_args() {
+  if [ "${#}" -gt 1 ] && [ -n "${1:-}" ]; then
+    log '❌ Error: Too many arguments'
+    exit 1
+  fi
+}
+```
+
+Do NOT change the call site from `"${@:-}"` to `"$@"` — fix the body only.

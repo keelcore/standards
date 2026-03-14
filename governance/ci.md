@@ -49,23 +49,53 @@ it does not duplicate their logic.
 ## Universal Canonical Makefile Targets
 
 Every project MUST define these language-independent targets. They form a stable, tool-agnostic
-interface for humans and CI alike.
+interface for humans and CI alike. Names are fixed; projects may not rename or skip them.
+Language-specific subtargets (e.g. `make lint-go`, `make test-unit`) are additive — they do not
+replace the universal targets.
 
-| Target | Responsibility |
-|---|---|
-| `make build` | Build the default artifact (binary, image, package). |
-| `make lint` | Run all linters (format check + static analysis). |
-| `make test` | Run the full test suite (unit + integration). |
-| `make unit-test` | Run unit tests only. |
-| `make integration-test` | Run integration/BATS/end-to-end tests only. |
-| `make clean` | Remove build artifacts and generated files. |
-| `make audit` | Run the CI/standards compliance auditor. |
+### Always required
 
-Rules:
-- These names are fixed; projects may not rename or skip them.
-- Targets may delegate to other targets or scripts but must exist.
-- Language-specific subtargets (e.g. `make lint-go`, `make test-unit`) are additive; they do not
-  replace the universal targets.
+| Target | Makefile target | Script | Responsibility |
+|---|---|---|---|
+| Build default artifact | `make build` | project-specific | Produce the primary deliverable (binary, image, package). |
+| Run all linters | `make lint` | project-specific | Format check + static analysis. Must invoke `make lint-newlines`. |
+| Run full test suite | `make test` | project-specific | Unit + integration tests in sequence. |
+| Run unit tests | `make unit-test` | `scripts/test/ci.sh` | Unit tests only; produces JUnit XML and coverage profile. |
+| Run integration tests | `make integration-test` | project-specific | BATS / end-to-end tests against a built artifact. |
+| Remove artifacts | `make clean` | — | Remove `dist/` and generated files. |
+| Standards audit | `make audit` | `scripts/ci/audit-make-targets.sh` | CI/Makefile compliance auditor. |
+| Code coverage report | `make coverage` | `scripts/test/coverage.sh` | Print total %, uncovered statements, total lines. |
+| PR coverage gate | `make ci-coverage-delta` | `scripts/test/coverage-delta.sh` | Fail PR if coverage drops > threshold vs. base branch. |
+| PR policy gate | `make ci-pr-policy` | `scripts/ci/pr-policy.sh` | Title, body, branch naming, linked issue enforcement. |
+| Secret scan | `make ci-secret-scan` | `scripts/ci/secret-scan.sh` | gitleaks scan; required on every PR and default-branch push. |
+| DCO check | `make ci-dco` | `scripts/ci/dco-check.sh` | Signed-off-by trailer on every commit in the PR. |
+| Trailing newlines | `make lint-newlines` | `scripts/lint/newlines.sh` | Every `.md`, `.sh`, `.go` ends with `\n`. |
+| Legal drift check | `make check-legal-drift` | `scripts/check-legal-drift.sh` | Copied legal files (LICENSE, TRADEMARK) match the source of truth. |
+
+### Required for projects with releases
+
+| Target | Makefile target | Script | Responsibility |
+|---|---|---|---|
+| Generate checksums | `make release-checksums` | `scripts/release/checksums.sh` | Write `dist/SHA256SUMS` for all release artifacts. |
+| Verify checksums | `make release-checksums-verify` | `scripts/release/checksums.sh --verify` | Confirm downloaded artifacts match `SHA256SUMS`. |
+| Generate SBOM | `make release-sbom` | `scripts/release/sbom.sh` | SPDX JSON SBOM via syft; attached to every release. |
+| Sign artifacts | `make release-sign` | `scripts/release/sign.sh` | cosign keyless signing; bundles attached alongside binaries. |
+| Upload to release | `make release-upload` | `scripts/release/upload.sh` | Push artifacts + checksums + SBOM to GitHub Release. |
+| Version tagging | `make create-release` | `scripts/release/create-release.sh` | Schema-diff semver bump + annotated tag; developer action only. |
+
+### Required for projects with container images
+
+| Target | Makefile target | Script | Responsibility |
+|---|---|---|---|
+| Build and push image | `make release-docker` | `scripts/release/docker.sh` | Build, tag, push, and sign container images from `dist/`. |
+
+### Required for projects with Helm charts
+
+| Target | Makefile target | Script | Responsibility |
+|---|---|---|---|
+| Helm lint | `make lint-helm` | `scripts/lint/helm.sh` | `helm lint` + template render; no cluster required. |
+| Helm schema validation | `make lint-helm-validate` | `scripts/lint/helm-validate.sh` | kubeconform validation of rendered templates. |
+| Helm chart publish | `make release-helm-push` | `scripts/release/helm-push.sh` | OCI push to GHCR + cosign signing of the chart digest. |
 
 ## CI Auditor
 
@@ -81,22 +111,62 @@ Rules:
 
 ## Canonical CI Scripts
 
-Every project MUST include the following scripts. Their names and responsibilities are fixed.
+Scripts whose names and responsibilities are fixed across all projects. Projects must not rename
+these scripts or move their canonical logic elsewhere.
+
+### Always required
 
 | Script | Makefile target | Responsibility |
 |---|---|---|
-| `scripts/ci/pr-policy.sh` | `make ci-pr-policy` | PR policy gate (title, body, branch, linked issue). |
-| `scripts/ci/secret-scan.sh` | `make ci-secret-scan` | Secret scanning on every PR and push to default branch. |
-| `scripts/ci/dco-check.sh` | `make ci-dco` | DCO Signed-off-by trailer verification. |
 | `scripts/ci/audit-make-targets.sh` | `make audit` | CI/Makefile standards compliance auditor. |
-| `scripts/lint/newlines.sh` | `make lint-newlines` | Trailing newline enforcement for text files. |
+| `scripts/ci/pr-policy.sh` | `make ci-pr-policy` | PR policy gate: title, body, branch naming, linked issue. |
+| `scripts/ci/secret-scan.sh` | `make ci-secret-scan` | Secret scanning on every PR and default-branch push. |
+| `scripts/ci/dco-check.sh` | `make ci-dco` | DCO Signed-off-by trailer verification. |
+| `scripts/lint/newlines.sh` | `make lint-newlines` | Trailing newline enforcement for `.md`, `.sh`, `.go` files. |
+| `scripts/test/coverage.sh` | `make coverage` | Coverage report: total %, uncovered statements, total lines. |
+| `scripts/test/coverage-delta.sh` | `make ci-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold). |
+| `scripts/check-legal-drift.sh` | `make check-legal-drift` | Verify copied legal files match the source of truth. |
+| `scripts/lib/paths.sh` | _(sourced; no target)_ | Shared path-filter helpers; sourced by other scripts. |
+
+### Required for projects with releases
+
+| Script | Makefile target | Responsibility |
+|---|---|---|
+| `scripts/release/checksums.sh` | `make release-checksums` / `make release-checksums-verify` | Generate or verify `dist/SHA256SUMS`. |
+| `scripts/release/sbom.sh` | `make release-sbom` | Generate SPDX JSON SBOM via syft. |
+| `scripts/release/sign.sh` | `make release-sign` | cosign keyless signing of all release artifacts. |
+| `scripts/release/upload.sh` | `make release-upload` | Upload artifacts to GitHub Release via gh CLI. |
+| `scripts/release/create-release.sh` | `make create-release` | Schema-diff semver version computation + tag; developer action. |
+
+### Required for projects with container images
+
+| Script | Makefile target | Responsibility |
+|---|---|---|
+| `scripts/release/docker.sh` | `make release-docker` | Build, tag, push, and sign container images. |
+
+### Required for projects with Helm charts
+
+| Script | Makefile target | Responsibility |
+|---|---|---|
+| `scripts/lint/helm.sh` | `make lint-helm` | `helm lint` + template render; no cluster required. |
+| `scripts/lint/helm-validate.sh` | `make lint-helm-validate` | kubeconform schema validation of rendered Helm templates. |
+| `scripts/release/helm-push.sh` | `make release-helm-push` | OCI Helm chart push to GHCR + cosign signing. |
 
 ## Source File Formatting Invariants
 
-- Every `.md`, `.sh`, and `.go` file (and other text-format source files) MUST end with a single
-  trailing newline (`\n`). Files without a trailing newline fail the pre-commit hook and CI.
+Every text source file MUST end with a single trailing newline (`\n`). Files without one fail the
+pre-commit hook and CI lint. Covered extensions:
+
+- Source: `.go`, `.sh`
+- Markup / documentation: `.md`
+- Config / data: `.yml`, `.yaml`, `.toml`, `.json`
+- Git control files: `.gitignore`, `.gitattributes`
+
+Rules:
 - Enforce via `scripts/lint/newlines.sh`; auto-fix via `scripts/lint/newlines.sh --fix`.
-- The pre-commit hook checks staged files; `make lint-newlines` checks the full tree.
+- The pre-commit hook checks staged files; `make lint-newlines` checks the full tracked tree.
+- Adding a new text-format type to the repo? Add its glob to `scripts/lint/newlines.sh` and the
+  pre-commit `staged_text_files` filter in the same commit.
 
 ## Build Platform vs. Target Platform
 

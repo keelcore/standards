@@ -128,3 +128,29 @@ These rules govern all code edits in this project. They are non-negotiable.
 
 64. Do not introduce worse asymptotic complexity where a better one existed.
 65. Do not replace indexed/cached/streaming/incremental behavior with full scans or redundant allocation.
+
+## Source File Trailing Newlines
+
+66. Every text source file (`.go`, `.sh`, `.md`, `.yml`, `.yaml`, `.toml`, `.json`,
+    `.gitignore`, `.gitattributes`) MUST end with a single trailing newline character.
+67. Verify and fix trailing newlines before handing off any file edits.
+68. Adding a new text-format type to the repo requires updating `scripts/lint/newlines.sh`
+    and the pre-commit hook in the same commit.
+
+## Go Module Version Format
+
+69. The `go` directive in `go.mod` MUST use the two-component form: `go 1.25` — never `go 1.25.0`.
+70. After every `go mod tidy` or `go get`, verify the `go` directive and strip any trailing `.0`.
+
+## Static Analysis Suppression
+
+71. The standalone `staticcheck` binary does NOT respect `//nolint:staticcheck` directives.
+    Use `//lint:ignore SA1019 <reason>` instead.
+72. Place the `//lint:ignore` directive on its own line immediately above the flagged statement —
+    inline (end-of-line) placement may be silently ignored.
+
+## Program Entry Points
+
+73. `main` (and any program entry point) must be KISS: orchestration and wiring only.
+74. No default behaviors, business logic, or configuration in `main` — those belong in the library.
+75. A correct `main` is ~15 lines: parse flags, call library, handle exit.
