@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # scripts/release/pypi-publish.sh
 # Builds the keelcore-standards wheel and sdist for PyPI.
-# Version is derived from the git tag (GITHUB_REF_NAME or INPUT_TAG).
-# Upload is handled by pypa/gh-action-pypi-publish (Trusted Publisher / OIDC)
-# in CI, or manually via twine locally.
+# Version is read from the git tag via hatch-vcs — no manual version management.
+# Upload is handled by pypa/gh-action-pypi-publish (Trusted Publisher / OIDC) in CI.
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -19,23 +18,7 @@ function main() {
   exec 5>&1
   validate_env
   install_tooling
-  local tag version
-  tag="$(resolve_tag)"
-  version="${tag#v}"
-  log "Building keelcore-standards==${version}..."
-  hatch version "${version}"
   build
-}
-
-function resolve_tag() {
-  if [ -n "${GITHUB_REF_NAME:-}" ]; then
-    printf '%s' "${GITHUB_REF_NAME}"
-  elif [ -n "${INPUT_TAG:-}" ]; then
-    printf '%s' "${INPUT_TAG}"
-  else
-    log '❌ Cannot resolve tag: GITHUB_REF_NAME and INPUT_TAG are both unset'
-    exit 1
-  fi
 }
 
 function validate_env() {
@@ -48,9 +31,9 @@ function validate_env() {
 }
 
 function install_tooling() {
-  log 'Installing hatch...'
+  log 'Installing hatch and hatch-vcs...'
   if [ -n "${CI:-}" ]; then
-    pip install --quiet hatch
+    pip install --quiet hatch hatch-vcs
   else
     command -v hatch >/dev/null 2>&1 || pipx install hatch
   fi
