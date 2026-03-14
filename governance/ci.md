@@ -183,6 +183,7 @@ pre-commit hook and CI lint. Covered extensions:
 - Git control files: `.gitignore`, `.gitattributes`
 
 Rules:
+
 - Enforce via `scripts/lint/newlines.sh`; auto-fix via `scripts/lint/newlines.sh --fix`.
 - The pre-commit hook checks staged files; `make lint-newlines` checks the full tracked tree.
 - Adding a new text-format type to the repo? Add its glob to `scripts/lint/newlines.sh` and the
@@ -438,7 +439,7 @@ Specific semver.org rules in force:
 
 ### Automatic Tag Triggering Is Permitted
 
-- CI workflows *triggered by* a pushed tag (e.g. `on: push: tags: ['v*']`) are
+- CI workflows _triggered by_ a pushed tag (e.g. `on: push: tags: ['v*']`) are
   permitted and expected — they run the release pipeline once a developer has
   pushed a tag.
 - The distinction is: CI reacts to tags; CI does not create tags.

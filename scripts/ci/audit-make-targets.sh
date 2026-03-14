@@ -19,7 +19,8 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
-readonly REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+readonly REPO_ROOT
 readonly MAKEFILE="${REPO_ROOT}/Makefile"
 readonly WORKFLOWS_DIR="${REPO_ROOT}/.github/workflows"
 readonly SCRIPTS_DIR="${REPO_ROOT}/scripts"

@@ -40,6 +40,7 @@ Mocks replicate the mock author's understanding of a contract at a point in time
 system changes, mocks silently pass. Real tools catch contract drift.
 
 Acceptable alternatives to real systems:
+
 - In-process test servers (e.g. `httptest.NewServer`) for HTTP — acceptable in unit tests.
 - Real test daemons (pebble, OPA, syslog) — required in integration tests.
 - Never: mocked network peers, mocked OS services, mocked external processes.
@@ -80,6 +81,7 @@ When a test fails, the correct response is to find and fix the root cause in pro
 not to adjust the test to pass. A failing test is a signal, not an obstacle.
 
 Exceptions require explicit approval:
+
 - The test itself contains a bug.
 - The tested behavior was intentionally changed and the test must track the new contract.
 - A new test is being added.
