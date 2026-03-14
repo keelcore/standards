@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # scripts/release/pypi-publish.sh
-# Builds the keelcore-standards wheel and publishes to PyPI.
-# Requires PYPI_TOKEN to be set in the environment.
+# Builds the keelcore-standards wheel and sdist for PyPI.
+# Upload is handled by pypa/gh-action-pypi-publish (Trusted Publisher / OIDC)
+# in CI, or manually via twine locally.
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -18,15 +19,10 @@ function main() {
   validate_env
   install_tooling
   build
-  publish
 }
 
 function validate_env() {
   log 'Validating environment...'
-  if [ -z "${PYPI_TOKEN:-}" ]; then
-    log '❌ PYPI_TOKEN is not set'
-    exit 1
-  fi
   if [ ! -f 'pyproject.toml' ]; then
     log '❌ pyproject.toml not found; run from the repository root'
     exit 1
@@ -35,33 +31,19 @@ function validate_env() {
 }
 
 function install_tooling() {
-  log 'Installing hatch and twine...'
+  log 'Installing hatch...'
   if [ -n "${CI:-}" ]; then
-    # CI environments use plain pip without PEP 668 restrictions.
-    pip install --quiet hatch twine
+    pip install --quiet hatch
   else
-    # Locally, pip may refuse to install into a Homebrew-managed Python (PEP 668).
-    # Use pipx, which installs CLI tools into isolated environments.
     command -v hatch >/dev/null 2>&1 || pipx install hatch
-    command -v twine >/dev/null 2>&1 || pipx install twine
   fi
   log '✅ Tooling installed'
 }
 
 function build() {
-  log 'Building wheel...'
+  log 'Building wheel and sdist...'
   hatch build
-  log '✅ Wheel built'
-}
-
-function publish() {
-  log 'Publishing to PyPI...'
-  # PYPI_TOKEN is passed via environment variable, not as a positional argument,
-  # to prevent the secret from appearing in process listings or log output.
-  TWINE_USERNAME='__token__' \
-  TWINE_PASSWORD="${PYPI_TOKEN}" \
-    twine upload --non-interactive dist/*
-  log '✅ Published to PyPI'
+  log '✅ Artifacts built'
 }
 
 function log() {
