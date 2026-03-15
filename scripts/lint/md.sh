@@ -37,7 +37,9 @@ function validate_args() {
 
 function tracked_md_files() {
   git ls-files '*.md' | filter_src | while IFS= read -r f; do
-    [ -f "${f}" ] && [ ! -L "${f}" ] && printf '%s\n' "${f}"
+    if [ -f "${f}" ] && [ ! -L "${f}" ]; then
+      printf '%s\n' "${f}"
+    fi
   done
 }
 
