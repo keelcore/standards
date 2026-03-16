@@ -3,8 +3,8 @@
 These rules govern all bash scripts in this project. They are non-negotiable.
 
 **Maturity:** Required
-**Version:** 1.0.0
-**Last Reviewed:** 2026-03-09
+**Version:** 1.1.0
+**Last Reviewed:** 2026-03-16
 
 ## Portability and Shell Baseline
 
@@ -93,6 +93,34 @@ result="$(some_command)"
 30. Prefer `printf` over `echo`.
 31. `printf` format string must be single-quoted with explicit format specifiers.
 32. Use `echo` only with no parameters and no formatting concerns.
+
+## Globals
+
+33. Never use the keyword `global`.
+34. All globals shall be declared after the header comment block and before `function main`.
+35. All globals shall be immutable after initialization.
+36. Immutability shall be enforced with `declare -r`; the one exception is a global whose
+    initialization requires multi-statement evaluation — in that case declare on one line,
+    assign on the next (the variable remains effectively immutable by convention):
+
+```bash
+# simple: single-expression initialization
+declare -r DEPLOY_ENV="${DEPLOY_ENV:-staging}"
+
+# multi-statement: declare first, then assign
+declare LOG_FILE
+LOG_FILE="$(mktemp /tmp/script.XXXXXX)"
+```
+
+37. Environment variables shall be declared as globals with `declare -rx`, using the default-value
+    idiom. This applies to both imported and exported environment variables:
+
+```bash
+declare -rx SOME_VAR="${SOME_VAR:-default_value}"
+```
+
+38. Global names SHALL be uppercase.
+39. Never declare a global inside a function scope.
 
 ## Standard `log` Function Pattern
 
