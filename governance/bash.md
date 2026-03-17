@@ -3,8 +3,8 @@
 These rules govern all bash scripts in this project. They are non-negotiable.
 
 **Maturity:** Required
-**Version:** 1.1.0
-**Last Reviewed:** 2026-03-16
+**Version:** 1.2.0
+**Last Reviewed:** 2026-03-17
 
 ## Portability and Shell Baseline
 
@@ -173,3 +173,26 @@ function validate_args() {
 ```
 
 Do NOT change the call site from `"${@:-}"` to `"$@"` — fix the body only.
+
+## Embedded Code (Heredocs)
+
+40. Never embed code blocks (PHP, TOML, ini, shell, conf, etc.) as heredocs inside a bash
+    script. Code in heredocs cannot be linted by its native tooling, is invisible to static
+    analysis, and causes bash quoting edge cases that are impossible to debug.
+
+41. Extract every embedded code block to a **sibling file** in the same directory as the
+    script, with the correct source extension for linting (`.php`, `.toml`, `.sh`, `.conf`,
+    etc.). Load it at runtime with `cat`:
+
+    ```bash
+    php_script=$(cat "${SCRIPT_DIR}/myscript-step.php")
+    ```
+
+42. Templates that require runtime variable substitution use `@PLACEHOLDER@` notation and
+    `sed` for substitution. Never use an unquoted heredoc (`<< EOF`) for variable injection:
+
+    ```bash
+    php_script=$(sed \
+      -e "s|@MY_VAR@|${MY_VAR}|g" \
+      "${SCRIPT_DIR}/myscript-template.php")
+    ```
