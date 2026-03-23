@@ -22,6 +22,6 @@
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\""
   },
   "devDependencies": {
-    "markdownlint-cli2": "^0.21.0"
+    "markdownlint-cli2": "^0.22.0"
   }
 }
