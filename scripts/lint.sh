@@ -1,4 +1,4 @@
-1#!/usr/bin/env bash
+#!/usr/bin/env bash
 # scripts/lint.sh
 # Top-level lint entry point. Runs all linters for this repository.
 
