@@ -4,32 +4,42 @@ Apply the following standards in full for all work in this repository.
 
 ## Coding Standards
 
-See [governance/coding.md](../../governance/coding.md).
+See [.standards/governance/coding.md](.standards/governance/coding.md).
 
 ## CI Standards
 
-See [governance/ci.md](../../governance/ci.md).
+See [.standards/governance/ci.md](.standards/governance/ci.md).
 
 ## Bash Standards
 
-See [governance/bash.md](../../governance/bash.md).
+See [.standards/governance/bash.md](.standards/governance/bash.md).
 
 ## Platform Architecture Standards
 
-See [governance/platform.md](../../governance/platform.md).
+See [.standards/governance/platform.md](.standards/governance/platform.md).
 
 ## Observability Standards
 
-See [governance/observability.md](../../governance/observability.md).
+See [.standards/governance/observability.md](.standards/governance/observability.md).
 
 ## Security Standards
 
-See [governance/security.md](../../governance/security.md).
+See [.standards/governance/security.md](.standards/governance/security.md).
 
 ## Runtime and Orchestration Standards
 
-See [governance/runtime.md](../../governance/runtime.md).
+See [.standards/governance/runtime.md](.standards/governance/runtime.md).
 
 ## API Management Standards
 
-See [governance/api-management.md](../../governance/api-management.md).
+See [.standards/governance/api-management.md](.standards/governance/api-management.md).
+
+## AI Conduct Standards
+
+See [.standards/governance/ai/conduct.md](.standards/governance/ai/conduct.md).
+
+## Project-Specific Guidance
+
+Project-local conventions, build instructions, and architecture notes live in [.local-claude.md](.local-claude.md).
+
+@.local-claude.md
