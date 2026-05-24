@@ -227,8 +227,12 @@ function _eval_recipe_shape() {
   # An optional `.standards/` prefix is accepted because standards-only
   # scripts (not shipped to consumers — e.g. governance-refresh.sh) are
   # invoked from the consumer Makefile via the submodule path.
+  # Env-var prefix forms accepted (each may repeat):
+  #   - VAR=unquoted_value
+  #   - VAR='single quoted value with spaces'
+  #   - VAR="double quoted value with spaces"
   stripped="${cmd}"
-  while [[ "${stripped}" =~ ^[A-Z_][A-Z0-9_]*=[^[:space:]]+[[:space:]]+ ]]; do
+  while [[ "${stripped}" =~ ^[A-Z_][A-Z0-9_]*=(\'[^\']*\'|\"[^\"]*\"|[^[:space:]\'\"]+)[[:space:]]+ ]]; do
     stripped="${stripped#"${BASH_REMATCH[0]}"}"
   done
 

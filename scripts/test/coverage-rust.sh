@@ -58,7 +58,19 @@ function run_coverage() {
   # and stores profraw; `report` re-emits without re-running.
   # NOTE: cargo-llvm-cov nests `html/` inside --output-dir, so pass OUT_DIR
   # (not OUT_DIR/html) to land at ${OUT_DIR}/html/index.html.
-  cargo llvm-cov --workspace --all-targets --no-report
+  #
+  # Feature selection: honest coverage measurement requires including any
+  # test gated behind a feature (and any integration test gated via
+  # required-features on a binary). Default: `--all-features`. Override
+  # via env `CARGO_COVERAGE_FEATURES="feat1 feat2"` when `--all-features`
+  # is unsuitable (e.g., mutually-exclusive features like multiple BLAS
+  # backends). Without an override, mutually-exclusive features will
+  # surface as compilation failures — that's the signal to set the env.
+  local feature_args=("--all-features")
+  if [ -n "${CARGO_COVERAGE_FEATURES:-}" ]; then
+    feature_args=("--features" "${CARGO_COVERAGE_FEATURES}")
+  fi
+  cargo llvm-cov --workspace --all-targets "${feature_args[@]}" --no-report
   cargo llvm-cov report --lcov --output-path "${LCOV_PATH}"
   cargo llvm-cov report --html --output-dir "${OUT_DIR}"
 }
