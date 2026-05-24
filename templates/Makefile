@@ -5,7 +5,9 @@
 .PHONY: build lint lint-newlines lint-bash lint-markdown \
         test unit-test integration-test clean audit \
         ci-pr-policy ci-secret-scan ci-dco ci-coverage-delta \
-        coverage coverage-go coverage-rust \
+        ci-governance-gate ci-coverage-no-regression \
+        coverage coverage-go coverage-rust coverage-baseline-init \
+        governance-refresh \
         check-adr-metadata check-governance-metadata check-rfc-metadata \
         check-legal-drift release-sbom release-sign release-go release-npm release-pypi \
         setup-bats setup-markdownlint setup-shellcheck setup-syft \
@@ -90,6 +92,12 @@ ci-coverage-delta:
 	@echo "📊 Checking coverage delta..."
 	bash scripts/test/coverage-delta.sh
 
+# Governance CI gate: dry-run reconciliation; non-zero exit on pending change.
+# PR with stale governance fails this gate and cannot merge.
+ci-governance-gate:
+	@echo "🚦 Governance CI gate (governance-refresh --dry-run)..."
+	bash scripts/ci/governance-gate.sh
+
 ## Coverage
 # Aggregator pattern: `make coverage` runs the per-language scripts; each
 # script gates on its own scope-detection (no go.mod / no Cargo.toml ⇒ skip
@@ -105,6 +113,19 @@ coverage-go:
 coverage-rust:
 	@echo "📊 Rust coverage (cargo-llvm-cov)..."
 	bash scripts/test/coverage-rust.sh
+
+# Per-file coverage no-regression + 95% new-file floor.
+# Implements .standards/governance/testing.md "Coverage Regression Policy".
+# CI runs this as a required PR gate.
+ci-coverage-no-regression:
+	@echo "🚦 coverage-no-regression (per-file)..."
+	bash scripts/test/coverage-no-regression.sh
+
+# Operator one-shot: capture current LCOV as the baseline. Run once per
+# repo, then again only after an approved coverage-increasing change.
+coverage-baseline-init:
+	@echo "🪴 coverage-baseline-init (capture current LCOV)..."
+	bash scripts/test/coverage-baseline-init.sh
 
 ## Release targets
 
@@ -182,6 +203,13 @@ pre-commit:
 
 bootstrap-standards:
 	bash scripts/bootstrap-standards.sh
+
+## Governance reconciliation (downstream consumers; ongoing, not first-time)
+# Syncs canonical scripts from .standards/scripts/ to consumer scripts/ and
+# injects any missing canonical Makefile target from .standards/templates/Makefile
+# into consumer Makefile. `.standards` wins. Idempotent.
+governance-refresh:
+	bash scripts/governance-refresh.sh
 
 ## Help
 

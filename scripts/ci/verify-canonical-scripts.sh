@@ -27,6 +27,7 @@ readonly LOG_FILE='/tmp/verify_canonical.log'
 # whose content must be tailored per project.
 readonly -a CANONICAL_SCRIPTS=(
   'scripts/ci/audit-make-targets.sh'
+  'scripts/ci/governance-gate.sh'
   'scripts/ci/secret-scan.sh'
   'scripts/ci/dco-check.sh'
   'scripts/ci/setup-bats.sh'
@@ -43,6 +44,8 @@ readonly -a CANONICAL_SCRIPTS=(
   'scripts/test/coverage-delta.sh'
   'scripts/test/coverage-go.sh'
   'scripts/test/coverage-rust.sh'
+  'scripts/test/coverage-no-regression.sh'
+  'scripts/test/coverage-baseline-init.sh'
   'scripts/lib/paths.sh'
   'scripts/check/adr-metadata.sh'
   'scripts/check/governance-metadata.sh'

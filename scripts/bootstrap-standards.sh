@@ -130,6 +130,7 @@ function copy_ci_scripts() {
   local -r src='.standards/scripts/ci'
   local -r dst='scripts/ci'
   cp "${src}/audit-make-targets.sh"        "${dst}/audit-make-targets.sh"
+  cp "${src}/governance-gate.sh"           "${dst}/governance-gate.sh"
   cp "${src}/dco-check.sh"                 "${dst}/dco-check.sh"
   cp "${src}/pr-policy.sh"                 "${dst}/pr-policy.sh"
   cp "${src}/secret-scan.sh"               "${dst}/secret-scan.sh"
@@ -159,9 +160,11 @@ function copy_support_scripts() {
   cp "${src}/lint/markdown.sh"        scripts/lint/markdown.sh
   cp "${src}/lint/newlines.sh"        scripts/lint/newlines.sh
   cp "${src}/lint/shellcheck.sh"      scripts/lint/shellcheck.sh
-  cp "${src}/test/coverage-delta.sh"  scripts/test/coverage-delta.sh
-  cp "${src}/test/coverage-go.sh"     scripts/test/coverage-go.sh
-  cp "${src}/test/coverage-rust.sh"   scripts/test/coverage-rust.sh
+  cp "${src}/test/coverage-delta.sh"           scripts/test/coverage-delta.sh
+  cp "${src}/test/coverage-go.sh"              scripts/test/coverage-go.sh
+  cp "${src}/test/coverage-rust.sh"            scripts/test/coverage-rust.sh
+  cp "${src}/test/coverage-no-regression.sh"   scripts/test/coverage-no-regression.sh
+  cp "${src}/test/coverage-baseline-init.sh"   scripts/test/coverage-baseline-init.sh
 }
 
 function copy_canonical_scripts() {

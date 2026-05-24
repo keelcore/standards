@@ -220,16 +220,19 @@ function _eval_recipe_shape() {
   # Exactly 1 active line. Strip leading "VAR=value " env-var prefixes, then
   # require the call to invoke a scripts/**/*.sh script. Accept all standard
   # script invocation forms:
-  #   - `bash scripts/X/Y.sh ...`     (explicit interpreter)
-  #   - `sh scripts/X/Y.sh ...`       (POSIX interpreter)
-  #   - `./scripts/X/Y.sh ...`        (executable; relies on shebang)
-  #   - `scripts/X/Y.sh ...`          (executable via PATH/cwd resolution)
+  #   - `bash scripts/X/Y.sh ...`              (explicit interpreter)
+  #   - `sh scripts/X/Y.sh ...`                (POSIX interpreter)
+  #   - `./scripts/X/Y.sh ...`                 (executable; relies on shebang)
+  #   - `scripts/X/Y.sh ...`                   (executable via PATH/cwd resolution)
+  # An optional `.standards/` prefix is accepted because standards-only
+  # scripts (not shipped to consumers — e.g. governance-refresh.sh) are
+  # invoked from the consumer Makefile via the submodule path.
   stripped="${cmd}"
   while [[ "${stripped}" =~ ^[A-Z_][A-Z0-9_]*=[^[:space:]]+[[:space:]]+ ]]; do
     stripped="${stripped#"${BASH_REMATCH[0]}"}"
   done
 
-  if [[ "${stripped}" =~ ^(bash[[:space:]]+|sh[[:space:]]+|\.?/?)(scripts/[^[:space:]]+\.sh) ]]; then
+  if [[ "${stripped}" =~ ^(bash[[:space:]]+|sh[[:space:]]+|\.?/?)((\.standards/)?scripts/[^[:space:]]+\.sh) ]]; then
     # Rule 4 satisfied. Now Rule 5: does the referenced script exist on disk?
     local script_path="${BASH_REMATCH[2]}"
     if [ ! -f "${REPO_ROOT}/${script_path}" ]; then
@@ -241,7 +244,7 @@ function _eval_recipe_shape() {
 
   log "❌ Rule 4: target '${tgt}' active line must invoke a scripts/**/*.sh script, got:"
   log "         ${cmd}"
-  log "         Accepted forms: 'bash scripts/X.sh', 'sh scripts/X.sh', './scripts/X.sh', 'scripts/X.sh'"
+  log "         Accepted forms: 'bash scripts/X.sh', 'sh scripts/X.sh', './scripts/X.sh', 'scripts/X.sh' (optionally prefixed with '.standards/')"
   return 1
 }
 
