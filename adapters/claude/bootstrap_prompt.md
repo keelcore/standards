@@ -1,56 +1,49 @@
 # Bootstrap Prompt — Claude Code
 
-A self-contained prompt you can paste into a fresh Claude Code session to bring a new
-repository up to keelcore engineering standards: submodule, governance-mandated
-`scripts/`, canonical `Makefile`, BATS test harness, configs, and pre-commit wiring.
+A self-contained prompt you can paste into a fresh Claude Code session to bring a new repository up to keelcore
+engineering standards: submodule, governance-mandated `scripts/`, canonical `Makefile`, BATS test harness, configs, and
+pre-commit wiring.
 
 ## What this prompt enforces
 
 The prompt makes Claude actualize the requirements already documented in:
 
-- [../../governance/coding.md](../../governance/coding.md) — canonical script entrypoints,
-  pre-commit hook shape, no formatter/linter logic embedded in YAML or `Makefile` recipes.
-- [../../governance/ci.md](../../governance/ci.md) — "Makefile Entrypoints" and
-  "Universal Canonical Makefile Targets". The Makefile is the single dev-facing
-  interface; every `scripts/**/*.sh` (except `scripts/lib/`) MUST be referenced by
-  exactly one Makefile target. Every Makefile target has AT MOST one active recipe
-  line, which MUST invoke a single `scripts/**/*.sh` script (Rule 4).
-- [../../governance/testing.md](../../governance/testing.md) — fixed test layer
-  names + Makefile targets, `tests/integrity.bats`, `tests/fixtures/`, BATS as the
-  integration harness.
-- [../../governance/bash.md](../../governance/bash.md) — bash strict mode,
-  portability, structure, logging.
-- [CLAUDE.md](CLAUDE.md) — the adapter Claude reads on session start; the bootstrap
-  symlinks it as the consumer's `CLAUDE.md`.
+- [../../governance/coding.md](../../governance/coding.md) — canonical script entrypoints, pre-commit hook shape, no
+  formatter/linter logic embedded in YAML or `Makefile` recipes.
+- [../../governance/ci.md](../../governance/ci.md) — "Makefile Entrypoints" and "Universal Canonical Makefile Targets".
+  The Makefile is the single dev-facing interface; every `scripts/**/*.sh` (except `scripts/lib/`) MUST be referenced by
+  exactly one Makefile target. Every Makefile target has AT MOST one active recipe line, which MUST invoke a single
+  `scripts/**/*.sh` script (Rule 4).
+- [../../governance/testing.md](../../governance/testing.md) — fixed test layer names + Makefile targets,
+  `tests/integrity.bats`, `tests/fixtures/`, BATS as the integration harness.
+- [../../governance/bash.md](../../governance/bash.md) — bash strict mode, portability, structure, logging.
+- [CLAUDE.md](CLAUDE.md) — the adapter Claude reads on session start; the bootstrap symlinks it as the consumer's
+  `CLAUDE.md`.
 
-The acceptance gate is `scripts/ci/audit-make-targets.sh` — vendored by
-`bootstrap-standards.sh`, invoked as `make audit`.
+The acceptance gate is `scripts/ci/audit-make-targets.sh` — vendored by `bootstrap-standards.sh`, invoked as
+`make audit`.
 
 ## Human-in-the-loop contract
 
-Claude stages; the human commits. The prompt forbids `git commit`, `git push`, and
-all destructive git operations.
+Claude stages; the human commits. The prompt forbids `git commit`, `git push`, and all destructive git operations.
 
 ## What bootstrap-standards.sh does for you
 
-A single invocation of `bash .standards/scripts/bootstrap-standards.sh` materializes
-everything below — no file authoring required:
+A single invocation of `bash .standards/scripts/bootstrap-standards.sh` materializes everything below — no file
+authoring required:
 
 1. **Canonical scripts** (overwritten to guarantee byte-identical with .standards):
-   - `scripts/ci/{audit-make-targets,dco-check,pr-policy,secret-scan,setup-bats,
-     setup-markdownlint,setup-shellcheck,setup-syft,verify-canonical-scripts}.sh`
+   - `scripts/ci/{audit-make-targets,dco-check,pr-policy,secret-scan,setup-bats, setup-markdownlint,setup-shellcheck,setup-syft,verify-canonical-scripts}.sh`
    - `scripts/check/{adr-metadata,governance-metadata,rfc-metadata}.sh`
    - `scripts/{format,lint,git_precommit,install-hooks,check-legal-drift}.sh`
    - `scripts/lib/paths.sh`
    - `scripts/lint/{markdown,newlines,shellcheck}.sh`
    - `scripts/test/{coverage,coverage-delta}.sh`
-2. **Starter templates** (created ONLY if the target file doesn't exist; never
-   overwrites operator customizations on re-run):
-   - `Makefile` — material copy from `.standards/templates/Makefile` (which is
-     also the source for `.standards/Makefile` via symlink — single source of
-     truth). Contains all canonical universal targets wired to `bash
-     scripts/X.sh`, plus a few standards-repo-specific targets the operator
-     can prune (release-go, release-npm, release-pypi, verify-go,
+2. **Starter templates** (created ONLY if the target file doesn't exist; never overwrites operator customizations on
+   re-run):
+   - `Makefile` — material copy from `.standards/templates/Makefile` (which is also the source for `.standards/Makefile`
+     via symlink — single source of truth). Contains all canonical universal targets wired to `bash scripts/X.sh`, plus
+     a few standards-repo-specific targets the operator can prune (release-go, release-npm, release-pypi, verify-go,
      bootstrap-standards).
    - `tests/canonical/smoke.bats` — harness sanity, project-agnostic
    - `tests/integrity.bats` — stub with TODO markers for your built artifact
@@ -60,15 +53,15 @@ everything below — no file authoring required:
    - `.prettierrc` — keelcore defaults (printWidth 100, lf, etc.)
    - `.local-claude.md` — project-specific guidance stub
 
-   Per ci.md Rule 4: every Makefile target has at most ONE active recipe line,
-   which MUST invoke a single `scripts/**/*.sh` script. The templated Makefile
-   already obeys this — keep it that way as you customize.
+   Per ci.md Rule 4: every Makefile target has at most ONE active recipe line, which MUST invoke a single
+   `scripts/**/*.sh` script. The templated Makefile already obeys this — keep it that way as you customize.
+
 3. **Repo config**:
    - `.markdownlint.json` — copied from `.standards/.markdownlint.json`
 4. **AI adapters**:
    - `CLAUDE.md` — symlinked to `.standards/adapters/claude/CLAUDE.md`
-     - Non-greenfield: existing `CLAUDE.md` is first moved to `.local-claude.md`
-       (the canonical adapter `@.local-claude.md`-includes it, so content survives)
+     - Non-greenfield: existing `CLAUDE.md` is first moved to `.local-claude.md` (the canonical adapter
+       `@.local-claude.md`-includes it, so content survives)
    - `.github/copilot-instructions.md` — symlinked
    - `.cursor/rules/*.mdc` — copied and path-adjusted
 5. **Tooling installation** (idempotent; no-op if already installed):
@@ -78,22 +71,16 @@ everything below — no file authoring required:
 
 ## Non-greenfield repos
 
-The bootstrap is safe to run on a repo that already has a `CLAUDE.md`, `Makefile`,
-configs, or BATS tests:
+The bootstrap is safe to run on a repo that already has a `CLAUDE.md`, `Makefile`, configs, or BATS tests:
 
-- **CLAUDE.md**: existing content migrated to `.local-claude.md` automatically; the
-  symlinked canonical adapter re-includes it. Inspect the resulting
-  `.local-claude.md` and prune anything now duplicated by the canonical adapter.
-- **Makefile**: existing Makefile is PRESERVED verbatim — the template is NOT
-  copied over it. Operator merges canonical targets from
-  `.standards/templates/Makefile` (or equivalently `.standards/Makefile`,
-  which is a symlink to the same file) into the existing Makefile manually,
-  preserving every project-specific target.
-- **Configs / BATS / .local-claude.md**: existing files are PRESERVED verbatim.
-  Bootstrap doesn't touch them.
-- **Canonical scripts under `scripts/`**: always overwritten to maintain
-  byte-identical guarantee. Project-specific scripts alongside them
-  (`scripts/fetch-data.sh`, `scripts/build.sh`, etc.) are untouched.
+- **CLAUDE.md**: existing content migrated to `.local-claude.md` automatically; the symlinked canonical adapter
+  re-includes it. Inspect the resulting `.local-claude.md` and prune anything now duplicated by the canonical adapter.
+- **Makefile**: existing Makefile is PRESERVED verbatim — the template is NOT copied over it. Operator merges canonical
+  targets from `.standards/templates/Makefile` (or equivalently `.standards/Makefile`, which is a symlink to the same
+  file) into the existing Makefile manually, preserving every project-specific target.
+- **Configs / BATS / .local-claude.md**: existing files are PRESERVED verbatim. Bootstrap doesn't touch them.
+- **Canonical scripts under `scripts/`**: always overwritten to maintain byte-identical guarantee. Project-specific
+  scripts alongside them (`scripts/fetch-data.sh`, `scripts/build.sh`, etc.) are untouched.
 
 ## The prompt
 
@@ -167,12 +154,11 @@ Rules:
 
 ## Step-order rationale
 
-Submodule first so governance docs become readable. Then `bootstrap-standards.sh`
-materializes scripts, templates, configs, adapters, and the pre-commit hook in
-the correct order. Then operator customizes per project (mainly: filling in the
-Makefile's project-specific targets, pointing integrity.bats at the built
-artifact). Acceptance is `make audit` plus runs of the canonical layer targets.
+Submodule first so governance docs become readable. Then `bootstrap-standards.sh` materializes scripts, templates,
+configs, adapters, and the pre-commit hook in the correct order. Then operator customizes per project (mainly: filling
+in the Makefile's project-specific targets, pointing integrity.bats at the built artifact). Acceptance is `make audit`
+plus runs of the canonical layer targets.
 
-The bootstrap script is idempotent and self-sufficient — no Claude file authoring
-required for steps 2 and 3 (customization only touches files the operator chose
-to edit; the prompt does not need to generate file content from scratch).
+The bootstrap script is idempotent and self-sufficient — no Claude file authoring required for steps 2 and 3
+(customization only touches files the operator chose to edit; the prompt does not need to generate file content from
+scratch).

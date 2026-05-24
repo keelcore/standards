@@ -81,8 +81,11 @@ function check_adr() {
 function check_field() {
   local -r file="${1}"
   local -r field="${2}"
-  # Match the field label followed by at least one non-space character (Darwin grep -E compatible)
-  if ! grep -qE "^\*\*${field}:\*\* *[^ ]" "${file}"; then
+  # Match the field label anywhere on a line (not just at line-start) followed
+  # by at least one non-space character. Permits multi-field-per-line layouts
+  # (e.g. "**Date:** 2026-05-01 **Status:** Proposed") which prettier and other
+  # formatters commonly produce.
+  if ! grep -qE "\*\*${field}:\*\* *[^ ]" "${file}"; then
     log "  ❌ ${file}: missing or empty field '**${field}:**'"
     return 1
   fi
@@ -91,7 +94,7 @@ function check_field() {
 function check_status_value() {
   local -r file="${1}"
   local status_line
-  status_line="$(grep -E '^\*\*Status:\*\*' "${file}" || true)"
+  status_line="$(grep -E '\*\*Status:\*\*' "${file}" || true)"
   if [ -z "${status_line}" ]; then
     return 1
   fi

@@ -2,11 +2,10 @@
 
 All notable changes to keelcore/standards are documented here.
 
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versioning follows [Semantic Versioning](https://semver.org/).
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning follows
+[Semantic Versioning](https://semver.org/).
 
-Breaking changes (governance removals, renamed files): major bump.
-New governance or expanded rules: minor bump.
+Breaking changes (governance removals, renamed files): major bump. New governance or expanded rules: minor bump.
 Corrections, clarifications, metadata: patch bump.
 
 ---
@@ -17,7 +16,8 @@ Corrections, clarifications, metadata: patch bump.
 
 - Architecture Review Board governance (`governance/arb.md`) — membership, quorum, tie-breaking, escalation
 - RFC workflow (`docs/rfc/RFC-0000-template.md`) — full Draft → Implemented lifecycle
-- DACI metadata fields on ADR template and all existing ADRs (Driver, Approver, Contributors, Informed, Supersedes, Superseded By)
+- DACI metadata fields on ADR template and all existing ADRs (Driver, Approver, Contributors, Informed, Supersedes,
+  Superseded By)
 - Maturity metadata on all governance standards (Draft | Recommended | Required | Deprecated)
 - Automated ADR metadata enforcement (`scripts/check/adr-metadata.sh`)
 - Automated governance metadata enforcement (`scripts/check/governance-metadata.sh`)

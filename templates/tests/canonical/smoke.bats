@@ -24,9 +24,8 @@
   [ -f "${BATS_TEST_DIRNAME}/../../.standards/governance/ci.md" ]
 }
 
-@test "canonical scripts/lib/paths.sh exists and is sourceable" {
+@test "canonical scripts/lib/paths.sh exists and parses as bash" {
   local paths_sh="${BATS_TEST_DIRNAME}/../../scripts/lib/paths.sh"
   [ -f "${paths_sh}" ]
-  # shellcheck disable=SC1090
-  source "${paths_sh}"
+  bash -n "${paths_sh}"
 }

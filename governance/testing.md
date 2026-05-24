@@ -2,17 +2,14 @@
 
 These rules govern all test code and test infrastructure in this project. They are non-negotiable.
 
-**Maturity:** Required
-**Version:** 1.0.0
-**Last Reviewed:** 2026-03-14
+**Maturity:** Required **Version:** 1.0.0 **Last Reviewed:** 2026-03-14
 
 ## Core Principle
 
 Unit tests do not cross system boundaries.
 
-A system boundary is anything that requires a network peer, an OS service, or an external process.
-If a test needs one of those, it is an integration test and belongs in BATS, Compose, or a
-cluster-level suite — not in a `_test.go` file.
+A system boundary is anything that requires a network peer, an OS service, or an external process. If a test needs one
+of those, it is an integration test and belongs in BATS, Compose, or a cluster-level suite — not in a `_test.go` file.
 
 ## What Goes in Unit Tests
 
@@ -36,8 +33,8 @@ cluster-level suite — not in a `_test.go` file.
 
 Do not mock external systems. Use real implementations in integration tests.
 
-Mocks replicate the mock author's understanding of a contract at a point in time. When the real
-system changes, mocks silently pass. Real tools catch contract drift.
+Mocks replicate the mock author's understanding of a contract at a point in time. When the real system changes, mocks
+silently pass. Real tools catch contract drift.
 
 Acceptable alternatives to real systems:
 
@@ -49,12 +46,12 @@ Acceptable alternatives to real systems:
 
 Every project MUST define the following test layers. Names and Makefile targets are fixed.
 
-| Layer | Makefile target | Scope | External deps |
-|---|---|---|---|
-| Unit | `make unit-test` | In-process logic; no system boundaries | None |
-| Integration | `make integration-test` | Binary + real peers | Test daemons on PATH |
-| Compose | `make test-compose` | Full stack via Docker Compose | Docker |
-| Kubernetes | `make test-k8s` | Helm deploy + pod probes | kind / Docker |
+| Layer       | Makefile target         | Scope                                  | External deps        |
+| ----------- | ----------------------- | -------------------------------------- | -------------------- |
+| Unit        | `make unit-test`        | In-process logic; no system boundaries | None                 |
+| Integration | `make integration-test` | Binary + real peers                    | Test daemons on PATH |
+| Compose     | `make test-compose`     | Full stack via Docker Compose          | Docker               |
+| Kubernetes  | `make test-k8s`         | Helm deploy + pod probes               | kind / Docker        |
 
 ## Test File Layout
 
@@ -70,15 +67,15 @@ Every project MUST define the following test layers. Names and Makefile targets 
 - Upload JUnit XML as a workflow artifact for test history and flake detection.
 - Coverage profile MUST be produced on every unit test run.
 - `make coverage` prints: total %, uncovered statement count, total statement count.
-- `make ci-coverage-delta` compares PR head coverage against the merge-target base branch;
-  fails if coverage drops beyond the configured threshold.
+- `make ci-coverage-delta` compares PR head coverage against the merge-target base branch; fails if coverage drops
+  beyond the configured threshold.
 
 ## Test Modification Policy
 
 Test files are protected. Do not modify test files without explicit prior authorization.
 
-When a test fails, the correct response is to find and fix the root cause in production code —
-not to adjust the test to pass. A failing test is a signal, not an obstacle.
+When a test fails, the correct response is to find and fix the root cause in production code — not to adjust the test to
+pass. A failing test is a signal, not an obstacle.
 
 Exceptions require explicit approval:
 
@@ -88,8 +85,8 @@ Exceptions require explicit approval:
 
 ## FIPS Compatibility
 
-Tests that use `InsecureSkipVerify`, self-signed certs via `httptest`, or non-FIPS algorithms
-MUST be guarded with a FIPS skip:
+Tests that use `InsecureSkipVerify`, self-signed certs via `httptest`, or non-FIPS algorithms MUST be guarded with a
+FIPS skip:
 
 ```go
 if os.Getenv("GOFIPS140") != "" {

@@ -1,13 +1,9 @@
 # RFC-0000: Title
 
-**RFC-ID:** RFC-0000
-**Date:** YYYY-MM-DD
-**Status:** Draft | Under Discussion | Accepted | Rejected | Withdrawn | Implemented
-**Driver:** Name or team authoring this RFC
-**Approver:** ARB | Name
-**Contributors:** Names or teams whose input was sought
-**Informed:** Names, teams, or groups notified of the outcome
-**Related ADR:** N/A | ADR-XXXX (populated when RFC is accepted and converted to an ADR)
+**RFC-ID:** RFC-0000 **Date:** YYYY-MM-DD **Status:** Draft | Under Discussion | Accepted | Rejected | Withdrawn |
+Implemented **Driver:** Name or team authoring this RFC **Approver:** ARB | Name **Contributors:** Names or teams whose
+input was sought **Informed:** Names, teams, or groups notified of the outcome **Related ADR:** N/A | ADR-XXXX
+(populated when RFC is accepted and converted to an ADR)
 
 ---
 
@@ -17,8 +13,7 @@ One paragraph. What is being proposed and why?
 
 ## Motivation
 
-What problem does this solve? What is the current pain point, gap, or risk?
-Include data or examples where possible.
+What problem does this solve? What is the current pain point, gap, or risk? Include data or examples where possible.
 
 ## Proposal
 
@@ -51,14 +46,14 @@ What must be true for this RFC to be considered Implemented?
 
 ## RFC Lifecycle
 
-| Status | Meaning |
-| --- | --- |
-| Draft | Author is preparing the proposal; not yet open for comment |
-| Under Discussion | PR is open; contributors are reviewing and commenting |
-| Accepted | Approver has signed off; RFC will proceed to implementation |
-| Rejected | Approver has declined; rationale recorded in comments |
-| Withdrawn | Driver has withdrawn the proposal before a decision |
-| Implemented | Acceptance criteria met; a corresponding ADR has been created |
+| Status           | Meaning                                                       |
+| ---------------- | ------------------------------------------------------------- |
+| Draft            | Author is preparing the proposal; not yet open for comment    |
+| Under Discussion | PR is open; contributors are reviewing and commenting         |
+| Accepted         | Approver has signed off; RFC will proceed to implementation   |
+| Rejected         | Approver has declined; rationale recorded in comments         |
+| Withdrawn        | Driver has withdrawn the proposal before a decision           |
+| Implemented      | Acceptance criteria met; a corresponding ADR has been created |
 
 **Process:**
 

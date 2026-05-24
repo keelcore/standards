@@ -80,7 +80,8 @@ function check_rfc() {
 function check_field() {
   local -r file="${1}"
   local -r field="${2}"
-  if ! grep -qE "^\*\*${field}:\*\* *[^ ]" "${file}"; then
+  # Match field label anywhere on a line; permits multi-field-per-line layouts.
+  if ! grep -qE "\*\*${field}:\*\* *[^ ]" "${file}"; then
     log "  ❌ ${file}: missing or empty field '**${field}:**'"
     return 1
   fi
@@ -89,7 +90,7 @@ function check_field() {
 function check_status_value() {
   local -r file="${1}"
   local status_line
-  status_line="$(grep -E '^\*\*Status:\*\*' "${file}" || true)"
+  status_line="$(grep -E '\*\*Status:\*\*' "${file}" || true)"
   if [ -z "${status_line}" ]; then
     return 1
   fi

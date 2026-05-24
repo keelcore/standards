@@ -2,14 +2,12 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
-**Maturity:** Required
-**Version:** 1.0.0
-**Last Reviewed:** 2026-03-09
+**Maturity:** Required **Version:** 1.0.0 **Last Reviewed:** 2026-03-09
 
 ## Core Principle
 
-CI workflow YAML is thin orchestration only. No build, test, lint, packaging, signing, or release logic lives
-in YAML — it lives in `scripts/` entrypoints.
+CI workflow YAML is thin orchestration only. No build, test, lint, packaging, signing, or release logic lives in YAML —
+it lives in `scripts/` entrypoints.
 
 ## Workflow File Responsibilities
 
@@ -32,8 +30,8 @@ YAML may only contain:
 
 ## Script Entrypoints
 
-One script per concern. Scripts are the canonical entry point for all CI logic. Workflow YAML invokes them;
-it does not duplicate their logic.
+One script per concern. Scripts are the canonical entry point for all CI logic. Workflow YAML invokes them; it does not
+duplicate their logic.
 
 ## Makefile Entrypoints
 
@@ -43,75 +41,72 @@ it does not duplicate their logic.
 - Multi-command steps must be aggregated into one target; YAML calls the target.
 - Setup steps (tooling, fixtures) are also Makefile targets (e.g. `make setup-bats`).
 - The Makefile is the single dev-facing interface: what CI calls, a developer can call locally.
-- Every `scripts/**/*.sh` file (except sourced library files under `scripts/lib/`) MUST have a
-  Makefile target that invokes it — the script path must appear in a Makefile recipe.
-- Every Makefile target MUST have at most **one active recipe line**, and that line MUST invoke a
-  single `scripts/**/*.sh` script. "Active" excludes blank lines, `#` comments, and `@echo` lines
-  used for human-readable progress reporting. Concretely:
+- Every `scripts/**/*.sh` file (except sourced library files under `scripts/lib/`) MUST have a Makefile target that
+  invokes it — the script path must appear in a Makefile recipe.
+- Every Makefile target MUST have at most **one active recipe line**, and that line MUST invoke a single
+  `scripts/**/*.sh` script. "Active" excludes blank lines, `#` comments, and `@echo` lines used for human-readable
+  progress reporting. Concretely:
   - Allowed: any number of `@echo` lines, followed by exactly one `bash scripts/X/Y.sh ...` line.
-  - Allowed: prerequisite chains in the target header (`mytarget: prereq1 prereq2`) — the
-    rule applies to the recipe body, not to prerequisite expansion.
-  - Disallowed: two or more substantive commands in one recipe (e.g. `cargo clean` followed by
-    `rm -f data/...`). Aggregate them into a single shell script and call it.
-  - Disallowed: invoking `cargo`, `go`, `bats`, `ln`, `mkdir`, `tee`, or any tool directly from
-    the Makefile recipe. Wrap the call in a `scripts/` shell script and have the Makefile
-    invoke the script.
-  - Rationale: the Makefile is a router, not an orchestrator. All multi-step orchestration,
-    flag handling, env var assembly, and tool invocation belongs in `scripts/`, which is
-    runnable identically by humans, by `make`, and by CI YAML. This eliminates Makefile
-    quoting traps, makes recipes shellcheck-able, and means every project concern has exactly
-    one canonical implementation surface.
+  - Allowed: prerequisite chains in the target header (`mytarget: prereq1 prereq2`) — the rule applies to the recipe
+    body, not to prerequisite expansion.
+  - Disallowed: two or more substantive commands in one recipe (e.g. `cargo clean` followed by `rm -f data/...`).
+    Aggregate them into a single shell script and call it.
+  - Disallowed: invoking `cargo`, `go`, `bats`, `ln`, `mkdir`, `tee`, or any tool directly from the Makefile recipe.
+    Wrap the call in a `scripts/` shell script and have the Makefile invoke the script.
+  - Rationale: the Makefile is a router, not an orchestrator. All multi-step orchestration, flag handling, env var
+    assembly, and tool invocation belongs in `scripts/`, which is runnable identically by humans, by `make`, and by CI
+    YAML. This eliminates Makefile quoting traps, makes recipes shellcheck-able, and means every project concern has
+    exactly one canonical implementation surface.
 
 ## Universal Canonical Makefile Targets
 
-Every project MUST define these language-independent targets. They form a stable, tool-agnostic
-interface for humans and CI alike. Names are fixed; projects may not rename or skip them.
-Language-specific subtargets (e.g. `make lint-go`, `make test-unit`) are additive — they do not
-replace the universal targets.
+Every project MUST define these language-independent targets. They form a stable, tool-agnostic interface for humans and
+CI alike. Names are fixed; projects may not rename or skip them. Language-specific subtargets (e.g. `make lint-go`,
+`make test-unit`) are additive — they do not replace the universal targets.
 
 ### Always required
 
-| Target | Makefile target | Script | Responsibility |
-|---|---|---|---|
-| Build default artifact | `make build` | project-specific | Produce the primary deliverable (binary, image, package). |
-| Run all linters | `make lint` | project-specific | Format check + static analysis. Must invoke `make lint-newlines`. |
-| Run full test suite | `make test` | project-specific | Unit + integration tests in sequence. |
-| Run unit tests | `make unit-test` | `scripts/test/ci.sh` | Unit tests only; produces JUnit XML and coverage profile. |
-| Run integration tests | `make integration-test` | project-specific | BATS / end-to-end tests against a built artifact. |
-| Remove artifacts | `make clean` | — | Remove `dist/` and generated files. |
-| Standards audit | `make audit` | `scripts/ci/audit-make-targets.sh` | CI/Makefile compliance auditor. |
-| Code coverage report | `make coverage` | `scripts/test/coverage.sh` | Print total %, uncovered statements, total lines. |
-| PR coverage gate | `make ci-coverage-delta` | `scripts/test/coverage-delta.sh` | Fail PR if coverage drops > threshold vs. base branch. |
-| PR policy gate | `make ci-pr-policy` | `scripts/ci/pr-policy.sh` | Title, body, branch naming, linked issue enforcement. |
-| Secret scan | `make ci-secret-scan` | `scripts/ci/secret-scan.sh` | gitleaks scan; required on every PR and default-branch push. |
-| DCO check | `make ci-dco` | `scripts/ci/dco-check.sh` | Signed-off-by trailer on every commit in the PR. |
-| Trailing newlines | `make lint-newlines` | `scripts/lint/newlines.sh` | Every `.md`, `.sh`, `.go` ends with `\n`. |
-| Legal drift check | `make check-legal-drift` | `scripts/check-legal-drift.sh` | Copied legal files (LICENSE, TRADEMARK) match the source of truth. |
+| Target                 | Makefile target          | Script                             | Responsibility                                                     |
+| ---------------------- | ------------------------ | ---------------------------------- | ------------------------------------------------------------------ |
+| Build default artifact | `make build`             | project-specific                   | Produce the primary deliverable (binary, image, package).          |
+| Run all linters        | `make lint`              | project-specific                   | Format check + static analysis. Must invoke `make lint-newlines`.  |
+| Run full test suite    | `make test`              | project-specific                   | Unit + integration tests in sequence.                              |
+| Run unit tests         | `make unit-test`         | `scripts/test/ci.sh`               | Unit tests only; produces JUnit XML and coverage profile.          |
+| Run integration tests  | `make integration-test`  | project-specific                   | BATS / end-to-end tests against a built artifact.                  |
+| Remove artifacts       | `make clean`             | —                                  | Remove `dist/` and generated files.                                |
+| Standards audit        | `make audit`             | `scripts/ci/audit-make-targets.sh` | CI/Makefile compliance auditor.                                    |
+| Code coverage report   | `make coverage`          | `scripts/test/coverage.sh`         | Print total %, uncovered statements, total lines.                  |
+| PR coverage gate       | `make ci-coverage-delta` | `scripts/test/coverage-delta.sh`   | Fail PR if coverage drops > threshold vs. base branch.             |
+| PR policy gate         | `make ci-pr-policy`      | `scripts/ci/pr-policy.sh`          | Title, body, branch naming, linked issue enforcement.              |
+| Secret scan            | `make ci-secret-scan`    | `scripts/ci/secret-scan.sh`        | gitleaks scan; required on every PR and default-branch push.       |
+| DCO check              | `make ci-dco`            | `scripts/ci/dco-check.sh`          | Signed-off-by trailer on every commit in the PR.                   |
+| Trailing newlines      | `make lint-newlines`     | `scripts/lint/newlines.sh`         | Every `.md`, `.sh`, `.go` ends with `\n`.                          |
+| Legal drift check      | `make check-legal-drift` | `scripts/check-legal-drift.sh`     | Copied legal files (LICENSE, TRADEMARK) match the source of truth. |
 
 ### Required for projects with releases
 
-| Target | Makefile target | Script | Responsibility |
-|---|---|---|---|
-| Generate checksums | `make release-checksums` | `scripts/release/checksums.sh` | Write `dist/SHA256SUMS` for all release artifacts. |
-| Verify checksums | `make release-checksums-verify` | `scripts/release/checksums.sh --verify` | Confirm downloaded artifacts match `SHA256SUMS`. |
-| Generate SBOM | `make release-sbom` | `scripts/release/sbom.sh` | SPDX JSON SBOM via syft; attached to every release. |
-| Sign artifacts | `make release-sign` | `scripts/release/sign.sh` | cosign keyless signing; bundles attached alongside binaries. |
-| Upload to release | `make release-upload` | `scripts/release/upload.sh` | Push artifacts + checksums + SBOM to GitHub Release. |
-| Version tagging | `make create-release` | `scripts/release/create-release.sh` | Schema-diff semver bump + annotated tag; developer action only. |
+| Target             | Makefile target                 | Script                                  | Responsibility                                                  |
+| ------------------ | ------------------------------- | --------------------------------------- | --------------------------------------------------------------- |
+| Generate checksums | `make release-checksums`        | `scripts/release/checksums.sh`          | Write `dist/SHA256SUMS` for all release artifacts.              |
+| Verify checksums   | `make release-checksums-verify` | `scripts/release/checksums.sh --verify` | Confirm downloaded artifacts match `SHA256SUMS`.                |
+| Generate SBOM      | `make release-sbom`             | `scripts/release/sbom.sh`               | SPDX JSON SBOM via syft; attached to every release.             |
+| Sign artifacts     | `make release-sign`             | `scripts/release/sign.sh`               | cosign keyless signing; bundles attached alongside binaries.    |
+| Upload to release  | `make release-upload`           | `scripts/release/upload.sh`             | Push artifacts + checksums + SBOM to GitHub Release.            |
+| Version tagging    | `make create-release`           | `scripts/release/create-release.sh`     | Schema-diff semver bump + annotated tag; developer action only. |
 
 ### Required for projects with container images
 
-| Target | Makefile target | Script | Responsibility |
-|---|---|---|---|
+| Target               | Makefile target       | Script                      | Responsibility                                            |
+| -------------------- | --------------------- | --------------------------- | --------------------------------------------------------- |
 | Build and push image | `make release-docker` | `scripts/release/docker.sh` | Build, tag, push, and sign container images from `dist/`. |
 
 ### Required for projects with Helm charts
 
-| Target | Makefile target | Script | Responsibility |
-|---|---|---|---|
-| Helm lint | `make lint-helm` | `scripts/lint/helm.sh` | `helm lint` + template render; no cluster required. |
-| Helm schema validation | `make lint-helm-validate` | `scripts/lint/helm-validate.sh` | kubeconform validation of rendered templates. |
-| Helm chart publish | `make release-helm-push` | `scripts/release/helm-push.sh` | OCI push to GHCR + cosign signing of the chart digest. |
+| Target                 | Makefile target           | Script                          | Responsibility                                         |
+| ---------------------- | ------------------------- | ------------------------------- | ------------------------------------------------------ |
+| Helm lint              | `make lint-helm`          | `scripts/lint/helm.sh`          | `helm lint` + template render; no cluster required.    |
+| Helm schema validation | `make lint-helm-validate` | `scripts/lint/helm-validate.sh` | kubeconform validation of rendered templates.          |
+| Helm chart publish     | `make release-helm-push`  | `scripts/release/helm-push.sh`  | OCI push to GHCR + cosign signing of the chart digest. |
 
 ## CI Auditor
 
@@ -122,15 +117,14 @@ replace the universal targets.
   3. All universal canonical targets exist in the Makefile.
 - `make audit` invokes the auditor.
 - The auditor MUST be a required CI step (add to the workflow as `run: make audit`).
-- The auditor MUST be wired into the pre-commit hook, gated on changes to
-  `.github/workflows/`, `scripts/`, or `Makefile`.
+- The auditor MUST be wired into the pre-commit hook, gated on changes to `.github/workflows/`, `scripts/`, or
+  `Makefile`.
 
 ### Canonical Script Source of Truth
 
-The source-of-truth copies of all canonical scripts live in the `keelcore/standards` repository
-(`scripts/` directory). Downstream repos MUST keep their copies byte-identical to the standards
-versions. Any change to a canonical script must be made first in `keelcore/standards` and then
-propagated to all downstream repos.
+The source-of-truth copies of all canonical scripts live in the `keelcore/standards` repository (`scripts/` directory).
+Downstream repos MUST keep their copies byte-identical to the standards versions. Any change to a canonical script must
+be made first in `keelcore/standards` and then propagated to all downstream repos.
 
 To verify that a downstream repo's canonical scripts match the standards source of truth, run:
 
@@ -138,62 +132,62 @@ To verify that a downstream repo's canonical scripts match the standards source 
 make verify-canonical REPO=<path-to-downstream-repo-root>
 ```
 
-from the `keelcore/standards` repository root. This compares `sha256sum` of each mandatory script
-and reports PASS/FAIL per file, exiting 1 if any mismatch is found.
+from the `keelcore/standards` repository root. This compares `sha256sum` of each mandatory script and reports PASS/FAIL
+per file, exiting 1 if any mismatch is found.
 
 ## Canonical CI Scripts
 
-Scripts whose names and responsibilities are fixed across all projects. Projects must not rename
-these scripts or move their canonical logic elsewhere.
+Scripts whose names and responsibilities are fixed across all projects. Projects must not rename these scripts or move
+their canonical logic elsewhere.
 
-The source of truth for all canonical scripts is the `keelcore/standards` repository. Downstream
-repo copies must be byte-identical to the standards versions for the scripts marked **canonical**.
-Use `make verify-canonical REPO=<path>` from the standards repo to verify compliance.
+The source of truth for all canonical scripts is the `keelcore/standards` repository. Downstream repo copies must be
+byte-identical to the standards versions for the scripts marked **canonical**. Use `make verify-canonical REPO=<path>`
+from the standards repo to verify compliance.
 
 ### Always required
 
-| Script | Makefile target | Responsibility | Source of truth |
-|---|---|---|---|
-| `scripts/ci/audit-make-targets.sh` | `make audit` | CI/Makefile standards compliance auditor. | keelcore/standards |
-| `scripts/ci/pr-policy.sh` | `make ci-pr-policy` | PR policy gate: title, body, branch naming, linked issue. | project-specific |
-| `scripts/ci/secret-scan.sh` | `make ci-secret-scan` | Secret scanning on every PR and default-branch push. | keelcore/standards |
-| `scripts/ci/dco-check.sh` | `make ci-dco` | DCO Signed-off-by trailer verification. | keelcore/standards |
-| `scripts/ci/setup-bats.sh` | `make setup-bats` | Install bats-core (test harness) idempotently across darwin/linux. | keelcore/standards |
-| `scripts/install-hooks.sh` | `make install-hooks` | Symlink `scripts/git_precommit.sh` into `.git/hooks/pre-commit`. | keelcore/standards |
-| `scripts/lint/newlines.sh` | `make lint-newlines` | Trailing newline enforcement for `.md`, `.sh`, `.go` files. | keelcore/standards |
-| `scripts/test/coverage.sh` | `make coverage` | Coverage report: total %, uncovered statements, total lines. | keelcore/standards |
-| `scripts/test/coverage-delta.sh` | `make ci-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold). | keelcore/standards |
-| `scripts/check-legal-drift.sh` | `make check-legal-drift` | Verify copied legal files match the source of truth. | project-specific |
-| `scripts/lib/paths.sh` | _(sourced; no target)_ | Shared path-filter helpers; sourced by other scripts. | keelcore/standards |
+| Script                             | Makefile target          | Responsibility                                                     | Source of truth    |
+| ---------------------------------- | ------------------------ | ------------------------------------------------------------------ | ------------------ |
+| `scripts/ci/audit-make-targets.sh` | `make audit`             | CI/Makefile standards compliance auditor.                          | keelcore/standards |
+| `scripts/ci/pr-policy.sh`          | `make ci-pr-policy`      | PR policy gate: title, body, branch naming, linked issue.          | project-specific   |
+| `scripts/ci/secret-scan.sh`        | `make ci-secret-scan`    | Secret scanning on every PR and default-branch push.               | keelcore/standards |
+| `scripts/ci/dco-check.sh`          | `make ci-dco`            | DCO Signed-off-by trailer verification.                            | keelcore/standards |
+| `scripts/ci/setup-bats.sh`         | `make setup-bats`        | Install bats-core (test harness) idempotently across darwin/linux. | keelcore/standards |
+| `scripts/install-hooks.sh`         | `make install-hooks`     | Symlink `scripts/git_precommit.sh` into `.git/hooks/pre-commit`.   | keelcore/standards |
+| `scripts/lint/newlines.sh`         | `make lint-newlines`     | Trailing newline enforcement for `.md`, `.sh`, `.go` files.        | keelcore/standards |
+| `scripts/test/coverage.sh`         | `make coverage`          | Coverage report: total %, uncovered statements, total lines.       | keelcore/standards |
+| `scripts/test/coverage-delta.sh`   | `make ci-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold).          | keelcore/standards |
+| `scripts/check-legal-drift.sh`     | `make check-legal-drift` | Verify copied legal files match the source of truth.               | project-specific   |
+| `scripts/lib/paths.sh`             | _(sourced; no target)_   | Shared path-filter helpers; sourced by other scripts.              | keelcore/standards |
 
 ### Required for projects with releases
 
-| Script | Makefile target | Responsibility |
-|---|---|---|
-| `scripts/release/checksums.sh` | `make release-checksums` / `make release-checksums-verify` | Generate or verify `dist/SHA256SUMS`. |
-| `scripts/release/sbom.sh` | `make release-sbom` | Generate SPDX JSON SBOM via syft. |
-| `scripts/release/sign.sh` | `make release-sign` | cosign keyless signing of all release artifacts. |
-| `scripts/release/upload.sh` | `make release-upload` | Upload artifacts to GitHub Release via gh CLI. |
-| `scripts/release/create-release.sh` | `make create-release` | Schema-diff semver version computation + tag; developer action. |
+| Script                              | Makefile target                                            | Responsibility                                                  |
+| ----------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| `scripts/release/checksums.sh`      | `make release-checksums` / `make release-checksums-verify` | Generate or verify `dist/SHA256SUMS`.                           |
+| `scripts/release/sbom.sh`           | `make release-sbom`                                        | Generate SPDX JSON SBOM via syft.                               |
+| `scripts/release/sign.sh`           | `make release-sign`                                        | cosign keyless signing of all release artifacts.                |
+| `scripts/release/upload.sh`         | `make release-upload`                                      | Upload artifacts to GitHub Release via gh CLI.                  |
+| `scripts/release/create-release.sh` | `make create-release`                                      | Schema-diff semver version computation + tag; developer action. |
 
 ### Required for projects with container images
 
-| Script | Makefile target | Responsibility |
-|---|---|---|
+| Script                      | Makefile target       | Responsibility                               |
+| --------------------------- | --------------------- | -------------------------------------------- |
 | `scripts/release/docker.sh` | `make release-docker` | Build, tag, push, and sign container images. |
 
 ### Required for projects with Helm charts
 
-| Script | Makefile target | Responsibility |
-|---|---|---|
-| `scripts/lint/helm.sh` | `make lint-helm` | `helm lint` + template render; no cluster required. |
+| Script                          | Makefile target           | Responsibility                                            |
+| ------------------------------- | ------------------------- | --------------------------------------------------------- |
+| `scripts/lint/helm.sh`          | `make lint-helm`          | `helm lint` + template render; no cluster required.       |
 | `scripts/lint/helm-validate.sh` | `make lint-helm-validate` | kubeconform schema validation of rendered Helm templates. |
-| `scripts/release/helm-push.sh` | `make release-helm-push` | OCI Helm chart push to GHCR + cosign signing. |
+| `scripts/release/helm-push.sh`  | `make release-helm-push`  | OCI Helm chart push to GHCR + cosign signing.             |
 
 ## Source File Formatting Invariants
 
-Every text source file MUST end with a single trailing newline (`\n`). Files without one fail the
-pre-commit hook and CI lint. Covered extensions:
+Every text source file MUST end with a single trailing newline (`\n`). Files without one fail the pre-commit hook and CI
+lint. Covered extensions:
 
 - Source: `.go`, `.sh`
 - Markup / documentation: `.md`
@@ -204,24 +198,24 @@ Rules:
 
 - Enforce via `scripts/lint/newlines.sh`; auto-fix via `scripts/lint/newlines.sh --fix`.
 - The pre-commit hook checks staged files; `make lint-newlines` checks the full tracked tree.
-- Adding a new text-format type to the repo? Add its glob to `scripts/lint/newlines.sh` and the
-  pre-commit `staged_text_files` filter in the same commit.
+- Adding a new text-format type to the repo? Add its glob to `scripts/lint/newlines.sh` and the pre-commit
+  `staged_text_files` filter in the same commit.
 
 ## Build Platform vs. Target Platform
 
 - Prefer build-once, deploy/validate-everywhere.
 - Use cross-compilation to produce artifacts from a single runner.
 - Use runner matrices for testing/smoke validation on target platforms, not for rebuilding.
-- Per-platform builds only when required by native signing, platform-bound linkers, OS-specific packaging,
-  or target-specific verification unavailable elsewhere. State the reason explicitly when doing so.
+- Per-platform builds only when required by native signing, platform-bound linkers, OS-specific packaging, or
+  target-specific verification unavailable elsewhere. State the reason explicitly when doing so.
 - Artifact promotion over artifact regeneration: the CI-tested artifact is the release artifact.
 
 ## Platform-Specific Finishing Steps
 
 - Signing, notarization, and native packaging are acceptable reasons for platform matrices.
 - Build the artifact in a canonical build job; use a platform matrix only for the platform-bound finishing step.
-- Keep signing, notarization, and packaging steps in repository scripts; workflow YAML provides only
-  orchestration, credentials, and artifact movement.
+- Keep signing, notarization, and packaging steps in repository scripts; workflow YAML provides only orchestration,
+  credentials, and artifact movement.
 
 ## Permissions
 
@@ -234,8 +228,8 @@ Rules:
 ## Action Version Pinning
 
 - Always pin action versions to a full commit SHA, not a tag. Tags are mutable.
-  - Correct:   `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2`
-  - Incorrect:  `actions/checkout@v4`
+  - Correct: `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2`
+  - Incorrect: `actions/checkout@v4`
 - Use Dependabot (`dependabot.yml`) with `package-ecosystem: github-actions` to keep SHA pins current.
 
 ## Toolchain Version
@@ -379,10 +373,10 @@ Rules:
 
 ### CI Workflow
 
-- PR job: compute current coverage → download `coverage/baseline.json` from the base branch →
-  compare → fail if current < baseline.
-- Post-merge job (runs on default branch only): recompute coverage → commit updated
-  `coverage/baseline.json` → push directly (no PR required for baseline updates).
+- PR job: compute current coverage → download `coverage/baseline.json` from the base branch → compare → fail if current
+  < baseline.
+- Post-merge job (runs on default branch only): recompute coverage → commit updated `coverage/baseline.json` → push
+  directly (no PR required for baseline updates).
 - The post-merge baseline update commit must be signed and attributed to the CI bot identity.
 - Baseline update commits use a conventional commit message: `chore: update coverage baseline to XX.X%`.
 
@@ -424,75 +418,63 @@ Rules:
 
 ### Versioning Specification
 
-All version numbers follow **Semantic Versioning 2.0.0** — [https://semver.org](https://semver.org).
-That document is canonical and must not be contradicted by project-specific rules.
-Version tags take the form `vMAJOR.MINOR.PATCH` with no pre-release or build-metadata
-extensions at this time.
+All version numbers follow **Semantic Versioning 2.0.0** — [https://semver.org](https://semver.org). That document is
+canonical and must not be contradicted by project-specific rules. Version tags take the form `vMAJOR.MINOR.PATCH` with
+no pre-release or build-metadata extensions at this time.
 
 Specific semver.org rules in force:
 
-- **[Item 2](https://semver.org/#spec-item-2):** Version numbers take the form
-  `MAJOR.MINOR.PATCH` — non-negative integers, no leading zeroes.
-- **[Item 4](https://semver.org/#spec-item-4):** MAJOR is incremented for incompatible
-  API changes; MINOR and PATCH reset to 0.
-- **[Item 5](https://semver.org/#spec-item-5):** MINOR is incremented for new
-  backward-compatible functionality; PATCH resets to 0.
-- **[Item 6](https://semver.org/#spec-item-6):** PATCH is incremented for
-  backward-compatible bug fixes only.
-- **[Item 9](https://semver.org/#spec-item-9):** Major version zero (`0.y.z`) is for
-  initial development. The public API is not yet stable and anything may change.
-- **[Item 10](https://semver.org/#spec-item-10):** `1.0.0` defines the first stable
-  public API. Subsequent increments follow the rules above without exception.
+- **[Item 2](https://semver.org/#spec-item-2):** Version numbers take the form `MAJOR.MINOR.PATCH` — non-negative
+  integers, no leading zeroes.
+- **[Item 4](https://semver.org/#spec-item-4):** MAJOR is incremented for incompatible API changes; MINOR and PATCH
+  reset to 0.
+- **[Item 5](https://semver.org/#spec-item-5):** MINOR is incremented for new backward-compatible functionality; PATCH
+  resets to 0.
+- **[Item 6](https://semver.org/#spec-item-6):** PATCH is incremented for backward-compatible bug fixes only.
+- **[Item 9](https://semver.org/#spec-item-9):** Major version zero (`0.y.z`) is for initial development. The public API
+  is not yet stable and anything may change.
+- **[Item 10](https://semver.org/#spec-item-10):** `1.0.0` defines the first stable public API. Subsequent increments
+  follow the rules above without exception.
 
 ### Tagging is a Developer Action — Never CI
 
-- Release version tags (`vX.Y.Z`) are created exclusively by developers running
-  `scripts/release/create-release.sh` from a local checkout.
+- Release version tags (`vX.Y.Z`) are created exclusively by developers running `scripts/release/create-release.sh` from
+  a local checkout.
 - CI must never create, push, or move version tags under any circumstance.
-- This is a hard policy: no workflow file may contain `git tag`, `git push --tags`,
-  or equivalent tag-creation steps.
-- Rationale: a tag is a public commitment about what version of the software a
-  commit represents. That decision requires human judgment and cannot be delegated
-  to automation.
+- This is a hard policy: no workflow file may contain `git tag`, `git push --tags`, or equivalent tag-creation steps.
+- Rationale: a tag is a public commitment about what version of the software a commit represents. That decision requires
+  human judgment and cannot be delegated to automation.
 
 ### Automatic Tag Triggering Is Permitted
 
-- CI workflows _triggered by_ a pushed tag (e.g. `on: push: tags: ['v*']`) are
-  permitted and expected — they run the release pipeline once a developer has
-  pushed a tag.
+- CI workflows _triggered by_ a pushed tag (e.g. `on: push: tags: ['v*']`) are permitted and expected — they run the
+  release pipeline once a developer has pushed a tag.
 - The distinction is: CI reacts to tags; CI does not create tags.
 
 ### Version Computation
 
-- Bump level (major / minor / patch) is derived from `pkg/config/schema.yaml` by
-  diffing the field set at the previous tag against the field set at HEAD:
-  - Removed fields → breaking change → major bump
-    ([semver.org item 4](https://semver.org/#spec-item-4)).
-  - Added fields (no removals) → new feature → minor bump
-    ([semver.org item 5](https://semver.org/#spec-item-5)).
-  - No field surface change → patch bump
-    ([semver.org item 6](https://semver.org/#spec-item-6)).
-- `scripts/release/create-release.sh` performs this computation, presents
-  findings to the developer for approval, then creates and pushes the annotated
-  tag on confirmation.
-- `scripts/release/gen-schema.sh` regenerates `pkg/config/schema.yaml` from
-  `cmd/config-schema/main.go` after any change to the config struct. The
-  consistency suite enforces that `schema.yaml` is never stale.
+- Bump level (major / minor / patch) is derived from `pkg/config/schema.yaml` by diffing the field set at the previous
+  tag against the field set at HEAD:
+  - Removed fields → breaking change → major bump ([semver.org item 4](https://semver.org/#spec-item-4)).
+  - Added fields (no removals) → new feature → minor bump ([semver.org item 5](https://semver.org/#spec-item-5)).
+  - No field surface change → patch bump ([semver.org item 6](https://semver.org/#spec-item-6)).
+- `scripts/release/create-release.sh` performs this computation, presents findings to the developer for approval, then
+  creates and pushes the annotated tag on confirmation.
+- `scripts/release/gen-schema.sh` regenerates `pkg/config/schema.yaml` from `cmd/config-schema/main.go` after any change
+  to the config struct. The consistency suite enforces that `schema.yaml` is never stale.
 
 ### --force Override Rules
 
-Developers may override the computed version with `--force vX.Y.Z`. Only bare
-`MAJOR.MINOR.PATCH` versions are accepted; pre-release identifiers (`-alpha.1`)
-and build metadata (`+sha`) are not supported by the tooling at this time.
+Developers may override the computed version with `--force vX.Y.Z`. Only bare `MAJOR.MINOR.PATCH` versions are accepted;
+pre-release identifiers (`-alpha.1`) and build metadata (`+sha`) are not supported by the tooling at this time.
 
-- **Pre-1.0 (major = 0):** Only versions in the `0.x.y` range or exactly `v1.0.0`
-  are accepted. Forcing `v1.1.0` or `v2.0.0` from a `0.x` base is rejected.
+- **Pre-1.0 (major = 0):** Only versions in the `0.x.y` range or exactly `v1.0.0` are accepted. Forcing `v1.1.0` or
+  `v2.0.0` from a `0.x` base is rejected.
 - **Post-1.0 (major ≥ 1):** `--force` is restricted to exact single-step increments:
   - Patch: `cur_maj.cur_min.(cur_pat+1)` — always allowed.
   - Minor: `cur_maj.(cur_min+1).0` — always allowed (e.g. internal improvements).
-  - Major: only accepted when breaking changes are detected **and** the forced
-    version exactly matches the auto-computed version. `--force` cannot suppress
-    or redirect a breaking-change bump, and cannot skip versions.
+  - Major: only accepted when breaking changes are detected **and** the forced version exactly matches the auto-computed
+    version. `--force` cannot suppress or redirect a breaking-change bump, and cannot skip versions.
 
 ## Do Not
 
