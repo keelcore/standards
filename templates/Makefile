@@ -2,7 +2,7 @@
 # All CI concerns are invoked through this file.
 # Workflow YAML calls `make <target>`; developers call the same targets locally.
 
-.PHONY: build lint lint-newlines lint-md lint-bash lint-markdown \
+.PHONY: build lint lint-newlines lint-bash lint-markdown \
         test unit-test integration-test clean audit \
         ci-pr-policy ci-secret-scan ci-dco ci-coverage-delta \
         coverage coverage-go coverage-rust \
@@ -17,7 +17,7 @@
 build:
 	@echo "✅ Nothing to build (standards is a documentation repository)"
 
-lint: lint-newlines lint-md lint-bash
+lint: lint-newlines lint-markdown lint-bash
 
 test: unit-test integration-test
 
@@ -42,14 +42,14 @@ lint-newlines:
 	@echo "🔍 Checking trailing newlines..."
 	bash scripts/lint/newlines.sh
 
-lint-md:
-	@echo "🔍 Running markdown lint (markdownlint-cli)..."
-	bash scripts/lint/md.sh
-
 lint-bash:
 	@echo "🔍 Running shellcheck..."
 	bash scripts/lint/shellcheck.sh
 
+# Markdown lint via markdownlint-cli2 (the single canonical md linter).
+# `lint-md` (the legacy markdownlint-cli wrapper) was removed in the
+# governance refactor 2026-05-24 because its recipe pointed at a script that
+# never existed (`scripts/lint/md.sh`); Rule 5 of the audit surfaced this.
 lint-markdown:
 	@echo "🔍 Running markdown lint (markdownlint-cli2)..."
 	bash scripts/lint/markdown.sh
@@ -200,9 +200,8 @@ help:
 	@echo ""
 	@echo "Lint:"
 	@echo "  lint-newlines      Check trailing newlines (.md .sh .go .yml etc.)"
-	@echo "  lint-md            markdownlint-cli check (canonical; from keel)"
 	@echo "  lint-bash          shellcheck on all scripts"
-	@echo "  lint-markdown      markdownlint-cli2 check (standards native)"
+	@echo "  lint-markdown      markdownlint-cli2 check (canonical md linter)"
 	@echo ""
 	@echo "Checks:"
 	@echo "  check-adr-metadata         Validate ADR metadata fields"
