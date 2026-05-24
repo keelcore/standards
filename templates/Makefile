@@ -5,7 +5,8 @@
 .PHONY: build lint lint-newlines lint-md lint-bash lint-markdown \
         test unit-test integration-test clean audit \
         ci-pr-policy ci-secret-scan ci-dco ci-coverage-delta \
-        coverage check-adr-metadata check-governance-metadata check-rfc-metadata \
+        coverage coverage-go coverage-rust \
+        check-adr-metadata check-governance-metadata check-rfc-metadata \
         check-legal-drift release-sbom release-sign release-go release-npm release-pypi \
         setup-bats setup-markdownlint setup-shellcheck setup-syft \
         verify-canonical verify-go install-hooks \
@@ -90,10 +91,20 @@ ci-coverage-delta:
 	bash scripts/test/coverage-delta.sh
 
 ## Coverage
+# Aggregator pattern: `make coverage` runs the per-language scripts; each
+# script gates on its own scope-detection (no go.mod / no Cargo.toml ⇒ skip
+# with exit 0). The gate lives in the script, not in the Makefile, so a
+# downstream repo with only one language is silently fine.
 
-coverage:
-	@echo "📊 Generating coverage report..."
-	bash scripts/test/coverage.sh
+coverage: coverage-go coverage-rust
+
+coverage-go:
+	@echo "📊 Go coverage..."
+	bash scripts/test/coverage-go.sh
+
+coverage-rust:
+	@echo "📊 Rust coverage (cargo-llvm-cov)..."
+	bash scripts/test/coverage-rust.sh
 
 ## Release targets
 
@@ -204,7 +215,9 @@ help:
 	@echo "  ci-secret-scan     Secret scan (gitleaks)"
 	@echo "  ci-dco             DCO Signed-off-by check"
 	@echo "  ci-coverage-delta  Coverage delta gate"
-	@echo "  coverage           Generate coverage report"
+	@echo "  coverage           Aggregate: coverage-go + coverage-rust"
+	@echo "  coverage-go        Go coverage (skips if no go.mod)"
+	@echo "  coverage-rust      Rust coverage via cargo-llvm-cov (skips if no Cargo.toml)"
 	@echo ""
 	@echo "Release:"
 	@echo "  release-sbom       Generate SPDX SBOM"

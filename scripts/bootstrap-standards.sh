@@ -160,7 +160,8 @@ function copy_support_scripts() {
   cp "${src}/lint/newlines.sh"        scripts/lint/newlines.sh
   cp "${src}/lint/shellcheck.sh"      scripts/lint/shellcheck.sh
   cp "${src}/test/coverage-delta.sh"  scripts/test/coverage-delta.sh
-  cp "${src}/test/coverage.sh"        scripts/test/coverage.sh
+  cp "${src}/test/coverage-go.sh"     scripts/test/coverage-go.sh
+  cp "${src}/test/coverage-rust.sh"   scripts/test/coverage-rust.sh
 }
 
 function copy_canonical_scripts() {

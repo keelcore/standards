@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# coverage.sh
-# Generates a coverage profile and prints total %, uncovered statements, and total statements.
+# coverage-go.sh
+# Generates a Go coverage profile and prints total %, uncovered statements,
+# and total statements. Skips with exit 0 when no Go scope is present
+# (no go.mod at REPO_ROOT) — invoked unconditionally by `make coverage` via
+# the aggregator pattern; the per-language gate lives here.
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -18,16 +21,24 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 function main() {
   exec 5>&1
   validate_args "${@:-}"
+  if ! has_go_scope; then
+    log 'ℹ️  No Go scope detected (no go.mod); skipping coverage-go.'
+    return 0
+  fi
   local outfile
   outfile="${1:-coverage.txt}"
   run_coverage "${outfile}"
   print_stats "${outfile}"
 }
 
+function has_go_scope() {
+  [ -f 'go.mod' ]
+}
+
 function log() {
   local msg
   msg="${1:-}"
-  printf '%s\n' "${msg}" | tee -a '/tmp/keel_coverage.log' >&5
+  printf '%s\n' "${msg}" | tee -a '/tmp/keel_coverage_go.log' >&5
 }
 
 function validate_args() {
@@ -39,7 +50,7 @@ function validate_args() {
 
 function run_coverage() {
   local outfile="${1}"
-  log "Generating coverage profile"
+  log 'Generating Go coverage profile'
   : > "${outfile}"
   local pkgs coverpkg
   pkgs="$(go_pkgs | grep -v '/examples/')"

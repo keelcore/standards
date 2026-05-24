@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# coverage-rust.sh
+# Generates a Rust coverage report via cargo-llvm-cov: per-file LCOV at
+# target/llvm-cov/lcov.info plus an HTML browse tree at target/llvm-cov/html/.
+# cargo-llvm-cov runs the cargo test suite as a side effect, so this script
+# also satisfies the "tests must pass" obligation for the Rust scope.
+# Skips with exit 0 when no Rust scope is present (no Cargo.toml at
+# REPO_ROOT) — invoked unconditionally by `make coverage` via the
+# aggregator pattern; the per-language gate lives here. HALTs (non-zero) if
+# Rust scope is detected but cargo-llvm-cov is not installed.
+
+# bash configuration:
+# 1) Exit script if you try to use an uninitialized variable.
+set -o nounset
+
+# 2) Exit script if a statement returns a non-true return value.
+set -o errexit
+
+# 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
+set -o pipefail
+
+declare -r OUT_DIR='target/llvm-cov'
+declare -r LCOV_PATH="${OUT_DIR}/lcov.info"
+
+function main() {
+  exec 5>&1
+  validate_args "${@:-}"
+  if ! has_rust_scope; then
+    log 'ℹ️  No Rust scope detected (no Cargo.toml); skipping coverage-rust.'
+    return 0
+  fi
+  ensure_llvm_cov
+  log '🔬 cargo llvm-cov clean...'
+  cargo llvm-cov clean --workspace
+  mkdir -p "${OUT_DIR}"
+  log '🧪 cargo llvm-cov (workspace, all targets)...'
+  run_coverage
+  print_stats
+  log "📁 LCOV: ${LCOV_PATH}"
+  log "📁 HTML: ${OUT_DIR}/html/index.html"
+}
+
+function has_rust_scope() {
+  [ -f 'Cargo.toml' ]
+}
+
+function ensure_llvm_cov() {
+  if cargo llvm-cov --version >/dev/null 2>&1; then
+    return 0
+  fi
+  log '❌ cargo-llvm-cov not installed (Rust scope detected).'
+  log '   Install: cargo install cargo-llvm-cov && rustup component add llvm-tools-preview'
+  exit 1
+}
+
+function run_coverage() {
+  # Single test invocation, two report formats: --no-report runs the tests
+  # and stores profraw; `report` re-emits without re-running.
+  # NOTE: cargo-llvm-cov nests `html/` inside --output-dir, so pass OUT_DIR
+  # (not OUT_DIR/html) to land at ${OUT_DIR}/html/index.html.
+  cargo llvm-cov --workspace --all-targets --no-report
+  cargo llvm-cov report --lcov --output-path "${LCOV_PATH}"
+  cargo llvm-cov report --html --output-dir "${OUT_DIR}"
+}
+
+function print_stats() {
+  local files lines covered pct
+  files="$(grep -c '^SF:' "${LCOV_PATH}" || true)"
+  lines="$(awk '/^LF:/{split($0,a,":"); tot+=a[2]} END{print tot+0}' "${LCOV_PATH}")"
+  covered="$(awk '/^LH:/{split($0,a,":"); tot+=a[2]} END{print tot+0}' "${LCOV_PATH}")"
+  if [ "${lines}" -gt 0 ]; then
+    pct="$(awk -v c="${covered}" -v l="${lines}" 'BEGIN{printf "%.2f", 100*c/l}')"
+  else
+    pct='0.00'
+  fi
+  printf 'files:     %s\n' "${files}"
+  printf 'lines:     %s\n' "${lines}"
+  printf 'covered:   %s\n' "${covered}"
+  printf 'total:     %s%%\n' "${pct}"
+}
+
+function log() {
+  local msg
+  msg="${1:-}"
+  printf '%s\n' "${msg}" | tee -a '/tmp/keel_coverage_rust.log' >&5
+}
+
+function validate_args() {
+  if [ "${#}" -gt 1 ] || [ -n "${1:-}" ]; then
+    log '❌ Error: Unexpected argument'
+    exit 1
+  fi
+}
+
+main "${@:-}"
