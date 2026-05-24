@@ -72,6 +72,17 @@ Copy the relevant adapter to your repo and adjust paths if needed.
 | Cursor | [adapters/cursor/](adapters/cursor/) |
 | GitHub Copilot | [adapters/copilot/copilot-instructions.md](adapters/copilot/copilot-instructions.md) |
 
+## Bootstrapping a New Repository
+
+Paste-ready prompts that drive an AI coding agent through the full standards
+bootstrap: submodule + governance-mandated `scripts/` + canonical `Makefile` + BATS
++ pre-commit. Each prompt encodes the human-in-the-loop contract (stage, do not
+commit).
+
+| Agent | Prompt |
+| --- | --- |
+| Claude Code | [adapters/claude/bootstrap_prompt.md](adapters/claude/bootstrap_prompt.md) |
+
 ## Architecture Decision Records
 
 ADRs documenting standards design decisions live in [docs/adr/](docs/adr/).

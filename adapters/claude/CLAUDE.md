@@ -38,6 +38,13 @@ See [.standards/governance/api-management.md](.standards/governance/api-manageme
 
 See [.standards/governance/ai/conduct.md](.standards/governance/ai/conduct.md).
 
+## Bootstrap Prompt
+
+To stand up a new keelcore-standards repository (submodule, canonical `scripts/`,
+`Makefile`, BATS, pre-commit), use the paste-ready prompt at
+[.standards/adapters/claude/bootstrap_prompt.md](.standards/adapters/claude/bootstrap_prompt.md).
+It encodes the human-in-the-loop contract: Claude stages, the human commits.
+
 ## Project-Specific Guidance
 
 Project-local conventions, build instructions, and architecture notes live in [.local-claude.md](.local-claude.md).
