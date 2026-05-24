@@ -45,6 +45,22 @@ it does not duplicate their logic.
 - The Makefile is the single dev-facing interface: what CI calls, a developer can call locally.
 - Every `scripts/**/*.sh` file (except sourced library files under `scripts/lib/`) MUST have a
   Makefile target that invokes it — the script path must appear in a Makefile recipe.
+- Every Makefile target MUST have at most **one active recipe line**, and that line MUST invoke a
+  single `scripts/**/*.sh` script. "Active" excludes blank lines, `#` comments, and `@echo` lines
+  used for human-readable progress reporting. Concretely:
+  - Allowed: any number of `@echo` lines, followed by exactly one `bash scripts/X/Y.sh ...` line.
+  - Allowed: prerequisite chains in the target header (`mytarget: prereq1 prereq2`) — the
+    rule applies to the recipe body, not to prerequisite expansion.
+  - Disallowed: two or more substantive commands in one recipe (e.g. `cargo clean` followed by
+    `rm -f data/...`). Aggregate them into a single shell script and call it.
+  - Disallowed: invoking `cargo`, `go`, `bats`, `ln`, `mkdir`, `tee`, or any tool directly from
+    the Makefile recipe. Wrap the call in a `scripts/` shell script and have the Makefile
+    invoke the script.
+  - Rationale: the Makefile is a router, not an orchestrator. All multi-step orchestration,
+    flag handling, env var assembly, and tool invocation belongs in `scripts/`, which is
+    runnable identically by humans, by `make`, and by CI YAML. This eliminates Makefile
+    quoting traps, makes recipes shellcheck-able, and means every project concern has exactly
+    one canonical implementation surface.
 
 ## Universal Canonical Makefile Targets
 
@@ -142,6 +158,8 @@ Use `make verify-canonical REPO=<path>` from the standards repo to verify compli
 | `scripts/ci/pr-policy.sh` | `make ci-pr-policy` | PR policy gate: title, body, branch naming, linked issue. | project-specific |
 | `scripts/ci/secret-scan.sh` | `make ci-secret-scan` | Secret scanning on every PR and default-branch push. | keelcore/standards |
 | `scripts/ci/dco-check.sh` | `make ci-dco` | DCO Signed-off-by trailer verification. | keelcore/standards |
+| `scripts/ci/setup-bats.sh` | `make setup-bats` | Install bats-core (test harness) idempotently across darwin/linux. | keelcore/standards |
+| `scripts/install-hooks.sh` | `make install-hooks` | Symlink `scripts/git_precommit.sh` into `.git/hooks/pre-commit`. | keelcore/standards |
 | `scripts/lint/newlines.sh` | `make lint-newlines` | Trailing newline enforcement for `.md`, `.sh`, `.go` files. | keelcore/standards |
 | `scripts/test/coverage.sh` | `make coverage` | Coverage report: total %, uncovered statements, total lines. | keelcore/standards |
 | `scripts/test/coverage-delta.sh` | `make ci-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold). | keelcore/standards |

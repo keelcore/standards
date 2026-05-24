@@ -29,10 +29,23 @@ readonly -a CANONICAL_SCRIPTS=(
   'scripts/ci/audit-make-targets.sh'
   'scripts/ci/secret-scan.sh'
   'scripts/ci/dco-check.sh'
+  'scripts/ci/setup-bats.sh'
+  'scripts/ci/setup-markdownlint.sh'
+  'scripts/ci/setup-shellcheck.sh'
+  'scripts/ci/setup-syft.sh'
+  'scripts/install-hooks.sh'
+  'scripts/format.sh'
+  'scripts/lint.sh'
+  'scripts/git_precommit.sh'
+  'scripts/lint/markdown.sh'
   'scripts/lint/newlines.sh'
+  'scripts/lint/shellcheck.sh'
   'scripts/test/coverage.sh'
   'scripts/test/coverage-delta.sh'
   'scripts/lib/paths.sh'
+  'scripts/check/adr-metadata.sh'
+  'scripts/check/governance-metadata.sh'
+  'scripts/check/rfc-metadata.sh'
 )
 
 function log() {

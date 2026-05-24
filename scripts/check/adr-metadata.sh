@@ -37,8 +37,8 @@ function main() {
 
 function validate_env() {
   if [ ! -d 'docs/adr' ]; then
-    log '❌ docs/adr/ not found; run from the repository root'
-    exit 1
+    log 'ℹ️  docs/adr/ not present in this repo; skipping ADR metadata check'
+    exit 0
   fi
 }
 

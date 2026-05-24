@@ -32,8 +32,8 @@ function main() {
 
 function validate_env() {
   if [ ! -d 'governance' ]; then
-    log '❌ governance/ not found; run from the repository root'
-    exit 1
+    log 'ℹ️  governance/ not present in this repo; skipping governance metadata check'
+    exit 0
   fi
 }
 

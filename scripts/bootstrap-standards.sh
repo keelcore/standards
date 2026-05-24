@@ -1,18 +1,33 @@
 #!/usr/bin/env bash
 # bootstrap-standards.sh
 # Reproduce every file that originates from .standards — AI adapters,
-# canonical scripts, and repo config — so a clean clone reaches the same
-# state with one command.  No file content is embedded inline.
+# canonical scripts, project config, and starter templates (Makefile, BATS
+# scaffolding, .gitleaks.toml, .markdownlintignore, .prettierrc,
+# .local-claude.md) — so a clean clone reaches the same state with one
+# command. No file content is embedded inline.
 #
-# Safe to re-run. Non-greenfield handling:
+# Single source of truth for the Makefile: .standards/templates/Makefile
+# is the material copy; .standards/Makefile is a symlink to it. Bootstrap
+# copies templates/Makefile into the consumer (create-if-missing) so the
+# consumer's Makefile starts with the canonical universal targets already
+# wired. Operator then prunes any standards-repo-specific targets and adds
+# language-specific build/test/clean recipes.
+#
+# Safe to re-run. Two cp policies:
+#   1. Canonical scripts (scripts/**): always overwritten — byte-identical
+#      to .standards is enforced by scripts/ci/verify-canonical-scripts.sh.
+#   2. Templates (Makefile, BATS, configs, .local-claude.md): create only
+#      if the target does NOT already exist. Operators customize freely
+#      after first copy; re-running bootstrap won't clobber.
+#
+# Non-greenfield handling:
 #   - If CLAUDE.md exists and is NOT the canonical symlink, move it to
 #     .local-claude.md so its content survives, then symlink the adapter.
 #     If .local-claude.md already exists, warn and leave CLAUDE.md alone.
-#   - Existing scripts at canonical paths are overwritten by cp; project-
-#     specific scripts living alongside them (e.g. fetch-data.sh) are not
-#     touched.
-#   - The Makefile is NEVER overwritten; canonical targets must be MERGED
-#     into existing project Makefiles by the operator after bootstrap.
+#   - If Makefile (or any other template target) exists, it is NOT
+#     overwritten; the operator merges canonical targets manually.
+#   - Project-specific scripts living alongside canonical ones (e.g.
+#     fetch-data.sh) are never touched.
 #
 # Run locally:  bash .standards/scripts/bootstrap-standards.sh
 
@@ -32,9 +47,11 @@ function main() {
   init_submodule
   copy_canonical_scripts
   copy_markdownlint_config
+  copy_templates
   chmod_scripts
   install_tools
   create_adapters
+  install_precommit_hook
   log '✅ Bootstrap complete'
 }
 
@@ -116,6 +133,7 @@ function copy_ci_scripts() {
   cp "${src}/dco-check.sh"                 "${dst}/dco-check.sh"
   cp "${src}/pr-policy.sh"                 "${dst}/pr-policy.sh"
   cp "${src}/secret-scan.sh"               "${dst}/secret-scan.sh"
+  cp "${src}/setup-bats.sh"                "${dst}/setup-bats.sh"
   cp "${src}/setup-markdownlint.sh"        "${dst}/setup-markdownlint.sh"
   cp "${src}/setup-shellcheck.sh"          "${dst}/setup-shellcheck.sh"
   cp "${src}/setup-syft.sh"                "${dst}/setup-syft.sh"
@@ -135,6 +153,7 @@ function copy_support_scripts() {
   cp "${src}/format.sh"               scripts/format.sh
   cp "${src}/lint.sh"                 scripts/lint.sh
   cp "${src}/git_precommit.sh"        scripts/git_precommit.sh
+  cp "${src}/install-hooks.sh"        scripts/install-hooks.sh
   cp "${src}/check-legal-drift.sh"    scripts/check-legal-drift.sh
   cp "${src}/lib/paths.sh"            scripts/lib/paths.sh
   cp "${src}/lint/markdown.sh"        scripts/lint/markdown.sh
@@ -157,9 +176,39 @@ function copy_markdownlint_config() {
   cp .standards/.markdownlint.json .markdownlint.json
 }
 
+function _maybe_copy_template() {
+  local -r src="${1}"
+  local -r dst="${2}"
+  if [ -e "${dst}" ]; then
+    log "  ⏭️  ${dst} exists; preserving operator customizations"
+    return 0
+  fi
+  mkdir -p "$(dirname "${dst}")"
+  cp "${src}" "${dst}"
+  log "  ✅ ${dst} created from template"
+}
+
+function copy_templates() {
+  log '📄 Copying starter templates (create-if-missing)...'
+  local -r src='.standards/templates'
+  _maybe_copy_template "${src}/Makefile"                    Makefile
+  _maybe_copy_template "${src}/.gitleaks.toml"              .gitleaks.toml
+  _maybe_copy_template "${src}/.markdownlintignore"         .markdownlintignore
+  _maybe_copy_template "${src}/.prettierrc"                 .prettierrc
+  _maybe_copy_template "${src}/.local-claude.md"            .local-claude.md
+  _maybe_copy_template "${src}/tests/canonical/smoke.bats"  tests/canonical/smoke.bats
+  _maybe_copy_template "${src}/tests/integrity.bats"        tests/integrity.bats
+  _maybe_copy_template "${src}/tests/fixtures/.gitkeep"     tests/fixtures/.gitkeep
+}
+
 function chmod_scripts() {
   log '🔒 Setting script permissions...'
   find scripts -name '*.sh' -exec chmod +x '{}' ';'
+}
+
+function install_precommit_hook() {
+  log '🪝 Installing git pre-commit hook...'
+  bash scripts/install-hooks.sh
 }
 
 main "${@:-}"

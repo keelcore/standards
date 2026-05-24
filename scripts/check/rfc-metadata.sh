@@ -36,8 +36,8 @@ function main() {
 
 function validate_env() {
   if [ ! -d 'docs/rfc' ]; then
-    log '❌ docs/rfc/ not found; run from the repository root'
-    exit 1
+    log 'ℹ️  docs/rfc/ not present in this repo; skipping RFC metadata check'
+    exit 0
   fi
 }
 
