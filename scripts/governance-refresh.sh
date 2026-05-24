@@ -57,15 +57,18 @@ function main() {
   validate_env
   log "🔄 governance-refresh: REPO_ROOT=${REPO_ROOT}"
 
-  local script_changes target_injections
+  local script_changes target_injections target_drifts
   script_changes="$(compute_script_changes)"
   target_injections="$(compute_target_injections)"
+  target_drifts="$(compute_target_drifts)"
 
-  report_changes "${script_changes}" "${target_injections}"
+  report_changes "${script_changes}" "${target_injections}" "${target_drifts}"
 
   if [ "${DRY_RUN}" -eq 1 ]; then
-    if [ -n "${script_changes}" ] || [ -n "${target_injections}" ]; then
+    if [ -n "${script_changes}" ] || [ -n "${target_injections}" ] \
+        || [ -n "${target_drifts}" ]; then
       log "⚠️  dry-run: changes pending. Run 'make governance-refresh' to apply."
+      log "    (target drifts require HUMAN resolution — they are NOT auto-fixed.)"
       exit 1
     fi
     log "✅ dry-run: nothing to refresh"
@@ -74,6 +77,11 @@ function main() {
 
   apply_script_changes "${script_changes}"
   apply_target_injections "${target_injections}"
+  if [ -n "${target_drifts}" ]; then
+    log "⚠️  target drift detected but NOT auto-fixed (recipes for shared"
+    log "    target names differ between consumer Makefile and"
+    log "    .standards/templates/Makefile). Reconcile manually."
+  fi
   log "✅ governance-refresh complete"
 }
 
@@ -166,6 +174,87 @@ function consumer_invokes_script() {
   grep -qF "bash ${rel}" "${CONSUMER_MAKEFILE}"
 }
 
+# Emit pending target drifts as lines of the form:
+#   DRIFT <target_name>
+# For each target name defined in BOTH templates/Makefile and consumer
+# Makefile, compare the active recipe lines (ignoring blank, comment, and
+# @echo lines per Rule 4's "active" definition). Normalize `.standards/`
+# prefix so cross-context invocations of standards-only scripts (e.g.
+# governance-refresh) don't false-positive.
+function compute_target_drifts() {
+  local target t_active c_active t_norm c_norm
+  while IFS= read -r target; do
+    [ -z "${target}" ] && continue
+    # Skip targets unique to one Makefile — those are caught by Rule 2
+    # (consumer-only) or the injection pass (templates-only).
+    if ! grep -qE "^${target}[[:space:]]*:" "${CONSUMER_MAKEFILE}"; then
+      continue
+    fi
+    t_active="$(active_recipe_of "${TEMPLATES_MAKEFILE}" "${target}")"
+    c_active="$(active_recipe_of "${CONSUMER_MAKEFILE}" "${target}")"
+    # Skip when EITHER side has no active recipe:
+    #   - templates empty: provides a stub for the consumer to fill in
+    #     (e.g. `build:` in the docs-only standards repo where consumer
+    #     supplies a real `bash scripts/build.sh`). Expected customization.
+    #   - consumer empty: aggregator with only prerequisites — not a
+    #     substantive override.
+    #   - both empty: nothing to drift on.
+    # Drift is flagged ONLY when BOTH sides invoke a script and the
+    # invocations differ (after `.standards/` prefix normalization).
+    if [ -z "${t_active}" ] || [ -z "${c_active}" ]; then
+      continue
+    fi
+    t_norm="$(normalize_recipe "${t_active}")"
+    c_norm="$(normalize_recipe "${c_active}")"
+    if [ "${t_norm}" != "${c_norm}" ]; then
+      printf 'DRIFT %s\n' "${target}"
+    fi
+  done < <(template_target_names)
+}
+
+# Names of all targets defined in templates/Makefile.
+function template_target_names() {
+  awk '
+    /^[a-zA-Z_][a-zA-Z0-9_.-]*[[:space:]]*:/ &&
+      !/^[a-zA-Z_][a-zA-Z0-9_.-]*[[:space:]]*[?:+]?=/ {
+        sub(/[[:space:]]*:.*$/, "")
+        print
+    }
+  ' "${TEMPLATES_MAKEFILE}" | sort -u
+}
+
+# Active recipe lines for the named target — TAB-indented lines that aren't
+# blank, comment, or @echo. Strips leading @/- modifiers (per Rule 4).
+function active_recipe_of() {
+  local -r makefile="${1}"
+  local -r target="${2}"
+  awk -v t="^${target}[[:space:]]*:" '
+    $0 ~ t { in_block=1; next }
+    /^[a-zA-Z_]/ { in_block=0 }
+    in_block && /^\t/ {
+      body=$0
+      sub(/^\t+/, "", body)
+      if (body == "") next
+      if (body ~ /^#/) next
+      if (body ~ /^@?-?echo([[:space:]]|$)/) next
+      sub(/^[@-]+/, "", body)
+      print body
+    }
+  ' "${makefile}"
+}
+
+# Normalize a recipe for drift comparison:
+#   - collapse multiple whitespace to single space
+#   - strip an optional `.standards/` prefix on a scripts/ path so
+#     cross-context invocations (consumer Makefile invokes the .standards
+#     submodule path; templates invokes the script via the relative path)
+#     compare equal.
+function normalize_recipe() {
+  local -r raw="${1}"
+  printf '%s\n' "${raw}" \
+    | sed -E 's| \.standards/scripts/| scripts/|g; s|[[:space:]]+| |g'
+}
+
 # Find the target in templates/Makefile whose recipe invokes the given
 # script. Returns empty if no template target invokes it.
 function find_target_for_script() {
@@ -184,7 +273,9 @@ function find_target_for_script() {
 function report_changes() {
   local -r script_changes="${1}"
   local -r target_injections="${2}"
-  if [ -z "${script_changes}" ] && [ -z "${target_injections}" ]; then
+  local -r target_drifts="${3:-}"
+  if [ -z "${script_changes}" ] && [ -z "${target_injections}" ] \
+      && [ -z "${target_drifts}" ]; then
     log "  nothing pending"
     return 0
   fi
@@ -199,6 +290,13 @@ function report_changes() {
     while IFS= read -r line; do
       [ -n "${line}" ] && log "    ${line}"
     done <<< "${target_injections}"
+  fi
+  if [ -n "${target_drifts}" ]; then
+    log "  Makefile target recipe drift (active lines differ between"
+    log "  consumer Makefile and .standards/templates/Makefile):"
+    while IFS= read -r line; do
+      [ -n "${line}" ] && log "    ${line}"
+    done <<< "${target_drifts}"
   fi
 }
 
