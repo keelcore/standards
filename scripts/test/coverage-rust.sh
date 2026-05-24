@@ -66,13 +66,26 @@ function run_coverage() {
   # is unsuitable (e.g., mutually-exclusive features like multiple BLAS
   # backends). Without an override, mutually-exclusive features will
   # surface as compilation failures — that's the signal to set the env.
+  #
+  # File exclusion: `cargo test` does not exercise `[[bin]]` main entry
+  # points (`src/bin/*.rs`) — those run only via the built binary (and via
+  # BATS/integration tests against the binary, which are not LCOV-
+  # instrumented). Excluding bin/*.rs by default keeps the coverage rule
+  # focused on library code where unit + integration tests do reach.
+  # Override the exclusion via env `CARGO_COVERAGE_IGNORE_REGEX='...'`
+  # (passed verbatim as --ignore-filename-regex).
   local feature_args=("--all-features")
   if [ -n "${CARGO_COVERAGE_FEATURES:-}" ]; then
     feature_args=("--features" "${CARGO_COVERAGE_FEATURES}")
   fi
-  cargo llvm-cov --workspace --all-targets "${feature_args[@]}" --no-report
-  cargo llvm-cov report --lcov --output-path "${LCOV_PATH}"
-  cargo llvm-cov report --html --output-dir "${OUT_DIR}"
+  local ignore_regex="${CARGO_COVERAGE_IGNORE_REGEX:-src/bin/}"
+  local ignore_args=("--ignore-filename-regex" "${ignore_regex}")
+  cargo llvm-cov --workspace --all-targets "${feature_args[@]}" \
+    "${ignore_args[@]}" --no-report
+  cargo llvm-cov report --lcov --output-path "${LCOV_PATH}" \
+    "${ignore_args[@]}"
+  cargo llvm-cov report --html --output-dir "${OUT_DIR}" \
+    "${ignore_args[@]}"
 }
 
 function print_stats() {
