@@ -10,6 +10,10 @@ See [.standards/governance/coding.md](.standards/governance/coding.md).
 
 See [.standards/governance/ci.md](.standards/governance/ci.md).
 
+## Testing Standards
+
+See [.standards/governance/testing.md](.standards/governance/testing.md).
+
 ## Bash Standards
 
 See [.standards/governance/bash.md](.standards/governance/bash.md).
