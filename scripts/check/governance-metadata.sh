@@ -32,8 +32,8 @@ function main() {
 
 function validate_env() {
   if [ ! -d 'governance' ]; then
-    log '❌ governance/ not found; run from the repository root'
-    exit 1
+    log 'ℹ️  governance/ not present in this repo; skipping governance metadata check'
+    exit 0
   fi
 }
 
@@ -72,7 +72,8 @@ function check_standard() {
 function check_field() {
   local -r file="${1}"
   local -r field="${2}"
-  if ! grep -qE "^\*\*${field}:\*\* *[^ ]" "${file}"; then
+  # Match field label anywhere on a line; permits multi-field-per-line layouts.
+  if ! grep -qE "\*\*${field}:\*\* *[^ ]" "${file}"; then
     log "  ❌ ${file}: missing or empty field '**${field}:**'"
     return 1
   fi
@@ -81,7 +82,7 @@ function check_field() {
 function check_maturity_value() {
   local -r file="${1}"
   local maturity_line
-  maturity_line="$(grep -E '^\*\*Maturity:\*\*' "${file}" || true)"
+  maturity_line="$(grep -E '\*\*Maturity:\*\*' "${file}" || true)"
   if [ -z "${maturity_line}" ]; then
     return 1
   fi

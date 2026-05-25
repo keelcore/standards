@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # scripts/lint/markdown.sh
-# Lints all Markdown files in the repository using markdownlint-cli2.
+# Lints all GIT-TRACKED Markdown files using markdownlint-cli2.
+# Tracked-files scope means gitignored content (.scratch/, build outputs,
+# vendored caches) is automatically excluded — it isn't part of the repo.
 # Requires markdownlint-cli2 to be available on PATH (npm install or npx).
 
 # bash configuration:
@@ -45,10 +47,19 @@ function lint() {
 }
 
 function run_linter() {
+  local -a files=()
+  local f
+  while IFS= read -r f; do
+    files+=("${f}")
+  done < <(git ls-files '*.md')
+  if [ "${#files[@]}" -eq 0 ]; then
+    log 'ℹ️  No tracked .md files to lint'
+    return 0
+  fi
   if command -v markdownlint-cli2 > /dev/null 2>&1; then
-    markdownlint-cli2 '**/*.md' '#node_modules'
+    markdownlint-cli2 "${files[@]}"
   else
-    npx --yes markdownlint-cli2 '**/*.md' '#node_modules'
+    npx --yes markdownlint-cli2 "${files[@]}"
   fi
 }
 
