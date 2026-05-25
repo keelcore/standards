@@ -1,33 +1,35 @@
 #!/usr/bin/env bash
 # bootstrap-standards.sh
-# Reproduce every file that originates from .standards — AI adapters,
-# canonical scripts, project config, and starter templates (Makefile, BATS
-# scaffolding, .gitleaks.toml, .markdownlintignore, .prettierrc,
-# .local-claude.md) — so a clean clone reaches the same state with one
-# command. No file content is embedded inline.
+# First-time setup for a consumer repo: add `.standards` as a submodule,
+# wire AI adapters, copy starter templates (Makefile, BATS scaffolding,
+# .gitleaks.toml, .markdownlintignore, .prettierrc, .local-claude.md) and
+# the markdownlint config, then delegate the full canonical-script sync to
+# `governance-refresh.sh`. No file content is embedded inline.
 #
-# Single source of truth for the Makefile: .standards/templates/Makefile
-# is the material copy; .standards/Makefile is a symlink to it. Bootstrap
-# copies templates/Makefile into the consumer (create-if-missing) so the
-# consumer's Makefile starts with the canonical universal targets already
-# wired. Operator then prunes any standards-repo-specific targets and adds
-# language-specific build/test/clean recipes.
-#
-# Safe to re-run. Two cp policies:
-#   1. Canonical scripts (scripts/**): always overwritten — byte-identical
-#      to .standards is enforced by scripts/ci/verify-canonical-scripts.sh.
-#   2. Templates (Makefile, BATS, configs, .local-claude.md): create only
-#      if the target does NOT already exist. Operators customize freely
-#      after first copy; re-running bootstrap won't clobber.
+# Architecture:
+#   - Canonical scripts (scripts/**) come from one place: governance-refresh.sh.
+#     Bootstrap copies governance-refresh.sh from .standards as a seed and
+#     invokes it; the script then walks .standards/scripts/ and copies any
+#     missing or content-divergent file into the consumer. `.standards`
+#     always wins for canonical scripts — operator hand-edits are overwritten
+#     on every refresh.
+#   - Templates (Makefile, BATS, configs, .local-claude.md) are create-only:
+#     if the target already exists the operator's customizations are
+#     preserved. The Makefile is seeded from .standards/templates/Makefile
+#     so the consumer starts with the canonical universal targets wired in.
 #
 # Non-greenfield handling:
 #   - If CLAUDE.md exists and is NOT the canonical symlink, move it to
 #     .local-claude.md so its content survives, then symlink the adapter.
 #     If .local-claude.md already exists, warn and leave CLAUDE.md alone.
 #   - If Makefile (or any other template target) exists, it is NOT
-#     overwritten; the operator merges canonical targets manually.
+#     overwritten; governance-refresh handles Makefile target injection
+#     for canonical targets the consumer is missing.
 #   - Project-specific scripts living alongside canonical ones (e.g.
 #     fetch-data.sh) are never touched.
+#
+# For ongoing reconciliation after bootstrap, the consumer runs
+# `make governance-refresh`.
 #
 # Run locally:  bash .standards/scripts/bootstrap-standards.sh
 
@@ -45,9 +47,10 @@ function main() {
   exec 5>&1
   validate_args "${@:-}"
   init_submodule
-  copy_canonical_scripts
   copy_markdownlint_config
   copy_templates
+  seed_governance_refresh
+  run_governance_refresh
   chmod_scripts
   install_tools
   create_adapters
@@ -126,53 +129,16 @@ function create_adapters() {
   create_cursor_rules
 }
 
-function copy_ci_scripts() {
-  local -r src='.standards/scripts/ci'
-  local -r dst='scripts/ci'
-  cp "${src}/audit-make-targets.sh"        "${dst}/audit-make-targets.sh"
-  cp "${src}/governance-gate.sh"           "${dst}/governance-gate.sh"
-  cp "${src}/dco-check.sh"                 "${dst}/dco-check.sh"
-  cp "${src}/pr-policy.sh"                 "${dst}/pr-policy.sh"
-  cp "${src}/secret-scan.sh"               "${dst}/secret-scan.sh"
-  cp "${src}/setup-bats.sh"                "${dst}/setup-bats.sh"
-  cp "${src}/setup-markdownlint.sh"        "${dst}/setup-markdownlint.sh"
-  cp "${src}/setup-shellcheck.sh"          "${dst}/setup-shellcheck.sh"
-  cp "${src}/setup-syft.sh"                "${dst}/setup-syft.sh"
-  cp "${src}/verify-canonical-scripts.sh"  "${dst}/verify-canonical-scripts.sh"
+function seed_governance_refresh() {
+  log '📥 Seeding scripts/governance-refresh.sh from .standards...'
+  mkdir -p scripts
+  cp .standards/scripts/governance-refresh.sh scripts/governance-refresh.sh
+  chmod +x scripts/governance-refresh.sh
 }
 
-function copy_check_scripts() {
-  local -r src='.standards/scripts/check'
-  local -r dst='scripts/check'
-  cp "${src}/adr-metadata.sh"         "${dst}/adr-metadata.sh"
-  cp "${src}/governance-metadata.sh"  "${dst}/governance-metadata.sh"
-  cp "${src}/rfc-metadata.sh"         "${dst}/rfc-metadata.sh"
-}
-
-function copy_support_scripts() {
-  local -r src='.standards/scripts'
-  cp "${src}/format.sh"               scripts/format.sh
-  cp "${src}/lint.sh"                 scripts/lint.sh
-  cp "${src}/git_precommit.sh"        scripts/git_precommit.sh
-  cp "${src}/install-hooks.sh"        scripts/install-hooks.sh
-  cp "${src}/check-legal-drift.sh"    scripts/check-legal-drift.sh
-  cp "${src}/lib/paths.sh"            scripts/lib/paths.sh
-  cp "${src}/lint/markdown.sh"        scripts/lint/markdown.sh
-  cp "${src}/lint/newlines.sh"        scripts/lint/newlines.sh
-  cp "${src}/lint/shellcheck.sh"      scripts/lint/shellcheck.sh
-  cp "${src}/test/coverage-delta.sh"           scripts/test/coverage-delta.sh
-  cp "${src}/test/coverage-go.sh"              scripts/test/coverage-go.sh
-  cp "${src}/test/coverage-rust.sh"            scripts/test/coverage-rust.sh
-  cp "${src}/test/coverage-no-regression.sh"   scripts/test/coverage-no-regression.sh
-  cp "${src}/test/coverage-baseline-init.sh"   scripts/test/coverage-baseline-init.sh
-}
-
-function copy_canonical_scripts() {
-  log '📋 Copying canonical scripts...'
-  mkdir -p scripts/ci scripts/check scripts/lib scripts/lint scripts/test
-  copy_ci_scripts
-  copy_check_scripts
-  copy_support_scripts
+function run_governance_refresh() {
+  log '🔄 Syncing canonical scripts and Makefile targets via governance-refresh...'
+  bash scripts/governance-refresh.sh
 }
 
 function copy_markdownlint_config() {

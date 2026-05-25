@@ -50,11 +50,17 @@ declare -r TEMPLATES_MAKEFILE="${STANDARDS_ROOT}/templates/Makefile"
 declare -r CONSUMER_MAKEFILE="${REPO_ROOT}/Makefile"
 
 declare DRY_RUN=0
+# Flipped to 1 by detect_consumer when REPO_ROOT contains a `.standards`
+# submodule (i.e., we are NOT the standards repo itself). Effectively
+# immutable after detect_consumer runs.
+declare IS_CONSUMER=0
 
 function main() {
   exec 5>&1
   parse_args "${@:-}"
   validate_env
+  detect_consumer
+  maybe_pull_submodule
   log "🔄 governance-refresh: REPO_ROOT=${REPO_ROOT}"
 
   local script_changes target_injections target_drifts
@@ -77,6 +83,7 @@ function main() {
 
   apply_script_changes "${script_changes}"
   apply_target_injections "${target_injections}"
+  maybe_stage_submodule
   if [ -n "${target_drifts}" ]; then
     log "⚠️  target drift detected but NOT auto-fixed (recipes for shared"
     log "    target names differ between consumer Makefile and"
@@ -114,16 +121,48 @@ function validate_env() {
   fi
 }
 
+# Sets IS_CONSUMER=1 iff REPO_ROOT contains a `.standards` submodule. The
+# standards repo itself has no `.standards/`, so it stays 0. A test harness
+# that points GOVREFRESH_STANDARDS_ROOT at a local path also stays 0 (no
+# submodule entry to advance).
+function detect_consumer() {
+  if git -C "${REPO_ROOT}" submodule status .standards 2>/dev/null \
+      | grep -q .; then
+    IS_CONSUMER=1
+  fi
+}
+
+# Advance the `.standards` submodule to its tracked-branch tip. Skipped in
+# dry-run mode: the CI governance gate runs --dry-run and must evaluate
+# against the pinned submodule pointer, not whatever upstream looks like
+# right now — otherwise the gate becomes flaky.
+function maybe_pull_submodule() {
+  [ "${IS_CONSUMER}" -eq 1 ] || return 0
+  [ "${DRY_RUN}" -eq 1 ] && return 0
+  log "📡 Pulling latest .standards submodule..."
+  git -C "${REPO_ROOT}" submodule update --remote .standards
+}
+
+# Stage the (possibly advanced) submodule pointer so the consumer's index
+# is ready to commit. No-op if the pointer did not move.
+function maybe_stage_submodule() {
+  [ "${IS_CONSUMER}" -eq 1 ] || return 0
+  [ "${DRY_RUN}" -eq 1 ] && return 0
+  log "📌 Staging .standards submodule pointer..."
+  git -C "${REPO_ROOT}" add .standards
+}
+
 # List shipping canonical scripts as paths relative to ${STANDARDS_ROOT}.
-# Excludes standards-only paths and the refresh script itself.
-#   - Top-level standards-only files (exact match): bootstrap-standards.sh,
-#     governance-refresh.sh.
+# Excludes standards-only paths. The refresh script itself IS shipped so it
+# can self-update on subsequent runs.
+#   - Top-level standards-only files (exact match): bootstrap-standards.sh
+#     (consumers `curl` it once; they do not keep a local copy).
 #   - Standards-only directory trees (prefix match): scripts/release/,
 #     scripts/verify/.
 function canonical_scripts() {
   find "${STANDARDS_ROOT}/scripts" -name '*.sh' -type f \
     | sed "s|^${STANDARDS_ROOT}/||" \
-    | grep -v -E '^scripts/(bootstrap-standards|governance-refresh)\.sh$' \
+    | grep -v -E '^scripts/bootstrap-standards\.sh$' \
     | grep -v -E '^scripts/(release|verify)/' \
     | sort
 }
