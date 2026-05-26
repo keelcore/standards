@@ -12,6 +12,9 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
+# shellcheck source=../lib/paths-ensure.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths-ensure.sh"
+
 function main() {
   exec 5>&1
   validate_env
@@ -19,12 +22,18 @@ function main() {
 }
 
 function validate_env() {
+  # `bash scripts/X.sh` does not source the interactive shell's init files;
+  # restore Homebrew / system-wide PATH additions so brew-installed tools
+  # are findable when run from the bash subshell.
+  paths_ensure_standard
+
   log 'Checking for shellcheck...'
   if ! command -v shellcheck > /dev/null 2>&1; then
-    log '❌ shellcheck not found; install via: apt-get install shellcheck / brew install shellcheck'
+    log '❌ shellcheck not found on PATH and not present at standard install locations.'
+    log '   Install via: brew install shellcheck (macOS) or apt-get install shellcheck (Debian/Ubuntu).'
     exit 1
   fi
-  log '✅ shellcheck available'
+  log "✅ shellcheck available ($(command -v shellcheck))"
 }
 
 function lint() {

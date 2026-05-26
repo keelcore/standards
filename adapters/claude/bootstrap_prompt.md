@@ -41,10 +41,10 @@ authoring required:
    - `scripts/test/{coverage,coverage-delta}.sh`
 2. **Starter templates** (created ONLY if the target file doesn't exist; never overwrites operator customizations on
    re-run):
-   - `Makefile` — material copy from `.standards/templates/Makefile` (which is also the source for `.standards/Makefile`
-     via symlink — single source of truth). Contains all canonical universal targets wired to `bash scripts/X.sh`, plus
-     a few standards-repo-specific targets the operator can prune (release-go, release-npm, release-pypi, verify-go,
-     bootstrap-standards).
+   - `Makefile` — thin seed from `.standards/templates/Makefile.consumer`. The seed `include`s
+     `.standards/templates/Makefile.canonical`, which supplies every canonical universal target wired to
+     `bash scripts/X.sh`. Release-*, verify-go, and bootstrap-standards targets are intentionally absent — they live
+     only in the standards repo's private Makefile because their scripts are not shipped to consumers.
    - `tests/canonical/smoke.bats` — harness sanity, project-agnostic
    - `tests/integrity.bats` — stub with TODO markers for your built artifact
    - `tests/fixtures/.gitkeep` — testing.md fixture-dir placeholder
@@ -75,9 +75,11 @@ The bootstrap is safe to run on a repo that already has a `CLAUDE.md`, `Makefile
 
 - **CLAUDE.md**: existing content migrated to `.local-claude.md` automatically; the symlinked canonical adapter
   re-includes it. Inspect the resulting `.local-claude.md` and prune anything now duplicated by the canonical adapter.
-- **Makefile**: existing Makefile is PRESERVED verbatim — the template is NOT copied over it. Operator merges canonical
-  targets from `.standards/templates/Makefile` (or equivalently `.standards/Makefile`, which is a symlink to the same
-  file) into the existing Makefile manually, preserving every project-specific target.
+- **Makefile**: existing Makefile is PRESERVED verbatim — the template is NOT copied over it. To pick up the canonical
+  ruleset, add `include .standards/templates/Makefile.canonical` near the top of the existing Makefile (with the
+  existence guard from `.standards/templates/Makefile.consumer`), then run `make migrate-makefile` to strip canonical
+  target blocks whose recipes match the include. Drift between consumer and canonical recipes is reported, never
+  auto-fixed. Every project-specific target is preserved.
 - **Configs / BATS / .local-claude.md**: existing files are PRESERVED verbatim. Bootstrap doesn't touch them.
 - **Canonical scripts under `scripts/`**: always overwritten to maintain byte-identical guarantee. Project-specific
   scripts alongside them (`scripts/fetch-data.sh`, `scripts/build.sh`, etc.) are untouched.
@@ -109,16 +111,23 @@ You may stage; you may not commit. The human owns every commit.
    Stage and pause for review.
 
 3. Customize the templates that bootstrap created (or merged on non-greenfield):
-   - Makefile (greenfield): the template was copied verbatim. Prune the
-     standards-repo-specific targets your project doesn't need (release-go,
-     release-npm, release-pypi, verify-go, bootstrap-standards, lint-md).
-     Add language-specific recipes for `build`, `release`, `test`, `unit-test`,
-     `integration-test`, `clean` — each wrapped in `scripts/<name>.sh` per
-     Rule 4 (one active recipe line, calls one scripts/**/*.sh).
+   - Makefile (greenfield): the seed `Makefile` was copied verbatim from
+     `.standards/templates/Makefile.consumer`. It is intentionally a thin
+     wrapper that `include`s `.standards/templates/Makefile.canonical` — do
+     NOT redefine canonical targets here (Make will warn). Add language-
+     specific behavior by either (a) creating `scripts/<target>.local.sh`
+     companion files that the canonical delegates pick up, or (b) adding
+     net-new project-specific targets below the include — each wrapped in
+     `scripts/<name>.sh` per Rule 4 (one active recipe line, calls one
+     `scripts/**/*.sh`).
    - Makefile (non-greenfield): bootstrap left your existing Makefile alone.
-     Merge canonical-target definitions from `.standards/templates/Makefile`
-     into your existing file alongside the project's own targets. Do NOT
-     replace project-specific targets. Do NOT remove existing @echo lines.
+     Add `include .standards/templates/Makefile.canonical` near the top of
+     the existing Makefile (with the existence guard pattern from
+     `.standards/templates/Makefile.consumer`), then run
+     `make migrate-makefile` to strip out canonical target blocks whose
+     recipes match the include. Drift between the consumer's recipe and the
+     canonical recipe is reported but never auto-fixed — reconcile by hand.
+     Do NOT replace project-specific targets.
    - tests/integrity.bats: update the BIN path to point at your built artifact;
      replace example assertions with smoke checks of your binary's surface.
    - .local-claude.md: prune the template stub and add project-specific guidance

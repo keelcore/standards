@@ -13,6 +13,9 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
+# shellcheck source=lib/node-path.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/node-path.sh"
+
 function main() {
   exec 5>&1
   log 'Formatting repository...'
@@ -22,20 +25,20 @@ function main() {
 
 function format_json() {
   log 'Formatting JSON files...'
-  if command -v node > /dev/null 2>&1; then
-    find . -name '*.json' \
-      -not -path './node_modules/*' \
-      -not -path './.git/*' \
-      -exec node -e "
-        const fs = require('fs');
-        const f = process.argv[1];
-        const obj = JSON.parse(fs.readFileSync(f,'utf8'));
-        fs.writeFileSync(f, JSON.stringify(obj, null, 2) + '\n');
-      " {} \;
-    log '✅ JSON formatted'
-  else
-    log 'node not available; skipping JSON formatting'
+  if ! node_path_ensure; then
+    log 'node not found on PATH or at standard install locations; skipping JSON formatting'
+    return 0
   fi
+  find . -name '*.json' \
+    -not -path './node_modules/*' \
+    -not -path './.git/*' \
+    -exec node -e "
+      const fs = require('fs');
+      const f = process.argv[1];
+      const obj = JSON.parse(fs.readFileSync(f,'utf8'));
+      fs.writeFileSync(f, JSON.stringify(obj, null, 2) + '\n');
+    " {} \;
+  log "✅ JSON formatted (node: $(command -v node))"
 }
 
 function log() {
