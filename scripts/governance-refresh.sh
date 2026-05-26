@@ -2,13 +2,12 @@
 # governance-refresh.sh
 # Reconciles a consumer repo with its `.standards` canonical source of truth.
 #
-# Two reconciliation passes:
+# Three reconciliation passes — `.standards` always wins. Consumer hand-edits
+# to any canonical artifact are overwritten on every refresh:
 #
 #   1. Canonical-script sync: walks .standards/scripts/ (excluding standards-
 #      only paths: bootstrap-standards.sh, release/, verify/), copies any
 #      missing or content-divergent script into the consumer's matching path.
-#      `.standards` always wins — consumer hand-edits are overwritten on
-#      every refresh.
 #
 #   2. Makefile target injection: for each canonical script now present in
 #      the consumer's scripts/, if .standards/templates/Makefile.canonical
@@ -16,6 +15,13 @@
 #      Makefile has no such target, lift the target block from
 #      Makefile.canonical and append to consumer Makefile under a marker
 #      comment.
+#
+#   3. Makefile target drift fix: for each target defined in BOTH the
+#      canonical template and the consumer Makefile whose active recipe
+#      lines differ, replace the consumer's target block with the canonical
+#      one in place. Symmetric with pass 1 — canonical wins on shared
+#      target names. Consumer-only targets (not in the canonical template)
+#      are untouched.
 #
 # Idempotent: re-running converges; second run produces no diff.
 #
@@ -75,7 +81,6 @@ function main() {
     if [ -n "${script_changes}" ] || [ -n "${target_injections}" ] \
         || [ -n "${target_drifts}" ]; then
       log "⚠️  dry-run: changes pending. Run 'make governance-refresh' to apply."
-      log "    (target drifts require HUMAN resolution — they are NOT auto-fixed.)"
       exit 1
     fi
     log "✅ dry-run: nothing to refresh"
@@ -84,12 +89,8 @@ function main() {
 
   apply_script_changes "${script_changes}"
   apply_target_injections "${target_injections}"
+  apply_target_drifts "${target_drifts}"
   maybe_stage_submodule
-  if [ -n "${target_drifts}" ]; then
-    log "⚠️  target drift detected but NOT auto-fixed (recipes for shared"
-    log "    target names differ between consumer Makefile and"
-    log "    .standards/templates/Makefile.canonical). Reconcile manually."
-  fi
   log "✅ governance-refresh complete"
 }
 
@@ -337,8 +338,8 @@ function report_changes() {
     done <<< "${target_injections}"
   fi
   if [ -n "${target_drifts}" ]; then
-    log "  Makefile target recipe drift (active lines differ between"
-    log "  consumer Makefile and .standards/templates/Makefile.canonical):"
+    log "  Makefile targets to overwrite (consumer recipe differs from"
+    log "  .standards/templates/Makefile.canonical — canonical wins):"
     while IFS= read -r line; do
       [ -n "${line}" ] && log "    ${line}"
     done <<< "${target_drifts}"
@@ -392,6 +393,77 @@ function extract_target_block() {
     in_block && /^$/ { in_block=0; next }
     in_block { print }
   ' "${TEMPLATES_MAKEFILE}"
+}
+
+# Rewrite the consumer Makefile in place, replacing each drifted target's
+# block (from `^target:` through the line before the next blank line) with
+# the canonical block from Makefile.canonical. Atomic: writes to a temp file
+# and renames into place on success. No-op when the drift list is empty.
+function apply_target_drifts() {
+  local -r drifts="${1}"
+  [ -z "${drifts}" ] && return 0
+  local blocks_file targets_file tmp_out
+  blocks_file="$(mktemp -t govrefresh-blocks.XXXXXX)"
+  targets_file="$(mktemp -t govrefresh-targets.XXXXXX)"
+  tmp_out="$(mktemp -t govrefresh-makefile.XXXXXX)"
+  local kind target
+  while IFS=' ' read -r kind target; do
+    [ -z "${target}" ] && continue
+    if [ "${kind}" != "DRIFT" ]; then
+      log "❌ apply_target_drifts: unexpected kind '${kind}' for ${target}"
+      exit 3
+    fi
+    printf '%s\n' "${target}" >> "${targets_file}"
+    {
+      printf '<<<BEGIN %s>>>\n' "${target}"
+      extract_target_block "${target}"
+      printf '<<<END %s>>>\n' "${target}"
+    } >> "${blocks_file}"
+  done <<< "${drifts}"
+
+  awk -v blocks_file="${blocks_file}" -v targets_file="${targets_file}" '
+    BEGIN {
+      while ((getline ln < targets_file) > 0) {
+        if (ln != "") drifted[ln] = 1
+      }
+      close(targets_file)
+      cur = ""
+      while ((getline ln < blocks_file) > 0) {
+        if (substr(ln, 1, 9) == "<<<BEGIN ") {
+          cur = substr(ln, 10)
+          sub(/>>>$/, "", cur)
+          blocks[cur] = ""
+          continue
+        }
+        if (substr(ln, 1, 7) == "<<<END ") {
+          cur = ""
+          continue
+        }
+        if (cur != "") {
+          blocks[cur] = blocks[cur] (blocks[cur] == "" ? "" : "\n") ln
+        }
+      }
+      close(blocks_file)
+      skipping = 0
+    }
+    /^[a-zA-Z_][a-zA-Z0-9_.-]*[[:space:]]*:/ &&
+    !/^[a-zA-Z_][a-zA-Z0-9_.-]*[[:space:]]*[?:+]?=/ {
+      tname = $0
+      sub(/[[:space:]]*:.*$/, "", tname)
+      if (tname in drifted) {
+        print blocks[tname]
+        skipping = 1
+        next
+      }
+      skipping = 0
+    }
+    skipping && /^$/ { skipping = 0; print ""; next }
+    skipping { next }
+    { print }
+  ' "${CONSUMER_MAKEFILE}" > "${tmp_out}"
+
+  mv "${tmp_out}" "${CONSUMER_MAKEFILE}"
+  rm -f "${blocks_file}" "${targets_file}"
 }
 
 function log() {
