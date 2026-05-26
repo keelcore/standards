@@ -1,7 +1,13 @@
 # ADR-0009: GitOps as the Declarative Change Management Mechanism
 
-**Date:** 2026-03-09 **Status:** Accepted **Driver:** Platform Team **Approver:** ARB **Contributors:** — **Informed:**
-All Engineering **Supersedes:** N/A **Superseded By:** N/A
+**Date:** 2026-03-09
+**Status:** Accepted
+**Driver:** Platform Team
+**Approver:** ARB
+**Contributors:** —
+**Informed:** All Engineering
+**Supersedes:** N/A
+**Superseded By:** N/A
 
 ## Context
 

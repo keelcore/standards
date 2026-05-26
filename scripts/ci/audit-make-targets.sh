@@ -38,6 +38,21 @@ readonly MAKEFILE="${REPO_ROOT}/Makefile"
 readonly WORKFLOWS_DIR="${REPO_ROOT}/.github/workflows"
 readonly SCRIPTS_DIR="${REPO_ROOT}/scripts"
 
+# Scripts that are intentionally NOT shipped to consumers (governance-refresh
+# excludes them from canonical sync). Targets whose recipes invoke these are
+# exempt from Rule 5 (script-exists-on-disk) in consumer audits, since the
+# canonical Makefile is included via `.standards/Makefile` and references
+# scripts only present in the standards submodule, not in the consumer.
+readonly -a STANDARDS_ONLY_SCRIPTS=(
+  scripts/bootstrap-standards.sh
+)
+
+# Populated by build_expanded_makefile: a temp file containing the consumer
+# Makefile with all `include` / `-include` / `sinclude` directives inlined
+# recursively. Rules 2–5 read this expanded view so they see canonical
+# targets inherited via include.
+EXPANDED_MAKEFILE=''
+
 function log() {
   printf '%s\n' "${1:-}"
 }
@@ -47,6 +62,55 @@ function validate_args() {
     log '❌ Error: Unexpected arg'
     exit 1
   fi
+}
+
+# Inline include directives recursively. Paths are resolved relative to
+# REPO_ROOT (Make's CWD). Missing files and Make-variable-bearing paths
+# are silently skipped. Cycles broken by a colon-delimited visited set.
+function _inline_includes() {
+  local -r src="${1}"
+  local -r visited="${2}"
+  local line
+  while IFS= read -r line || [ -n "${line}" ]; do
+    if [[ "${line}" =~ ^[[:space:]]*(-?include|sinclude)[[:space:]]+(.+)$ ]]; then
+      _inline_include_paths "${BASH_REMATCH[2]}" "${visited}"
+      continue
+    fi
+    printf '%s\n' "${line}"
+  done < "${src}"
+}
+
+function _inline_include_paths() {
+  local -r paths="${1}"
+  local -r visited="${2}"
+  local p
+  for p in ${paths}; do
+    [[ "${p}" == *'$'* ]] && continue
+    local full="${REPO_ROOT}/${p}"
+    [ -f "${full}" ] || continue
+    [[ "${visited}" == *":${full}:"* ]] && continue
+    _inline_includes "${full}" "${visited}:${full}:"
+  done
+}
+
+function build_expanded_makefile() {
+  EXPANDED_MAKEFILE="$(mktemp -t audit-make-expanded.XXXXXX)"
+  _inline_includes "${MAKEFILE}" ":${MAKEFILE}:" > "${EXPANDED_MAKEFILE}"
+}
+
+function cleanup_expanded_makefile() {
+  if [ -n "${EXPANDED_MAKEFILE}" ] && [ -f "${EXPANDED_MAKEFILE}" ]; then
+    rm -f "${EXPANDED_MAKEFILE}"
+  fi
+}
+
+function _is_standards_only_script() {
+  local -r path="${1}"
+  local sos
+  for sos in "${STANDARDS_ONLY_SCRIPTS[@]}"; do
+    [ "${sos}" = "${path}" ] && return 0
+  done
+  return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -92,8 +156,8 @@ function check_script_targets() {
       continue
     fi
 
-    # Check if the script path appears anywhere in the Makefile.
-    if ! grep -qF "${script_rel}" "${MAKEFILE}"; then
+    # Check if the script path appears anywhere in the (expanded) Makefile.
+    if ! grep -qF "${script_rel}" "${EXPANDED_MAKEFILE}"; then
       log "❌ Rule 2: no Makefile target invokes: ${script_rel}"
       failed=1
     fi
@@ -119,8 +183,9 @@ function check_universal_targets() {
   local failed=0
 
   for target in "${UNIVERSAL_TARGETS[@]}"; do
-    # A target is defined if Makefile contains a line starting with `<target>:`.
-    if ! grep -qE "^${target}:" "${MAKEFILE}"; then
+    # A target is defined if the (expanded) Makefile contains a line
+    # starting with `<target>:`.
+    if ! grep -qE "^${target}:" "${EXPANDED_MAKEFILE}"; then
       log "❌ Rule 3: universal Makefile target missing: ${target}"
       failed=1
     fi
@@ -190,7 +255,7 @@ function check_recipe_shape() {
       active_count=0
       active_line=''
     fi
-  done < "${MAKEFILE}"
+  done < "${EXPANDED_MAKEFILE}"
 
   # Evaluate the last target if the file did not end with a blank line.
   if [ -n "${current_target}" ]; then
@@ -240,6 +305,9 @@ function _eval_recipe_shape() {
     # Rule 4 satisfied. Now Rule 5: does the referenced script exist on disk?
     local script_path="${BASH_REMATCH[2]}"
     if [ ! -f "${REPO_ROOT}/${script_path}" ]; then
+      if _is_standards_only_script "${script_path}"; then
+        return 0
+      fi
       log "❌ Rule 5: target '${tgt}' invokes ${script_path} which does not exist on disk."
       return 1
     fi
@@ -257,6 +325,8 @@ function _eval_recipe_shape() {
 # ---------------------------------------------------------------------------
 function main() {
   validate_args "${@:-}"
+  build_expanded_makefile
+  trap cleanup_expanded_makefile EXIT
 
   local overall=0
 

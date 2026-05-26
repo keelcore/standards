@@ -161,7 +161,7 @@ function _maybe_copy_template() {
 function copy_templates() {
   log '📄 Copying starter templates (create-if-missing)...'
   local -r src='.standards/templates'
-  _maybe_copy_template "${src}/Makefile"                    Makefile
+  _maybe_copy_template "${src}/Makefile.consumer"           Makefile
   _maybe_copy_template "${src}/.gitleaks.toml"              .gitleaks.toml
   _maybe_copy_template "${src}/.markdownlintignore"         .markdownlintignore
   _maybe_copy_template "${src}/.prettierrc"                 .prettierrc

@@ -58,8 +58,8 @@ declare IS_CONSUMER=0
 function main() {
   exec 5>&1
   parse_args "${@:-}"
-  validate_env
   detect_consumer
+  validate_env
   maybe_pull_submodule
   log "🔄 governance-refresh: REPO_ROOT=${REPO_ROOT}"
 
@@ -108,8 +108,13 @@ function parse_args() {
 
 function validate_env() {
   if [ ! -d "${STANDARDS_ROOT}/scripts" ]; then
-    log "❌ STANDARDS_ROOT missing scripts/ dir: ${STANDARDS_ROOT}"
-    exit 2
+    if [ "${IS_CONSUMER}" -eq 1 ]; then
+      log "❌ .standards submodule not initialized at ${STANDARDS_ROOT}"
+      log '   Run: git submodule update --init --recursive'
+      exit 2
+    fi
+    log 'ℹ️  governance-refresh: no .standards submodule (running in the standards repo itself); nothing to refresh.'
+    exit 0
   fi
   if [ ! -f "${TEMPLATES_MAKEFILE}" ]; then
     log "❌ STANDARDS_ROOT missing templates/Makefile: ${TEMPLATES_MAKEFILE}"
@@ -345,6 +350,13 @@ function apply_script_changes() {
   local kind rel dst_dir
   while IFS=' ' read -r kind rel; do
     [ -z "${rel}" ] && continue
+    case "${kind}" in
+      NEW|MOD) ;;
+      *)
+        log "❌ apply_script_changes: unexpected kind '${kind}' for ${rel}"
+        exit 3
+        ;;
+    esac
     dst_dir="${REPO_ROOT}/$(dirname "${rel}")"
     mkdir -p "${dst_dir}"
     cp "${STANDARDS_ROOT}/${rel}" "${REPO_ROOT}/${rel}"
@@ -360,7 +372,11 @@ function apply_target_injections() {
     local kind target rel
     while IFS=' ' read -r kind target rel; do
       [ -z "${target}" ] && continue
-      printf '\n'
+      if [ "${kind}" != "INJECT" ]; then
+        log "❌ apply_target_injections: unexpected kind '${kind}' for ${target}"
+        exit 3
+      fi
+      printf '\n# Injected because canonical script %s has no consumer target.\n' "${rel}"
       extract_target_block "${target}"
     done <<< "${injections}"
   } >> "${CONSUMER_MAKEFILE}"

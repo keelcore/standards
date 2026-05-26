@@ -7,7 +7,7 @@
         ci-pr-policy ci-secret-scan ci-dco ci-coverage-delta \
         ci-governance-gate ci-coverage-no-regression \
         coverage coverage-go coverage-rust coverage-baseline-init \
-        governance-refresh \
+        governance-refresh migrate-makefile \
         check-adr-metadata check-governance-metadata check-rfc-metadata \
         check-legal-drift release-sbom release-sign release-go release-npm release-pypi \
         setup-bats setup-markdownlint setup-shellcheck setup-syft \
@@ -17,20 +17,24 @@
 ## Universal canonical targets (language-independent; mandated by CI standards)
 
 build:
-	@echo "✅ Nothing to build (standards is a documentation repository)"
+	@echo "🔨 Running build..."
+	bash scripts/build.sh
 
 lint: lint-newlines lint-markdown lint-bash
 
 test: unit-test integration-test
 
 unit-test:
-	@echo "✅ No unit tests (standards is a documentation repository)"
+	@echo "🧪 Running unit tests..."
+	bash scripts/unit-test.sh
 
 integration-test:
-	@echo "✅ No integration tests (standards is a documentation repository)"
+	@echo "🧪 Running integration tests..."
+	bash scripts/integration-test.sh
 
 clean:
-	@echo "🧹 Nothing to clean (standards is a documentation repository)"
+	@echo "🧹 Cleaning..."
+	bash scripts/clean.sh
 
 ## Audit
 
@@ -211,56 +215,18 @@ bootstrap-standards:
 governance-refresh:
 	bash scripts/governance-refresh.sh
 
-## Help
+## One-shot migration for consumers whose Makefile is a clone of the
+## pre-include-era templates/Makefile. Adds the include directive and
+## removes canonical target blocks. Idempotent (no-op if already migrated).
+## First-time invocation: `bash .standards/scripts/migrate-makefile.sh`
+## After migration: `make migrate-makefile` (no-op on re-run).
+migrate-makefile:
+	bash scripts/migrate-makefile.sh
+
+## Help (auto-enumerates targets across every file in $(MAKEFILE_LIST) so
+## consumers including this Makefile see their own targets alongside the
+## canonical ones). Logic lives in scripts/help.sh per the audit's single-
+## script-invocation rule.
 
 help:
-	@echo "keelcore/standards Build System"
-	@echo "Usage: make [target]"
-	@echo ""
-	@echo "Universal targets (canonical; language-independent):"
-	@echo "  build              No-op (documentation repository)"
-	@echo "  lint               lint-newlines + lint-md + lint-bash"
-	@echo "  test               unit-test + integration-test"
-	@echo "  unit-test          No-op (documentation repository)"
-	@echo "  integration-test   No-op (documentation repository)"
-	@echo "  clean              No-op (documentation repository)"
-	@echo "  audit              CI/Makefile standards compliance audit"
-	@echo ""
-	@echo "Lint:"
-	@echo "  lint-newlines      Check trailing newlines (.md .sh .go .yml etc.)"
-	@echo "  lint-bash          shellcheck on all scripts"
-	@echo "  lint-markdown      markdownlint-cli2 check (canonical md linter)"
-	@echo ""
-	@echo "Checks:"
-	@echo "  check-adr-metadata         Validate ADR metadata fields"
-	@echo "  check-governance-metadata  Validate governance file metadata"
-	@echo "  check-rfc-metadata         Validate RFC metadata fields"
-	@echo "  check-legal-drift          Verify legal files match source of truth"
-	@echo ""
-	@echo "CI Gates:"
-	@echo "  ci-pr-policy       PR policy gate"
-	@echo "  ci-secret-scan     Secret scan (gitleaks)"
-	@echo "  ci-dco             DCO Signed-off-by check"
-	@echo "  ci-coverage-delta  Coverage delta gate"
-	@echo "  coverage           Aggregate: coverage-go + coverage-rust"
-	@echo "  coverage-go        Go coverage (skips if no go.mod)"
-	@echo "  coverage-rust      Rust coverage via cargo-llvm-cov (skips if no Cargo.toml)"
-	@echo ""
-	@echo "Release:"
-	@echo "  release-sbom       Generate SPDX SBOM"
-	@echo "  release-sign       Sign artifacts (cosign)"
-	@echo "  release-go         Publish Go module"
-	@echo "  release-npm        Publish npm package"
-	@echo "  release-pypi       Publish PyPI package"
-	@echo ""
-	@echo "Setup:"
-	@echo "  setup-markdownlint Install markdownlint-cli"
-	@echo ""
-	@echo "Verification:"
-	@echo "  verify-canonical REPO=<path>  Check downstream repo scripts match standards"
-	@echo "  verify-go                     Build and vet the Go module"
-	@echo ""
-	@echo "Utilities:"
-	@echo "  format             Run all formatters"
-	@echo "  lint-all           Run full linter suite (scripts/lint.sh)"
-	@echo "  pre-commit         Run pre-commit checks"
+	bash scripts/help.sh $(MAKEFILE_LIST)
