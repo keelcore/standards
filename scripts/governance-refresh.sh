@@ -318,15 +318,12 @@ function compute_target_injections() {
   local rel target
   while IFS= read -r rel; do
     [ -z "${rel}" ] && continue
-    # The script must be (or will become) present in consumer after Pass 1.
-    # For dry-run we project Pass 1 has succeeded; for live mode it has.
-    if consumer_invokes_script "${rel}"; then
+    target="$(find_target_for_script "${rel}")"
+    [ -z "${target}" ] && continue
+    if consumer_provides_target "${target}" "${rel}"; then
       continue
     fi
-    target="$(find_target_for_script "${rel}")"
-    if [ -n "${target}" ]; then
-      printf 'INJECT %s %s\n' "${target}" "${rel}"
-    fi
+    printf 'INJECT %s %s\n' "${target}" "${rel}"
   done < <(canonical_scripts)
 }
 
@@ -338,8 +335,22 @@ function has_include_directive() {
     "${CONSUMER_MAKEFILE}"
 }
 
-function consumer_invokes_script() {
-  local -r rel="${1}"
+# True iff the consumer Makefile already provides the named canonical target.
+# Defines "provides" in the correct, name-based sense — the consumer has a
+# target line `^<name>[[:space:]]*:`. The old content-based check (grep for
+# `bash <rel-path>`) missed consumer overrides whose recipe diverged from
+# canonical (e.g. `ln -sf ...` instead of `bash scripts/install-hooks.sh`),
+# causing pass 2 to inject a duplicate of an already-present target.
+#
+# A secondary content-based fallback catches consumers that invoke the
+# canonical script from a differently-named target's recipe (without
+# defining the canonical target name themselves) — rare but legitimate.
+function consumer_provides_target() {
+  local -r target="${1}"
+  local -r rel="${2}"
+  if grep -qE "^${target}[[:space:]]*:" "${CONSUMER_MAKEFILE}"; then
+    return 0
+  fi
   grep -qF "bash ${rel}" "${CONSUMER_MAKEFILE}"
 }
 
