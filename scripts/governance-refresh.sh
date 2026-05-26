@@ -67,6 +67,7 @@ function main() {
   parse_args "${@:-}"
   detect_consumer
   validate_env
+  ensure_consumer_migrated
   maybe_pull_submodule
   log "🔄 governance-refresh: REPO_ROOT=${REPO_ROOT}"
 
@@ -90,6 +91,7 @@ function main() {
   apply_script_changes "${script_changes}"
   apply_target_injections "${target_injections}"
   apply_target_drifts "${target_drifts}"
+  verify_no_remaining_drifts
   maybe_stage_submodule
   log "✅ governance-refresh complete"
 }
@@ -137,6 +139,40 @@ function detect_consumer() {
       | grep -q .; then
     IS_CONSUMER=1
   fi
+}
+
+# If the consumer Makefile predates the canonical-include era (no
+# `include .standards/templates/Makefile.canonical` directive), auto-run
+# migrate-makefile.sh before continuing the refresh — governance-refresh
+# is the one-stop reconciliation entry point; the operator should never
+# have to chain it with a manual prerequisite.
+#
+# Dry-run mode does NOT migrate: it reports the pending migration and
+# exits 1 so the CI governance gate fails until 'make governance-refresh'
+# is run for real.
+#
+# Scope: fires only when STANDARDS_ROOT is a directory NESTED inside
+# REPO_ROOT (the consumer-repo layout). The standards repo itself, and
+# test harnesses that point STANDARDS_ROOT at an out-of-tree path, are
+# exempt.
+function ensure_consumer_migrated() {
+  [ "${STANDARDS_ROOT}" = "${REPO_ROOT}" ] && return 0
+  case "${STANDARDS_ROOT}" in
+    "${REPO_ROOT}/"*) ;;
+    *) return 0 ;;
+  esac
+  if grep -qE '^[[:space:]]*-?include[[:space:]]+\.standards/(templates/Makefile\.canonical|Makefile)\b' \
+      "${CONSUMER_MAKEFILE}"; then
+    return 0
+  fi
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    log "🛠  Consumer Makefile is unmigrated — would invoke migrate-makefile.sh"
+    log "⚠️  dry-run: migration pending. Run 'make governance-refresh' to apply."
+    exit 1
+  fi
+  log "🛠  Consumer Makefile is unmigrated — invoking migrate-makefile.sh"
+  MIGRATE_REPO_ROOT="${REPO_ROOT}" \
+    bash "${STANDARDS_ROOT}/scripts/migrate-makefile.sh"
 }
 
 # Advance the `.standards` submodule to its tracked-branch tip. Skipped in
@@ -464,6 +500,28 @@ function apply_target_drifts() {
 
   mv "${tmp_out}" "${CONSUMER_MAKEFILE}"
   rm -f "${blocks_file}" "${targets_file}"
+}
+
+# Post-apply assertion: re-run drift detection against the (now-rewritten)
+# consumer Makefile. Any drift left over here means apply_target_drifts
+# did not fully resolve the recipes — typically because the consumer
+# Makefile defines the same target twice (so active_recipe_of concatenates
+# both copies) or because something in the consumer's layout escapes the
+# block-replacement state machine. Fail LOUDLY rather than letting the
+# operator think it worked.
+function verify_no_remaining_drifts() {
+  local remaining
+  remaining="$(compute_target_drifts)"
+  [ -z "${remaining}" ] && return 0
+  log ""
+  log "❌ post-apply drift remains — apply_target_drifts did NOT resolve these"
+  log "   target(s). Likely causes: duplicate target definitions in the"
+  log "   consumer Makefile, or a recipe layout the replacement state machine"
+  log "   doesn't recognize. Inspect the consumer Makefile blocks for:"
+  while IFS= read -r line; do
+    [ -n "${line}" ] && log "    ${line}"
+  done <<< "${remaining}"
+  exit 5
 }
 
 function log() {
