@@ -5,10 +5,11 @@
 #   2. lint.sh    — fail on remaining lint issues
 #   3. governance-gate.sh — block commit on governance drift (canonical
 #      script staleness, missing canonical Makefile targets, OR recipe
-#      drift between consumer Makefile and .standards/templates/Makefile
-#      for shared target names). Per user directive 2026-05-24: pre-commit
-#      MUST catch consumer-side recipe changes to a canonical target that
-#      aren't reflected in the templates version.
+#      drift between consumer Makefile and
+#      .standards/templates/Makefile.canonical for shared target names).
+#      Per user directive 2026-05-24: pre-commit MUST catch consumer-side
+#      recipe changes to a canonical target that aren't reflected in the
+#      templates version.
 # Install: ln -sf ../../scripts/git_precommit.sh .git/hooks/pre-commit
 
 # bash configuration:

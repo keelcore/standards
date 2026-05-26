@@ -1,6 +1,28 @@
-# keelcore/standards — Master Orchestrator
-# All CI concerns are invoked through this file.
-# Workflow YAML calls `make <target>`; developers call the same targets locally.
+# keelcore/standards — Canonical Makefile (includable)
+#
+# Defines every UNIVERSAL target whose script is shipped to consumers by
+# governance-refresh. Included by:
+#   - the standards repo's own top-level Makefile
+#   - every consumer's top-level Makefile (via .standards/templates/Makefile.canonical)
+#
+# Path resolution: Make's `include` directive does NOT change CWD. Recipe
+# lines like `bash scripts/lint/shellcheck.sh` resolve against the directory
+# of the TOP-LEVEL Makefile (the file Make was invoked with), which is the
+# parent repo root in both contexts — so the same recipe runs the right copy
+# of the script in both the standards repo and any consumer.
+#
+# Standards-only targets (release-*, verify-go, bootstrap-standards) live in
+# the standards repo's private /Makefile, NOT here, because their scripts
+# are intentionally not shipped to consumers.
+
+# Guard: this file must be included from a top-level Makefile in a repo that
+# has scripts/ at its root. Make evaluates $(wildcard ...) against its CWD
+# (the directory of the FIRST entry in MAKEFILE_LIST), so this catches
+# misuse like `make -f .standards/templates/Makefile.canonical <target>`
+# from a directory that has no scripts/ of its own.
+ifeq (,$(wildcard scripts))
+$(error Makefile.canonical: no scripts/ directory in $(CURDIR). Include this file from a top-level Makefile in a repo that has scripts/ at its root.)
+endif
 
 .PHONY: build lint lint-newlines lint-bash lint-markdown \
         test unit-test integration-test clean audit \
@@ -9,10 +31,10 @@
         coverage coverage-go coverage-rust coverage-baseline-init \
         governance-refresh migrate-makefile \
         check-adr-metadata check-governance-metadata check-rfc-metadata \
-        check-legal-drift release-sbom release-sign release-go release-npm release-pypi \
+        check-legal-drift \
         setup-bats setup-markdownlint setup-shellcheck setup-syft \
-        verify-canonical verify-go install-hooks \
-        format lint-all pre-commit bootstrap-standards help
+        verify-canonical install-hooks \
+        format lint-all pre-commit help
 
 ## Universal canonical targets (language-independent; mandated by CI standards)
 
@@ -52,10 +74,6 @@ lint-bash:
 	@echo "🔍 Running shellcheck..."
 	bash scripts/lint/shellcheck.sh
 
-# Markdown lint via markdownlint-cli2 (the single canonical md linter).
-# `lint-md` (the legacy markdownlint-cli wrapper) was removed in the
-# governance refactor 2026-05-24 because its recipe pointed at a script that
-# never existed (`scripts/lint/md.sh`); Rule 5 of the audit surfaced this.
 lint-markdown:
 	@echo "🔍 Running markdown lint (markdownlint-cli2)..."
 	bash scripts/lint/markdown.sh
@@ -96,17 +114,11 @@ ci-coverage-delta:
 	@echo "📊 Checking coverage delta..."
 	bash scripts/test/coverage-delta.sh
 
-# Governance CI gate: dry-run reconciliation; non-zero exit on pending change.
-# PR with stale governance fails this gate and cannot merge.
 ci-governance-gate:
 	@echo "🚦 Governance CI gate (governance-refresh --dry-run)..."
 	bash scripts/ci/governance-gate.sh
 
 ## Coverage
-# Aggregator pattern: `make coverage` runs the per-language scripts; each
-# script gates on its own scope-detection (no go.mod / no Cargo.toml ⇒ skip
-# with exit 0). The gate lives in the script, not in the Makefile, so a
-# downstream repo with only one language is silently fine.
 
 coverage: coverage-go coverage-rust
 
@@ -118,40 +130,13 @@ coverage-rust:
 	@echo "📊 Rust coverage (cargo-llvm-cov)..."
 	bash scripts/test/coverage-rust.sh
 
-# Per-file coverage no-regression + 95% new-file floor.
-# Implements .standards/governance/testing.md "Coverage Regression Policy".
-# CI runs this as a required PR gate.
 ci-coverage-no-regression:
 	@echo "🚦 coverage-no-regression (per-file)..."
 	bash scripts/test/coverage-no-regression.sh
 
-# Operator one-shot: capture current LCOV as the baseline. Run once per
-# repo, then again only after an approved coverage-increasing change.
 coverage-baseline-init:
 	@echo "🪴 coverage-baseline-init (capture current LCOV)..."
 	bash scripts/test/coverage-baseline-init.sh
-
-## Release targets
-
-release-sbom:
-	@echo "📋 Generating SBOM..."
-	bash scripts/release/sbom.sh
-
-release-sign:
-	@echo "✍️  Signing artifacts..."
-	bash scripts/release/sign.sh
-
-release-go:
-	@echo "🚀 Publishing Go module..."
-	bash scripts/release/go-publish.sh
-
-release-npm:
-	@echo "🚀 Publishing npm package..."
-	bash scripts/release/npm-publish.sh
-
-release-pypi:
-	@echo "🚀 Publishing PyPI package..."
-	bash scripts/release/pypi-publish.sh
 
 ## Setup targets
 
@@ -177,17 +162,12 @@ install-hooks:
 	@echo "🪝 Installing git pre-commit hook..."
 	bash scripts/install-hooks.sh
 
-## Canonical script verification
+## Canonical script verification (compares a downstream repo's scripts/ against
+## this canonical set; consumers usually do not invoke this).
 
 verify-canonical:
 	@echo "🔍 Verifying canonical scripts in downstream repo (REPO=<path>)..."
 	bash scripts/ci/verify-canonical-scripts.sh $(REPO)
-
-## Verify targets
-
-verify-go:
-	@echo "🔍 Verifying Go module..."
-	bash scripts/verify/go.sh
 
 ## Utility targets
 
@@ -203,30 +183,22 @@ pre-commit:
 	@echo "🪝 Running pre-commit checks..."
 	bash scripts/git_precommit.sh
 
-## Bootstrap entrypoint (downstream consumers invoke this from THEIR repo root)
-
-bootstrap-standards:
-	bash scripts/bootstrap-standards.sh
-
 ## Governance reconciliation (downstream consumers; ongoing, not first-time)
 # Syncs canonical scripts from .standards/scripts/ to consumer scripts/ and
-# injects any missing canonical Makefile target from .standards/templates/Makefile
-# into consumer Makefile. `.standards` wins. Idempotent.
+# injects any missing canonical Makefile target from
+# .standards/templates/Makefile.canonical into consumer Makefile.
+# `.standards` wins. Idempotent.
 governance-refresh:
 	bash scripts/governance-refresh.sh
 
-## One-shot migration for consumers whose Makefile is a clone of the
-## pre-include-era templates/Makefile. Adds the include directive and
-## removes canonical target blocks. Idempotent (no-op if already migrated).
-## First-time invocation: `bash .standards/scripts/migrate-makefile.sh`
-## After migration: `make migrate-makefile` (no-op on re-run).
+## One-shot migration for consumers whose Makefile predates the include era.
+## Adds the include directive and removes canonical target blocks. Idempotent.
 migrate-makefile:
 	bash scripts/migrate-makefile.sh
 
 ## Help (auto-enumerates targets across every file in $(MAKEFILE_LIST) so
 ## consumers including this Makefile see their own targets alongside the
-## canonical ones). Logic lives in scripts/help.sh per the audit's single-
-## script-invocation rule.
+## canonical ones).
 
 help:
 	bash scripts/help.sh $(MAKEFILE_LIST)

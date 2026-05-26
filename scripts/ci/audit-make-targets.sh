@@ -19,7 +19,9 @@
 #     (Per .standards/governance/ci.md "Audit topology" — gating moves to
 #     `make ci-governance-gate` once the governance-refactor lands.)
 #   - Non-zero exit is reserved for HARD errors: malformed args, unreadable
-#     Makefile, missing workflows dir — not for rule violations.
+#     Makefile — not for rule violations. A missing .github/workflows/
+#     directory is NOT a hard error: consumers may use a different CI
+#     provider or not yet have CI wired up; Rule 1 simply skips in that case.
 # Safe to run locally: make audit
 
 # bash configuration:
@@ -37,15 +39,6 @@ readonly REPO_ROOT
 readonly MAKEFILE="${REPO_ROOT}/Makefile"
 readonly WORKFLOWS_DIR="${REPO_ROOT}/.github/workflows"
 readonly SCRIPTS_DIR="${REPO_ROOT}/scripts"
-
-# Scripts that are intentionally NOT shipped to consumers (governance-refresh
-# excludes them from canonical sync). Targets whose recipes invoke these are
-# exempt from Rule 5 (script-exists-on-disk) in consumer audits, since the
-# canonical Makefile is included via `.standards/Makefile` and references
-# scripts only present in the standards submodule, not in the consumer.
-readonly -a STANDARDS_ONLY_SCRIPTS=(
-  scripts/bootstrap-standards.sh
-)
 
 # Populated by build_expanded_makefile: a temp file containing the consumer
 # Makefile with all `include` / `-include` / `sinclude` directives inlined
@@ -104,19 +97,19 @@ function cleanup_expanded_makefile() {
   fi
 }
 
-function _is_standards_only_script() {
-  local -r path="${1}"
-  local sos
-  for sos in "${STANDARDS_ONLY_SCRIPTS[@]}"; do
-    [ "${sos}" = "${path}" ] && return 0
-  done
-  return 1
-}
-
 # ---------------------------------------------------------------------------
 # Rule 1: All workflow run: steps must be `make <target>`.
+#
+# Consumers may legitimately have no GitHub Actions workflows (different CI
+# provider, or CI not yet wired up). Treat a missing workflows directory as
+# "nothing to audit" rather than a hard error — a hard error here used to
+# bury Rules 2–5 under a stray `grep: No such file or directory` message.
 # ---------------------------------------------------------------------------
 function check_workflow_run_steps() {
+  if [ ! -d "${WORKFLOWS_DIR}" ]; then
+    return 0
+  fi
+
   local failed=0
   local violations
 
@@ -303,11 +296,13 @@ function _eval_recipe_shape() {
 
   if [[ "${stripped}" =~ ^(bash[[:space:]]+|sh[[:space:]]+|\.?/?)((\.standards/)?scripts/[^[:space:]]+\.sh) ]]; then
     # Rule 4 satisfied. Now Rule 5: does the referenced script exist on disk?
+    # The canonical Makefile (templates/Makefile.canonical) only references
+    # scripts that ARE shipped to consumers by governance-refresh, so a
+    # broken Rule 5 finding always points to a real bug — either consumer
+    # drift or a missing canonical script — never to a known-standards-only
+    # script masquerading as consumer-facing.
     local script_path="${BASH_REMATCH[2]}"
     if [ ! -f "${REPO_ROOT}/${script_path}" ]; then
-      if _is_standards_only_script "${script_path}"; then
-        return 0
-      fi
       log "❌ Rule 5: target '${tgt}' invokes ${script_path} which does not exist on disk."
       return 1
     fi

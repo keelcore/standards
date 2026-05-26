@@ -15,8 +15,9 @@
 #     on every refresh.
 #   - Templates (Makefile, BATS, configs, .local-claude.md) are create-only:
 #     if the target already exists the operator's customizations are
-#     preserved. The Makefile is seeded from .standards/templates/Makefile
-#     so the consumer starts with the canonical universal targets wired in.
+#     preserved. The Makefile is seeded from .standards/templates/Makefile.consumer
+#     (which `include`s .standards/templates/Makefile.canonical) so the
+#     consumer starts with the canonical universal targets wired in.
 #
 # Non-greenfield handling:
 #   - If CLAUDE.md exists and is NOT the canonical symlink, move it to

@@ -11,10 +11,11 @@
 #      every refresh.
 #
 #   2. Makefile target injection: for each canonical script now present in
-#      the consumer's scripts/, if .standards/templates/Makefile defines a
-#      target whose recipe invokes that script AND consumer Makefile has no
-#      such target, lift the target block from templates/Makefile and append
-#      to consumer Makefile under a marker comment.
+#      the consumer's scripts/, if .standards/templates/Makefile.canonical
+#      defines a target whose recipe invokes that script AND consumer
+#      Makefile has no such target, lift the target block from
+#      Makefile.canonical and append to consumer Makefile under a marker
+#      comment.
 #
 # Idempotent: re-running converges; second run produces no diff.
 #
@@ -46,7 +47,7 @@ declare STANDARDS_ROOT
 STANDARDS_ROOT="${GOVREFRESH_STANDARDS_ROOT:-${REPO_ROOT}/.standards}"
 declare -r STANDARDS_ROOT
 
-declare -r TEMPLATES_MAKEFILE="${STANDARDS_ROOT}/templates/Makefile"
+declare -r TEMPLATES_MAKEFILE="${STANDARDS_ROOT}/templates/Makefile.canonical"
 declare -r CONSUMER_MAKEFILE="${REPO_ROOT}/Makefile"
 
 declare DRY_RUN=0
@@ -87,7 +88,7 @@ function main() {
   if [ -n "${target_drifts}" ]; then
     log "⚠️  target drift detected but NOT auto-fixed (recipes for shared"
     log "    target names differ between consumer Makefile and"
-    log "    .standards/templates/Makefile). Reconcile manually."
+    log "    .standards/templates/Makefile.canonical). Reconcile manually."
   fi
   log "✅ governance-refresh complete"
 }
@@ -117,7 +118,7 @@ function validate_env() {
     exit 0
   fi
   if [ ! -f "${TEMPLATES_MAKEFILE}" ]; then
-    log "❌ STANDARDS_ROOT missing templates/Makefile: ${TEMPLATES_MAKEFILE}"
+    log "❌ STANDARDS_ROOT missing templates/Makefile.canonical: ${TEMPLATES_MAKEFILE}"
     exit 2
   fi
   if [ ! -f "${CONSUMER_MAKEFILE}" ]; then
@@ -195,8 +196,8 @@ function compute_script_changes() {
 # Emit pending target injections as lines of the form:
 #   INJECT <target_name> <script_rel_path>
 # For each canonical script in consumer/scripts/ that is NOT invoked by any
-# target in consumer/Makefile, look up the target in templates/Makefile that
-# invokes it; emit if a templates-side target is defined.
+# target in consumer/Makefile, look up the target in Makefile.canonical
+# that invokes it; emit if a canonical target is defined.
 function compute_target_injections() {
   local rel target
   while IFS= read -r rel; do
@@ -220,7 +221,7 @@ function consumer_invokes_script() {
 
 # Emit pending target drifts as lines of the form:
 #   DRIFT <target_name>
-# For each target name defined in BOTH templates/Makefile and consumer
+# For each target name defined in BOTH Makefile.canonical and consumer
 # Makefile, compare the active recipe lines (ignoring blank, comment, and
 # @echo lines per Rule 4's "active" definition). Normalize `.standards/`
 # prefix so cross-context invocations of standards-only scripts (e.g.
@@ -256,7 +257,7 @@ function compute_target_drifts() {
   done < <(template_target_names)
 }
 
-# Names of all targets defined in templates/Makefile.
+# Names of all targets defined in Makefile.canonical.
 function template_target_names() {
   awk '
     /^[a-zA-Z_][a-zA-Z0-9_.-]*[[:space:]]*:/ &&
@@ -299,8 +300,8 @@ function normalize_recipe() {
     | sed -E 's| \.standards/scripts/| scripts/|g; s|[[:space:]]+| |g'
 }
 
-# Find the target in templates/Makefile whose recipe invokes the given
-# script. Returns empty if no template target invokes it.
+# Find the target in Makefile.canonical whose recipe invokes the given
+# script. Returns empty if no canonical target invokes it.
 function find_target_for_script() {
   local -r rel="${1}"
   local lineno
@@ -337,7 +338,7 @@ function report_changes() {
   fi
   if [ -n "${target_drifts}" ]; then
     log "  Makefile target recipe drift (active lines differ between"
-    log "  consumer Makefile and .standards/templates/Makefile):"
+    log "  consumer Makefile and .standards/templates/Makefile.canonical):"
     while IFS= read -r line; do
       [ -n "${line}" ] && log "    ${line}"
     done <<< "${target_drifts}"
@@ -368,7 +369,7 @@ function apply_target_injections() {
   local -r injections="${1}"
   [ -z "${injections}" ] && return 0
   {
-    printf '\n## --- governance-refresh injected from .standards/templates/Makefile ---\n'
+    printf '\n## --- governance-refresh injected from .standards/templates/Makefile.canonical ---\n'
     local kind target rel
     while IFS=' ' read -r kind target rel; do
       [ -z "${target}" ] && continue
@@ -382,7 +383,7 @@ function apply_target_injections() {
   } >> "${CONSUMER_MAKEFILE}"
 }
 
-# Print the target's block from templates/Makefile: from `^target:` through
+# Print the target's block from Makefile.canonical: from `^target:` through
 # the line before the next blank line. Recipe lines are TAB-indented per Make.
 function extract_target_block() {
   local -r target="${1}"

@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 # migrate-makefile.sh
 # One-shot migration for consumer repos whose Makefile is a clone of the
-# pre-include-era templates/Makefile. Converts it into the thin pattern:
+# pre-include-era templates/Makefile (or the older `.standards/Makefile`
+# include form). Converts it into the thin pattern:
 #
-#   - prepends the existence guard for .standards/Makefile
-#   - prepends `include .standards/Makefile`
+#   - prepends the existence guard for .standards/templates/Makefile.canonical
+#   - prepends `include .standards/templates/Makefile.canonical`
 #   - removes every target block whose recipe matches the canonical recipe
-#     in .standards/Makefile (safe deletion: behavior unchanged after the
-#     include picks it up)
+#     in .standards/templates/Makefile.canonical (safe deletion: behavior
+#     unchanged after the include picks it up)
 #
 # Targets whose recipes DIFFER from canonical (drift) are left alone and
 # reported for manual review. The original Makefile is backed up to
 # Makefile.pre-migrate.bak before any rewrite.
 #
-# Idempotent: if the Makefile already contains the `include .standards/Makefile`
-# directive, the script exits 0 with no changes.
+# Idempotent: if the Makefile already contains an
+# `include .standards/templates/Makefile.canonical` directive (or the legacy
+# `include .standards/Makefile` form), the script exits 0 with no changes.
 #
 # Usage:
 #   bash scripts/migrate-makefile.sh [--dry-run]
@@ -40,7 +42,7 @@ REPO_ROOT="${MIGRATE_REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 declare -r REPO_ROOT
 
 declare -r CONSUMER_MAKEFILE="${REPO_ROOT}/Makefile"
-declare -r CANONICAL_MAKEFILE="${REPO_ROOT}/.standards/Makefile"
+declare -r CANONICAL_MAKEFILE="${REPO_ROOT}/.standards/templates/Makefile.canonical"
 declare -r BACKUP_PATH="${REPO_ROOT}/Makefile.pre-migrate.bak"
 
 declare DRY_RUN=0
@@ -95,6 +97,8 @@ function validate_env() {
   if [ ! -f "${CANONICAL_MAKEFILE}" ]; then
     log "❌ Canonical Makefile not found: ${CANONICAL_MAKEFILE}"
     log '   Run: git submodule update --init --recursive'
+    log '   (Older standards versions exposed canonical at .standards/Makefile —'
+    log '   bump the submodule to a version that ships templates/Makefile.canonical.)'
     exit 2
   fi
 }
@@ -109,7 +113,9 @@ function validate_backup_path() {
 }
 
 function has_include_directive() {
-  grep -qE '^[[:space:]]*-?include[[:space:]]+\.standards/Makefile' \
+  # Accept both the current canonical path and the legacy form so the
+  # idempotency check still fires on partially migrated repos.
+  grep -qE '^[[:space:]]*-?include[[:space:]]+\.standards/(templates/Makefile\.canonical|Makefile)\b' \
     "${CONSUMER_MAKEFILE}"
 }
 
@@ -276,15 +282,15 @@ function strip_orphan_comments() {
 
 function write_header() {
   cat <<'EOF'
-# Consumer Makefile — delegates canonical targets to .standards/Makefile.
-# Originally cloned from templates/Makefile; migrated by migrate-makefile.sh.
-# The original is preserved at Makefile.pre-migrate.bak.
+# Consumer Makefile — delegates canonical targets to .standards/templates/Makefile.canonical.
+# Originally cloned from the pre-include-era templates/Makefile; migrated
+# by migrate-makefile.sh. The original is preserved at Makefile.pre-migrate.bak.
 
-ifeq (,$(wildcard .standards/Makefile))
-$(error .standards/Makefile not found. Run: git submodule update --init --recursive)
+ifeq (,$(wildcard .standards/templates/Makefile.canonical))
+$(error .standards/templates/Makefile.canonical not found. Run: git submodule update --init --recursive)
 endif
 
-include .standards/Makefile
+include .standards/templates/Makefile.canonical
 
 ## Consumer-specific content (preserved from the original Makefile).
 ## Targets whose recipes matched canonical were removed by the migration.
