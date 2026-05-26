@@ -2,28 +2,33 @@
 # governance-refresh.sh
 # Reconciles a consumer repo with its `.standards` canonical source of truth.
 #
-# Three reconciliation passes — `.standards` always wins. Consumer hand-edits
-# to any canonical artifact are overwritten on every refresh:
+# Two automatic reconciliation passes plus a drift-detection step. `.standards`
+# wins on artifacts the consumer is never expected to hand-edit; consumer
+# overrides to Makefile recipes are preserved (substantive divergence is
+# legitimate customization, not drift to clobber).
 #
 #   1. Canonical-script sync: walks .standards/scripts/ (excluding standards-
 #      only paths: bootstrap-standards.sh, release/, verify/), copies any
 #      missing or content-divergent script into the consumer's matching path.
+#      Canonical wins.
 #
-#   2. Makefile target injection: for each canonical script now present in
-#      the consumer's scripts/, if .standards/templates/Makefile.canonical
-#      defines a target whose recipe invokes that script AND consumer
-#      Makefile has no such target, lift the target block from
-#      Makefile.canonical and append to consumer Makefile under a marker
-#      comment.
+#   2. Makefile target injection: only when the consumer Makefile has NO
+#      `include .standards/templates/Makefile.canonical` directive (i.e.,
+#      legacy/unmigrated layouts that ensure_consumer_migrated couldn't
+#      convert). For each canonical script lacking a consumer target, lift
+#      the canonical block in. With the include directive present, the
+#      consumer inherits every canonical target — injection would only
+#      duplicate them and is skipped.
 #
-#   3. Makefile target drift fix: for each target defined in BOTH the
-#      canonical template and the consumer Makefile whose active recipe
-#      lines differ, replace the consumer's target block with the canonical
-#      one in place. Symmetric with pass 1 — canonical wins on shared
-#      target names. Consumer-only targets (not in the canonical template)
-#      are untouched.
+#   3. Makefile target drift DETECTION (no auto-fix): for each target in
+#      BOTH the canonical template and the consumer Makefile whose active
+#      recipe lines differ — comparing the SUBSTANTIVE command lines only,
+#      after stripping echoes/comments/decoration — REPORT the divergence
+#      and exit non-zero. The override is preserved verbatim; the operator
+#      decides whether to align with canonical or keep the customization.
 #
-# Idempotent: re-running converges; second run produces no diff.
+# Idempotent on passes 1 and 2: re-running converges; second run produces
+# no diff. Pass 3 stays non-zero until the operator reconciles.
 #
 # Usage:
 #   bash governance-refresh.sh [--dry-run]
@@ -85,28 +90,34 @@ function main() {
   ensure_consumer_migrated
   log "🔄 governance-refresh: REPO_ROOT=${REPO_ROOT}"
 
-  local script_changes target_injections target_drifts
+  # ── Phase 1: PLUMBING ────────────────────────────────────────────────
+  # Sync canonical scripts and inject any missing canonical Makefile
+  # targets so the consumer has a complete, working install BEFORE we
+  # look at recipe-level drift. A "half-assed install" (scripts present
+  # but Makefile.canonical absent, or vice versa) would make manual
+  # repair of drift impossible.
+  local script_changes target_injections
   script_changes="$(compute_script_changes)"
   target_injections="$(compute_target_injections)"
-  target_drifts="$(compute_target_drifts)"
-
-  report_changes "${script_changes}" "${target_injections}" "${target_drifts}"
+  report_plumbing_summary "${script_changes}" "${target_injections}"
 
   if [ "${DRY_RUN}" -eq 1 ]; then
-    if [ -n "${script_changes}" ] || [ -n "${target_injections}" ] \
-        || [ -n "${target_drifts}" ]; then
-      log "⚠️  dry-run: changes pending. Run 'make governance-refresh' to apply."
-      exit 1
-    fi
-    log "✅ dry-run: nothing to refresh"
-    exit 0
+    dry_run_exit "${script_changes}" "${target_injections}"
+    return 0
   fi
 
   apply_script_changes "${script_changes}"
   apply_target_injections "${target_injections}"
-  apply_target_drifts "${target_drifts}"
-  verify_no_remaining_drifts
   maybe_stage_submodule
+  log "✅ Plumbing in place (canonical scripts synced; Makefile.canonical include present)"
+
+  # ── Phase 2: DRIFT DETECTION ─────────────────────────────────────────
+  # Recompute drift against the post-plumbing state. Substantive
+  # divergence in consumer overrides is preserved as-is and reported
+  # for manual repair; exit non-zero so CI gates surface it.
+  local target_drifts
+  target_drifts="$(compute_target_drifts)"
+  report_drifts_for_manual_repair "${target_drifts}"
   log "✅ governance-refresh complete"
 }
 
@@ -435,34 +446,53 @@ function find_target_for_script() {
   ' "${TEMPLATES_MAKEFILE}"
 }
 
-function report_changes() {
+function report_plumbing_summary() {
   local -r script_changes="${1}"
   local -r target_injections="${2}"
-  local -r target_drifts="${3:-}"
-  if [ -z "${script_changes}" ] && [ -z "${target_injections}" ] \
-      && [ -z "${target_drifts}" ]; then
-    log "  nothing pending"
+  if [ -z "${script_changes}" ] && [ -z "${target_injections}" ]; then
+    log "  plumbing: nothing to sync (canonical scripts and Makefile.canonical include up to date)"
     return 0
   fi
   if [ -n "${script_changes}" ]; then
-    log "  scripts:"
+    log "  canonical scripts to sync:"
     while IFS= read -r line; do
       [ -n "${line}" ] && log "    ${line}"
     done <<< "${script_changes}"
   fi
   if [ -n "${target_injections}" ]; then
-    log "  Makefile targets to inject:"
+    log "  Makefile targets to inject (only for legacy/unmigrated layouts):"
     while IFS= read -r line; do
       [ -n "${line}" ] && log "    ${line}"
     done <<< "${target_injections}"
   fi
+}
+
+# Dry-run terminator. Reports any pending plumbing AND any drift (since
+# dry-run can't actually apply the plumbing, drift is computed against
+# the as-is state — best-effort, but the gate still surfaces it).
+function dry_run_exit() {
+  local -r script_changes="${1}"
+  local -r target_injections="${2}"
+  local target_drifts
+  target_drifts="$(compute_target_drifts)"
+  local pending=0
+  if [ -n "${script_changes}" ] || [ -n "${target_injections}" ]; then
+    pending=1
+  fi
   if [ -n "${target_drifts}" ]; then
-    log "  Makefile targets to overwrite (consumer recipe differs from"
-    log "  .standards/templates/Makefile.canonical — canonical wins):"
+    log "  Makefile target drift (consumer override diverges substantively"
+    log "  from .standards/templates/Makefile.canonical — manual repair):"
     while IFS= read -r line; do
       [ -n "${line}" ] && log "    ${line}"
     done <<< "${target_drifts}"
+    pending=1
   fi
+  if [ "${pending}" -eq 1 ]; then
+    log "⚠️  dry-run: changes pending. Run 'make governance-refresh' to apply"
+    log "    plumbing; substantive recipe drift requires MANUAL repair."
+    exit 1
+  fi
+  log "✅ dry-run: nothing to refresh"
 }
 
 function apply_script_changes() {
@@ -514,107 +544,42 @@ function extract_target_block() {
   ' "${TEMPLATES_MAKEFILE}"
 }
 
-# Rewrite the consumer Makefile in place, replacing each drifted target's
-# block (from `^target:` through the line before the next blank line) with
-# the canonical block from Makefile.canonical. Atomic: writes to a temp file
-# and renames into place on success. No-op when the drift list is empty.
-function apply_target_drifts() {
+# Report substantive drift between consumer overrides and canonical recipes.
+# Semantic drift only — active_recipe_of strips human-readable text (echoes,
+# comments, decoration) before comparison, so what's reported here is a real
+# command-level divergence. The consumer's override is preserved verbatim;
+# resolution is up to the operator (align with canonical, delete the override
+# to let `include .standards/templates/Makefile.canonical` provide it, or
+# leave the divergence intentional and accept the exit-non-zero from this
+# function on future runs until reconciled).
+#
+# Exits 5 if any drift exists (so CI gates surface it). Pass 1 (canonical
+# scripts) and the migration have already run by the time we get here, so
+# the consumer has the supporting infrastructure regardless.
+function report_drifts_for_manual_repair() {
   local -r drifts="${1}"
   [ -z "${drifts}" ] && return 0
-  local blocks_file targets_file tmp_out
-  blocks_file="$(mktemp -t govrefresh-blocks.XXXXXX)"
-  targets_file="$(mktemp -t govrefresh-targets.XXXXXX)"
-  tmp_out="$(mktemp -t govrefresh-makefile.XXXXXX)"
-  local kind target
-  while IFS=' ' read -r kind target; do
-    [ -z "${target}" ] && continue
-    if [ "${kind}" != "DRIFT" ]; then
-      log "❌ apply_target_drifts: unexpected kind '${kind}' for ${target}"
-      exit 3
-    fi
-    printf '%s\n' "${target}" >> "${targets_file}"
-    {
-      printf '<<<BEGIN %s>>>\n' "${target}"
-      extract_target_block "${target}"
-      printf '<<<END %s>>>\n' "${target}"
-    } >> "${blocks_file}"
-  done <<< "${drifts}"
-
-  awk -v blocks_file="${blocks_file}" -v targets_file="${targets_file}" '
-    BEGIN {
-      while ((getline ln < targets_file) > 0) {
-        if (ln != "") drifted[ln] = 1
-      }
-      close(targets_file)
-      cur = ""
-      while ((getline ln < blocks_file) > 0) {
-        if (substr(ln, 1, 9) == "<<<BEGIN ") {
-          cur = substr(ln, 10)
-          sub(/>>>$/, "", cur)
-          blocks[cur] = ""
-          continue
-        }
-        if (substr(ln, 1, 7) == "<<<END ") {
-          cur = ""
-          continue
-        }
-        if (cur != "") {
-          blocks[cur] = blocks[cur] (blocks[cur] == "" ? "" : "\n") ln
-        }
-      }
-      close(blocks_file)
-      skipping = 0
-    }
-    /^[a-zA-Z_][a-zA-Z0-9_.-]*[[:space:]]*:/ &&
-    !/^[a-zA-Z_][a-zA-Z0-9_.-]*[[:space:]]*[?:+]?=/ {
-      tname = $0
-      sub(/[[:space:]]*:.*$/, "", tname)
-      if (tname in drifted) {
-        print blocks[tname]
-        skipping = 1
-        next
-      }
-      skipping = 0
-    }
-    skipping && /^$/ { skipping = 0; print ""; next }
-    skipping { next }
-    { print }
-  ' "${CONSUMER_MAKEFILE}" > "${tmp_out}"
-
-  mv "${tmp_out}" "${CONSUMER_MAKEFILE}"
-  rm -f "${blocks_file}" "${targets_file}"
-}
-
-# Post-apply assertion: re-run drift detection against the (now-rewritten)
-# consumer Makefile. Any drift left over here means apply_target_drifts
-# did not fully resolve the recipes — typically because the consumer
-# Makefile defines the same target twice (so active_recipe_of concatenates
-# both copies) or because something in the consumer's layout escapes the
-# block-replacement state machine. Fail LOUDLY rather than letting the
-# operator think it worked.
-function verify_no_remaining_drifts() {
-  local remaining
-  remaining="$(compute_target_drifts)"
-  [ -z "${remaining}" ] && return 0
   log ""
-  log "❌ post-apply drift remains — apply_target_drifts did NOT resolve these"
-  log "   target(s). Likely causes: duplicate target definitions in the"
-  log "   consumer Makefile, or a recipe layout the replacement state machine"
-  log "   doesn't recognize."
+  log "⚠️  Substantive Makefile target drift — MANUAL REPAIR required."
+  log "   Canonical scripts and templates/Makefile.canonical are installed;"
+  log "   the consumer's overrides below diverge from canonical at the command"
+  log "   level and are preserved as-is. Reconcile by either editing the"
+  log "   consumer override to match canonical, or deleting the override to"
+  log "   inherit the canonical recipe via the include directive."
   local kind target c_active t_active count
   while IFS=' ' read -r kind target; do
     [ -z "${target}" ] && continue
     log ""
     log "   --- ${target} ---"
     count="$(grep -cE "^${target}[[:space:]]*:" "${CONSUMER_MAKEFILE}" || true)"
-    log "   target definitions in consumer Makefile: ${count} (expect 1)"
+    log "   target definitions in consumer Makefile: ${count} (canonical has 1)"
     t_active="$(active_recipe_of "${TEMPLATES_MAKEFILE}" "${target}")"
     c_active="$(active_recipe_of "${CONSUMER_MAKEFILE}" "${target}")"
     log "   canonical active recipe:"
     while IFS= read -r line; do log "     | ${line}"; done <<< "${t_active}"
-    log "   consumer active recipe (post-apply):"
+    log "   consumer active recipe:"
     while IFS= read -r line; do log "     | ${line}"; done <<< "${c_active}"
-  done <<< "${remaining}"
+  done <<< "${drifts}"
   exit 5
 }
 
