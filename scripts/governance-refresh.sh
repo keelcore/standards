@@ -57,18 +57,32 @@ declare -r TEMPLATES_MAKEFILE="${STANDARDS_ROOT}/templates/Makefile.canonical"
 declare -r CONSUMER_MAKEFILE="${REPO_ROOT}/Makefile"
 
 declare DRY_RUN=0
-# Flipped to 1 by detect_consumer when REPO_ROOT contains a `.standards`
-# submodule (i.e., we are NOT the standards repo itself). Effectively
-# immutable after detect_consumer runs.
+# Set by detect_consumer:
+#   IS_CONSUMER  — STANDARDS_ROOT is a directory nested under REPO_ROOT
+#                  (the consumer-repo layout, regardless of whether it
+#                  came from a submodule or a symlink/test harness).
+#   IS_SUBMODULE — `.standards` is a real git submodule (narrower; needed
+#                  for the git-pull / git-stage operations).
 declare IS_CONSUMER=0
+declare IS_SUBMODULE=0
+
+# Absolute path of THIS running script, captured before any re-exec. Used
+# by reexec_from_canonical_if_stale to detect whether `make governance-
+# refresh` invoked the consumer's local (potentially stale) copy at
+# scripts/governance-refresh.sh instead of the canonical copy at
+# .standards/scripts/governance-refresh.sh.
+declare SELF_PATH
+SELF_PATH="$(realpath -- "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+declare -r SELF_PATH
 
 function main() {
   exec 5>&1
   parse_args "${@:-}"
   detect_consumer
   validate_env
-  ensure_consumer_migrated
   maybe_pull_submodule
+  reexec_from_canonical_if_stale "${@:-}"
+  ensure_consumer_migrated
   log "🔄 governance-refresh: REPO_ROOT=${REPO_ROOT}"
 
   local script_changes target_injections target_drifts
@@ -112,7 +126,7 @@ function parse_args() {
 
 function validate_env() {
   if [ ! -d "${STANDARDS_ROOT}/scripts" ]; then
-    if [ "${IS_CONSUMER}" -eq 1 ]; then
+    if [ "${IS_SUBMODULE}" -eq 1 ]; then
       log "❌ .standards submodule not initialized at ${STANDARDS_ROOT}"
       log '   Run: git submodule update --init --recursive'
       exit 2
@@ -130,14 +144,21 @@ function validate_env() {
   fi
 }
 
-# Sets IS_CONSUMER=1 iff REPO_ROOT contains a `.standards` submodule. The
-# standards repo itself has no `.standards/`, so it stays 0. A test harness
-# that points GOVREFRESH_STANDARDS_ROOT at a local path also stays 0 (no
-# submodule entry to advance).
+# Distinguishes (1) "are we consumer-shaped" — STANDARDS_ROOT is a real
+# directory nested under REPO_ROOT — from (2) "is .standards a real git
+# submodule" — the narrower predicate needed by the git-pull / git-stage
+# operations. The standards repo itself has neither and stays at 0/0.
 function detect_consumer() {
+  case "${STANDARDS_ROOT}" in
+    "${REPO_ROOT}/"*)
+      if [ -d "${STANDARDS_ROOT}" ] && [ "${STANDARDS_ROOT}" != "${REPO_ROOT}" ]; then
+        IS_CONSUMER=1
+      fi
+      ;;
+  esac
   if git -C "${REPO_ROOT}" submodule status .standards 2>/dev/null \
       | grep -q .; then
-    IS_CONSUMER=1
+    IS_SUBMODULE=1
   fi
 }
 
@@ -178,18 +199,54 @@ function ensure_consumer_migrated() {
 # Advance the `.standards` submodule to its tracked-branch tip. Skipped in
 # dry-run mode: the CI governance gate runs --dry-run and must evaluate
 # against the pinned submodule pointer, not whatever upstream looks like
-# right now — otherwise the gate becomes flaky.
+# right now — otherwise the gate becomes flaky. Also skipped after a
+# re-exec (already pulled in the parent invocation).
 function maybe_pull_submodule() {
-  [ "${IS_CONSUMER}" -eq 1 ] || return 0
+  [ "${GOVREFRESH_REEXEC:-0}" = "1" ] && return 0
+  [ "${IS_SUBMODULE}" -eq 1 ] || return 0
   [ "${DRY_RUN}" -eq 1 ] && return 0
   log "📡 Pulling latest .standards submodule..."
   git -C "${REPO_ROOT}" submodule update --remote .standards
 }
 
+# When `make governance-refresh` invokes the consumer's LOCAL copy at
+# scripts/governance-refresh.sh, that copy may be older than the canonical
+# at .standards/scripts/governance-refresh.sh — the running process was
+# loaded into bash memory before maybe_pull_submodule fetched the fresh
+# canonical, so it would otherwise execute stale logic for the remainder
+# of the run (and self-update only on disk, helping the NEXT invocation
+# instead of this one). Re-exec into the canonical so the current run uses
+# the latest code.
+#
+# Loop guard: `GOVREFRESH_REEXEC=1` is exported before exec so the child
+# process skips this check (and skips maybe_pull_submodule, since the
+# parent already pulled).
+#
+# Skipped when already running the canonical (realpath match), when the
+# canonical is content-identical to self (sha match), when not a consumer
+# (no .standards submodule), or when the canonical is missing.
+function reexec_from_canonical_if_stale() {
+  [ "${GOVREFRESH_REEXEC:-0}" = "1" ] && return 0
+  [ "${IS_CONSUMER}" -eq 1 ] || return 0
+  local canonical="${STANDARDS_ROOT}/scripts/governance-refresh.sh"
+  [ -f "${canonical}" ] || return 0
+  local canonical_real
+  canonical_real="$(realpath -- "${canonical}" 2>/dev/null || echo "${canonical}")"
+  [ "${SELF_PATH}" = "${canonical_real}" ] && return 0
+  local self_sum canonical_sum
+  self_sum="$(sha256sum "${SELF_PATH}" | awk '{print $1}')"
+  canonical_sum="$(sha256sum "${canonical_real}" | awk '{print $1}')"
+  [ "${self_sum}" = "${canonical_sum}" ] && return 0
+  log "🔁 Local scripts/governance-refresh.sh differs from canonical; re-exec"
+  log "   from ${canonical_real}"
+  export GOVREFRESH_REEXEC=1
+  exec bash "${canonical_real}" "${@}"
+}
+
 # Stage the (possibly advanced) submodule pointer so the consumer's index
 # is ready to commit. No-op if the pointer did not move.
 function maybe_stage_submodule() {
-  [ "${IS_CONSUMER}" -eq 1 ] || return 0
+  [ "${IS_SUBMODULE}" -eq 1 ] || return 0
   [ "${DRY_RUN}" -eq 1 ] && return 0
   log "📌 Staging .standards submodule pointer..."
   git -C "${REPO_ROOT}" add .standards
@@ -235,7 +292,18 @@ function compute_script_changes() {
 # For each canonical script in consumer/scripts/ that is NOT invoked by any
 # target in consumer/Makefile, look up the target in Makefile.canonical
 # that invokes it; emit if a canonical target is defined.
+#
+# Short-circuit when the consumer Makefile already has the canonical-include
+# directive: the included file provides every canonical target, so injecting
+# them into the consumer body would only duplicate them. Worse, if the
+# consumer's drifted recipe happens to invoke the script via the
+# `.standards/scripts/` path instead of `scripts/`, `consumer_invokes_script`
+# would miss it and pass 2 would emit a duplicate target — `active_recipe_of`
+# then concatenates both bodies and the drift becomes self-perpetuating.
 function compute_target_injections() {
+  if has_include_directive; then
+    return 0
+  fi
   local rel target
   while IFS= read -r rel; do
     [ -z "${rel}" ] && continue
@@ -249,6 +317,14 @@ function compute_target_injections() {
       printf 'INJECT %s %s\n' "${target}" "${rel}"
     fi
   done < <(canonical_scripts)
+}
+
+# True iff CONSUMER_MAKEFILE contains an `include` directive pointing at the
+# canonical template (current or legacy form). Mirrors migrate-makefile.sh's
+# idempotency check.
+function has_include_directive() {
+  grep -qE '^[[:space:]]*-?include[[:space:]]+\.standards/(templates/Makefile\.canonical|Makefile)\b' \
+    "${CONSUMER_MAKEFILE}"
 }
 
 function consumer_invokes_script() {
@@ -305,8 +381,13 @@ function template_target_names() {
   ' "${TEMPLATES_MAKEFILE}" | sort -u
 }
 
-# Active recipe lines for the named target — TAB-indented lines that aren't
-# blank, comment, or @echo. Strips leading @/- modifiers (per Rule 4).
+# Active recipe lines for the named target — the substantive command lines,
+# stripped of decoration so drift detection compares "what gets run", not
+# how it's announced. For each TAB-indented body line:
+#   * strip leading TABs and recipe modifiers (`@`, `-`)
+#   * strip a trailing inline `# comment` and any trailing whitespace
+#   * drop empty lines, full-line `#` comments, and `@?echo` announcements
+# Per Rule 4's "active recipe" definition.
 function active_recipe_of() {
   local -r makefile="${1}"
   local -r target="${2}"
@@ -316,10 +397,12 @@ function active_recipe_of() {
     in_block && /^\t/ {
       body=$0
       sub(/^\t+/, "", body)
+      sub(/^[@-]+/, "", body)
+      sub(/[[:space:]]+#.*$/, "", body)
+      sub(/[[:space:]]+$/, "", body)
       if (body == "") next
       if (body ~ /^#/) next
-      if (body ~ /^@?-?echo([[:space:]]|$)/) next
-      sub(/^[@-]+/, "", body)
+      if (body ~ /^echo([[:space:]]|$)/) next
       print body
     }
   ' "${makefile}"
@@ -517,9 +600,20 @@ function verify_no_remaining_drifts() {
   log "❌ post-apply drift remains — apply_target_drifts did NOT resolve these"
   log "   target(s). Likely causes: duplicate target definitions in the"
   log "   consumer Makefile, or a recipe layout the replacement state machine"
-  log "   doesn't recognize. Inspect the consumer Makefile blocks for:"
-  while IFS= read -r line; do
-    [ -n "${line}" ] && log "    ${line}"
+  log "   doesn't recognize."
+  local kind target c_active t_active count
+  while IFS=' ' read -r kind target; do
+    [ -z "${target}" ] && continue
+    log ""
+    log "   --- ${target} ---"
+    count="$(grep -cE "^${target}[[:space:]]*:" "${CONSUMER_MAKEFILE}" || true)"
+    log "   target definitions in consumer Makefile: ${count} (expect 1)"
+    t_active="$(active_recipe_of "${TEMPLATES_MAKEFILE}" "${target}")"
+    c_active="$(active_recipe_of "${CONSUMER_MAKEFILE}" "${target}")"
+    log "   canonical active recipe:"
+    while IFS= read -r line; do log "     | ${line}"; done <<< "${t_active}"
+    log "   consumer active recipe (post-apply):"
+    while IFS= read -r line; do log "     | ${line}"; done <<< "${c_active}"
   done <<< "${remaining}"
   exit 5
 }
