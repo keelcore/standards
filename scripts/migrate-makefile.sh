@@ -178,7 +178,12 @@ function compute_removable() {
 }
 
 # Emit each target name whose active recipe DIFFERS substantively between
-# consumer and canonical — drift requiring manual review.
+# consumer and canonical — drift requiring manual review. Includes the
+# `@echo`-only no-op override case: a consumer whose target body strips
+# down to nothing after decoration removal but DOES have a tab-indented
+# body still shadows the canonical recipe at Make time and elicits a
+# `warning: overriding commands for target` from Make. That's drift, not
+# a pure aggregator.
 function compute_drift() {
   local target c_recipe k_recipe
   while IFS= read -r target; do
@@ -186,11 +191,37 @@ function compute_drift() {
     target_in_canonical "${target}" || continue
     c_recipe="$(normalize_recipe "$(active_recipe_of "${CONSUMER_MAKEFILE}" "${target}")")"
     k_recipe="$(normalize_recipe "$(active_recipe_of "${CANONICAL_MAKEFILE}" "${target}")")"
-    [ -z "${c_recipe}" ] || [ -z "${k_recipe}" ] && continue
+    # Canonical stub: expected customization.
+    if [ -z "${k_recipe}" ]; then
+      continue
+    fi
+    # Consumer side empty post-strip — drift only if there's a tab-
+    # indented body (deliberate no-op override), not for pure aggregators.
+    if [ -z "${c_recipe}" ]; then
+      if target_has_recipe_body "${CONSUMER_MAKEFILE}" "${target}"; then
+        printf '%s\n' "${target}"
+      fi
+      continue
+    fi
     if [ "${c_recipe}" != "${k_recipe}" ]; then
       printf '%s\n' "${target}"
     fi
   done < <(target_names_in "${CONSUMER_MAKEFILE}")
+}
+
+# True iff the named target in `makefile` has at least one tab-indented
+# body line — distinguishes a deliberate `@echo`-only no-op override
+# (has body, body is all decoration) from a pure aggregator
+# (`target: dep1 dep2` with NO body at all).
+function target_has_recipe_body() {
+  local -r makefile="${1}"
+  local -r target="${2}"
+  awk -v t="^${target}[[:space:]]*:" '
+    $0 ~ t { in_block=1; next }
+    /^[a-zA-Z_]/ { in_block=0 }
+    in_block && /^\t/ { found=1 }
+    END { exit !found }
+  ' "${makefile}"
 }
 
 function target_in_canonical() {

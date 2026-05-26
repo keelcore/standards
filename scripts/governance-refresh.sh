@@ -372,16 +372,25 @@ function compute_target_drifts() {
     fi
     t_active="$(active_recipe_of "${TEMPLATES_MAKEFILE}" "${target}")"
     c_active="$(active_recipe_of "${CONSUMER_MAKEFILE}" "${target}")"
-    # Skip when EITHER side has no active recipe:
-    #   - templates empty: provides a stub for the consumer to fill in
-    #     (e.g. `build:` in the docs-only standards repo where consumer
-    #     supplies a real `bash scripts/build.sh`). Expected customization.
-    #   - consumer empty: aggregator with only prerequisites — not a
-    #     substantive override.
-    #   - both empty: nothing to drift on.
-    # Drift is flagged ONLY when BOTH sides invoke a script and the
-    # invocations differ (after `.standards/` prefix normalization).
-    if [ -z "${t_active}" ] || [ -z "${c_active}" ]; then
+    # Templates side empty: provides a stub for the consumer to fill in
+    # (e.g. `build:` in the docs-only standards repo where the consumer
+    # supplies a real `bash scripts/build.sh`). Expected customization.
+    if [ -z "${t_active}" ]; then
+      continue
+    fi
+    # Consumer side empty after decoration stripping. Two distinct cases:
+    #   (a) pure aggregator — `target: dep1 dep2` with NO tab-indented
+    #       body whatsoever. Legitimately delegates to prerequisites; not
+    #       drift.
+    #   (b) `@echo`-only no-op override — consumer wrote a tab-indented
+    #       body that announces something but doesn't actually run the
+    #       canonical command. Make sees this as a recipe and emits
+    #       `warning: overriding commands for target` against the
+    #       canonical recipe inherited via include. THIS IS DRIFT.
+    if [ -z "${c_active}" ]; then
+      if target_has_recipe_body "${CONSUMER_MAKEFILE}" "${target}"; then
+        printf 'DRIFT %s\n' "${target}"
+      fi
       continue
     fi
     t_norm="$(normalize_recipe "${t_active}")"
@@ -390,6 +399,22 @@ function compute_target_drifts() {
       printf 'DRIFT %s\n' "${target}"
     fi
   done < <(template_target_names)
+}
+
+# True iff the consumer Makefile has at least one tab-indented body line
+# under the named target — distinguishes a deliberate `@echo`-only no-op
+# override (has body, body is all decoration) from a pure aggregator
+# (`target: dep1 dep2` with NO body at all). Only the former is drift;
+# the latter is a legitimate use of Make's prerequisite mechanism.
+function target_has_recipe_body() {
+  local -r makefile="${1}"
+  local -r target="${2}"
+  awk -v t="^${target}[[:space:]]*:" '
+    $0 ~ t { in_block=1; next }
+    /^[a-zA-Z_]/ { in_block=0 }
+    in_block && /^\t/ { found=1 }
+    END { exit !found }
+  ' "${makefile}"
 }
 
 # Names of all targets defined in Makefile.canonical.
