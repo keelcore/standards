@@ -40,8 +40,14 @@ function lint() {
   log 'Running shellcheck on all scripts...'
   local rc
   rc=0
+  # Resolve symlinks so shellcheck reads each script via its real path. This
+  # matters for `# shellcheck source=...` directives, which resolve relative
+  # to the script file's location. A symlinked entry under scripts/ would
+  # otherwise pin SCRIPTDIR to the wrong tree.
   find scripts -name '*.sh' -print0 \
-    | xargs -0 shellcheck --shell=bash --severity=warning \
+    | xargs -0 -n 1 realpath \
+    | sort -u \
+    | xargs shellcheck --shell=bash --severity=warning \
     || rc="${?}"
   if [ "${rc}" -ne 0 ]; then
     log "❌ shellcheck failed (exit ${rc})"
