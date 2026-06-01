@@ -25,6 +25,7 @@ function main() {
   run_markdown_lint
   run_shellcheck
   run_newlines_lint
+  run_forbid_suppressions
   run_adr_check
   run_governance_check
   run_rfc_check
@@ -56,6 +57,17 @@ function run_shellcheck() {
 function run_newlines_lint() {
   log 'Running trailing-newline check...'
   bash scripts/lint/newlines.sh
+}
+
+function run_forbid_suppressions() {
+  # Enforces feedback_never_bypass_lint: no shellcheck-disable / markdownlint-disable
+  # directives in tracked files. Skipped if the consumer doesn't carry the check.
+  if [ ! -x 'scripts/lint/forbid-suppressions.sh' ]; then
+    log 'Skipping suppression-directive check (forbid-suppressions.sh not present)'
+    return 0
+  fi
+  log 'Checking for lint-suppression directives...'
+  bash scripts/lint/forbid-suppressions.sh
 }
 
 function run_adr_check() {

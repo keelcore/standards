@@ -42,9 +42,13 @@ function lint() {
   rc=0
   # Resolve symlinks so shellcheck reads each script via its real path. This
   # matters for `# shellcheck source=...` directives, which resolve relative
-  # to the script file's location. A symlinked entry under scripts/ would
-  # otherwise pin SCRIPTDIR to the wrong tree.
-  find scripts -name '*.sh' -print0 \
+  # to the script file's location. A symlinked entry would otherwise pin
+  # SCRIPTDIR to the wrong tree.
+  # Cover ALL tracked *.sh in the repo so consumer feature scripts (e.g.,
+  # macos/features/, raspberry_pi/scripts/) get the same lint as helpers.
+  # git ls-files honors .gitignore (so .scratch/ is naturally excluded) and
+  # only lists tracked files (no .standards/ submodule duplication).
+  git ls-files -z '*.sh' \
     | xargs -0 -n 1 realpath \
     | sort -u \
     | xargs shellcheck --shell=bash --severity=warning \
