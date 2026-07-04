@@ -29,15 +29,25 @@ function format_json() {
     log 'node not found on PATH or at standard install locations; skipping JSON formatting'
     return 0
   fi
-  find . -name '*.json' \
-    -not -path './node_modules/*' \
-    -not -path './.git/*' \
-    -exec node -e "
+  # Scope to superproject-tracked JSON via `git ls-files` (like the other lint
+  # scripts). This skips git submodules (e.g. vendors/, .standards/) and
+  # gitignored trees (node_modules/), which legitimately contain JSONC configs
+  # (tsconfig, pyright, svelte) and deliberately-invalid fixtures the strict
+  # JSON.parse formatter cannot read. A file that fails to parse is reported and
+  # skipped, never fatal — one unparseable file must not abort the format pass
+  # (and GNU find's -exec would otherwise fail the whole run under errexit).
+  local json_file
+  while IFS= read -r json_file; do
+    [ -f "${json_file}" ] || continue
+    if ! node -e "
       const fs = require('fs');
       const f = process.argv[1];
       const obj = JSON.parse(fs.readFileSync(f,'utf8'));
       fs.writeFileSync(f, JSON.stringify(obj, null, 2) + '\n');
-    " {} \;
+    " "${json_file}" 2>/dev/null; then
+      log "  ⚠️  skipped (not plain JSON): ${json_file}"
+    fi
+  done < <(git ls-files '*.json')
   log "✅ JSON formatted (node: $(command -v node))"
 }
 
