@@ -20,6 +20,8 @@ set -o pipefail
 
 # shellcheck source=lib/node-path.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/node-path.sh"
+# shellcheck source=lib/paths.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 
 function main() {
   exec 5>&1
@@ -66,7 +68,7 @@ function run_linter() {
   local f
   while IFS= read -r f; do
     files+=("${f}")
-  done < <(git ls-files '*.md')
+  done < <(git ls-files '*.md' | nolint_filter)
   if [ "${#files[@]}" -eq 0 ]; then
     log 'ℹ️  No tracked .md files to lint'
     return 0

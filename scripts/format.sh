@@ -15,6 +15,8 @@ set -o pipefail
 
 # shellcheck source=lib/node-path.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/node-path.sh"
+# shellcheck source=lib/paths.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 
 function main() {
   exec 5>&1
@@ -47,7 +49,7 @@ function format_json() {
     " "${json_file}" 2>/dev/null; then
       log "  ⚠️  skipped (not plain JSON): ${json_file}"
     fi
-  done < <(git ls-files '*.json')
+  done < <(git ls-files '*.json' | nolint_filter)
   log "✅ JSON formatted (node: $(command -v node))"
 }
 

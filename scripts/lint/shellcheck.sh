@@ -14,6 +14,8 @@ set -o pipefail
 
 # shellcheck source=../lib/paths-ensure.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths-ensure.sh"
+# shellcheck source=../lib/paths.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 
 function main() {
   exec 5>&1
@@ -49,6 +51,7 @@ function lint() {
   # git ls-files honors .gitignore (so .scratch/ is naturally excluded) and
   # only lists tracked files (no .standards/ submodule duplication).
   git ls-files -z '*.sh' \
+    | nolint_filter0 \
     | xargs -0 -n 1 realpath \
     | sort -u \
     | xargs shellcheck --shell=bash --severity=warning \

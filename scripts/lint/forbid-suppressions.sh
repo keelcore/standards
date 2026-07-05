@@ -23,6 +23,9 @@ declare SELF_REL
 SELF_REL="$(realpath "${BASH_SOURCE[0]}")"
 SELF_REL="${SELF_REL#"${REPO_ROOT}"/}"
 
+# shellcheck source=../lib/paths.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
+
 declare -ar FORBIDDEN_PATTERNS=(
   'shellcheck +disable='
   '<!-- *markdownlint-disable'
@@ -49,6 +52,7 @@ function scan_pattern() {
   local -r pat="${1}"
   local matches
   matches="$( git -C "${REPO_ROOT}" ls-files \
+              | nolint_filter \
               | git_grep_filter "${pat}" \
               || true )"
   if [ -z "${matches}" ]; then
