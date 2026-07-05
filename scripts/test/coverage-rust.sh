@@ -21,6 +21,8 @@ set -o pipefail
 
 declare -r OUT_DIR='target/llvm-cov'
 declare -r LCOV_PATH="${OUT_DIR}/lcov.info"
+# Shared coverage bucket where each language drops its LCOV for the aggregate.
+declare -r COVERAGE_DIR="${COVERAGE_DIR:-target/coverage}"
 
 function main() {
   exec 5>&1
@@ -36,7 +38,9 @@ function main() {
   log '🧪 cargo llvm-cov (workspace, all targets)...'
   run_coverage
   print_stats
-  log "📁 LCOV: ${LCOV_PATH}"
+  mkdir -p "${COVERAGE_DIR}"
+  cp "${LCOV_PATH}" "${COVERAGE_DIR}/rust.lcov"
+  log "📁 LCOV: ${LCOV_PATH} (bucketed at ${COVERAGE_DIR}/rust.lcov)"
   log "📁 HTML: ${OUT_DIR}/html/index.html"
 }
 

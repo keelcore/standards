@@ -34,7 +34,7 @@ declare REPO_ROOT
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 declare -r REPO_ROOT
 
-declare SOURCE="${REPO_ROOT}/target/llvm-cov/lcov.info"
+declare SOURCE="${REPO_ROOT}/target/coverage/lcov.info"
 declare TARGET="${REPO_ROOT}/tests/coverage-baseline.lcov"
 
 function main() {

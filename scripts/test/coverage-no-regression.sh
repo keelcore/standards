@@ -22,7 +22,7 @@
 #   bash coverage-no-regression.sh [--baseline PATH] [--current PATH]
 #
 #   --baseline PATH   defaults to ${REPO_ROOT}/tests/coverage-baseline.lcov
-#   --current PATH    defaults to ${REPO_ROOT}/target/llvm-cov/lcov.info
+#   --current PATH    defaults to ${REPO_ROOT}/target/coverage/lcov.info
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -39,7 +39,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 declare -r REPO_ROOT
 
 declare BASELINE="${REPO_ROOT}/tests/coverage-baseline.lcov"
-declare CURRENT="${REPO_ROOT}/target/llvm-cov/lcov.info"
+declare CURRENT="${REPO_ROOT}/target/coverage/lcov.info"
 
 function main() {
   exec 5>&1

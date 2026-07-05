@@ -120,7 +120,7 @@ ci-governance-gate:
 
 ## Coverage
 
-coverage: coverage-go coverage-rust
+coverage: coverage-go coverage-rust coverage-aggregate
 
 coverage-go:
 	@echo "📊 Go coverage..."
@@ -129,6 +129,10 @@ coverage-go:
 coverage-rust:
 	@echo "📊 Rust coverage (cargo-llvm-cov)..."
 	bash scripts/test/coverage-rust.sh
+
+coverage-aggregate:
+	@echo "📊 Coverage aggregate (merge per-language LCOV, bucket by extension)..."
+	bash scripts/test/coverage-aggregate.sh
 
 ci-coverage-no-regression:
 	@echo "🚦 coverage-no-regression (per-file)..."

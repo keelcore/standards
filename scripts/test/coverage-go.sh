@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # coverage-go.sh
-# Generates a Go coverage profile and prints total %, uncovered statements,
-# and total statements. Skips with exit 0 when no Go scope is present
-# (no go.mod at REPO_ROOT) — invoked unconditionally by `make coverage` via
-# the aggregator pattern; the per-language gate lives here.
+# Emit Go coverage as an LCOV tracefile for EVERY Go module in the repo — the
+# root module, or nested modules (clients/*, proxy/*) when there is no root
+# go.mod. LCOV is the common interchange format (same as lcov/gcov on Linux), so
+# `make coverage` can concatenate this with the other languages' tracefiles into
+# one report bucketed by source-file extension. Skips with exit 0 when there is
+# no Go scope.
+#
+# Output: ${COVERAGE_DIR:-target/coverage}/go.lcov  (SF: entries are repo-relative
+# filesystem paths, so they bucket by extension in the aggregate.)
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -18,67 +23,96 @@ set -o pipefail
 # shellcheck source=../lib/paths.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 
+readonly COVERAGE_DIR="${COVERAGE_DIR:-target/coverage}"
+readonly GO_LCOV="${COVERAGE_DIR}/go.lcov"
+# Entry points (cmd/*/main.go) are exercised only via the built binary and its
+# BATS/integration tests, which are not coverage-instrumented — excluded by
+# default so the per-file rule stays on library code, mirroring the Rust scope's
+# src/bin/ exclusion. Override with GO_COVERAGE_IGNORE_REGEX.
+readonly GO_COVERAGE_IGNORE_REGEX="${GO_COVERAGE_IGNORE_REGEX:-/cmd/}"
+
+function log() {
+  printf '%s\n' "${1:-}" | tee -a '/tmp/keel_coverage_go.log' >&5
+}
+
 function main() {
   exec 5>&1
-  validate_args "${@:-}"
-  if ! has_go_scope; then
+  local dirs
+  dirs="$(go_module_dirs)"
+  if [ -z "${dirs}" ]; then
     log 'ℹ️  No Go scope detected (no go.mod); skipping coverage-go.'
     return 0
   fi
-  local outfile
-  outfile="${1:-coverage.txt}"
-  run_coverage "${outfile}"
-  print_stats "${outfile}"
+  mkdir -p "${COVERAGE_DIR}"
+  local combined
+  combined="$(mktemp)"
+  printf '%s\n' "${dirs}" | while IFS= read -r dir; do
+    [ -n "${dir}" ] && collect_module "${dir}"
+  done > "${combined}"
+  grep -Ev "${GO_COVERAGE_IGNORE_REGEX}" "${combined}" | to_lcov > "${GO_LCOV}"
+  rm -f "${combined}"
+  log "📊 Go LCOV -> ${GO_LCOV} ($(grep -c '^SF:' "${GO_LCOV}" || echo 0) files)"
 }
 
-function has_go_scope() {
-  [ -f 'go.mod' ]
-}
-
-function log() {
-  local msg
-  msg="${1:-}"
-  printf '%s\n' "${msg}" | tee -a '/tmp/keel_coverage_go.log' >&5
-}
-
-function validate_args() {
-  if [ "${#}" -gt 1 ]; then
-    log '❌ Error: Unexpected arg'
-    exit 1
+# go_module_dirs: repo-relative dirs containing a go.mod (root or nested),
+# excluding vendored trees (filter_src drops top-level vendor + submodules; the
+# .nolint pattern drops nested vendor/).
+function go_module_dirs() {
+  if [ -f 'go.mod' ]; then
+    echo '.'
+    return 0
   fi
+  find clients proxy -name go.mod 2>/dev/null \
+    | while IFS= read -r m; do dirname "${m}"; done \
+    | filter_src \
+    | sort
 }
 
-function run_coverage() {
-  local outfile="${1}"
-  log 'Generating Go coverage profile'
-  : > "${outfile}"
-  local pkgs coverpkg
-  pkgs="$(go_pkgs | grep -v '/examples/')"
-  coverpkg="$(printf '%s\n' "${pkgs}" | tr '\n' ',' | sed 's/,$//')"
-  printf '%s\n' "${pkgs}" | xargs go test \
-    -count=1 \
-    -coverprofile="${outfile}" \
-    -covermode=atomic \
-    "-coverpkg=${coverpkg}"
+# collect_module: run coverage in one module and rewrite its import-path-prefixed
+# coverprofile lines to repo-relative filesystem paths. Modules without tests
+# produce no profile and are skipped.
+function collect_module() {
+  local dir="${1}" prof modpath prefix
+  prof="$(mktemp)"
+  ( cd "${dir}" && go test -covermode=atomic -coverprofile="${prof}" ./... >/dev/null 2>&1 ) || true
+  if [ ! -s "${prof}" ]; then
+    rm -f "${prof}"
+    return 0
+  fi
+  modpath="$(cd "${dir}" && go list -m 2>/dev/null)"
+  if [ "${dir}" = '.' ]; then prefix=''; else prefix="${dir}/"; fi
+  grep -v '^mode:' "${prof}" | sed "s|^${modpath}/|${prefix}|"
+  rm -f "${prof}"
 }
 
-function print_stats() {
-  local file="${1}"
-  local pct total_lines uncovered
-  pct="$(go tool cover -func="${file}" | grep '^total:' | awk '{print $3}')"
-  read -r total_lines uncovered < <(
-    awk '
-      NR==1 { next }
-      { cnt[$1]+=$3; stmts[$1]=$2 }
-      END {
-        for (b in stmts) { tot+=stmts[b]; if (cnt[b]==0) unc+=stmts[b] }
-        print tot+0, unc+0
+# to_lcov: convert a Go coverprofile (filesystem paths) on stdin into an LCOV
+# tracefile. A covered block marks its whole line span; a line's hit count is the
+# max over the blocks covering it — equivalent to jandelgado/gcov2lcov.
+function to_lcov() {
+  awk '
+    {
+      split($1, a, ":"); path = a[1]
+      split(a[2], b, ","); split(b[1], s, "."); split(b[2], e, ".")
+      cnt = $3
+      for (ln = s[1]; ln <= e[1]; ln++) {
+        key = path SUBSEP ln
+        if (!(key in seen) || cnt + 0 > hit[key] + 0) hit[key] = cnt
+        seen[key] = 1
+        if (ln > mx[path]) mx[path] = ln
+        if (!(path in F)) { F[path] = 1; ord[++n] = path }
       }
-    ' "${file}"
-  )
-  printf 'total:     %s\n' "${pct}"
-  printf 'uncovered: %s\n' "${uncovered}"
-  printf 'lines:     %s\n' "${total_lines}"
+    }
+    END {
+      for (i = 1; i <= n; i++) {
+        f = ord[i]; print "SF:" f; lf = 0; lh = 0
+        for (ln = 1; ln <= mx[f]; ln++) {
+          key = f SUBSEP ln
+          if (key in seen) { print "DA:" ln "," hit[key]; lf++; if (hit[key] + 0 > 0) lh++ }
+        }
+        print "LF:" lf; print "LH:" lh; print "end_of_record"
+      }
+    }
+  '
 }
 
 main "${@:-}"
