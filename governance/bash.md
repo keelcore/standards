@@ -36,6 +36,23 @@ set -o errexit
 set -o pipefail
 ```
 
+## Locale Determinism
+
+Bash tooling is locale-sensitive and MUST run under a pinned C locale so output is reproducible
+across machines and CI (the generic policy: see coding.md, "Locale and Reproducibility"):
+
+- **L1.** `sort` collates by `LC_COLLATE` — order differs across locales, and `sort -u` can even
+  dedup differently. `awk`/`printf` format numbers by `LC_NUMERIC` — a comma-radix locale (e.g.
+  `de_DE`) turns `95.00` into `95,00`, breaking numeric comparisons and file compares. `tr [:upper:]`,
+  `[[ a < b ]]`, and `grep` character classes are likewise locale-dependent.
+- **L2.** The build entrypoint (the `Makefile`) MUST `export LC_ALL := C`, so every recipe shell and
+  its subprocesses — including canonical scripts a consumer does not edit — run under C.
+- **L3.** A script that sorts or formats numbers and may be run OUTSIDE `make` MUST source a locale
+  guard (`scripts/lib/locale.sh`) that exports `LC_ALL=C`, so direct `bash scripts/x.sh` runs are
+  deterministic too.
+- **L4.** The lock is testable: a BATS case runs a recipe under a hostile `LC_ALL`/`LC_NUMERIC` and
+  asserts `LC_ALL=C` wins.
+
 ## Script Structure
 
 - **R5.** `main` is the FIRST function defined in the file.

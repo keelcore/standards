@@ -24,6 +24,13 @@ ifeq (,$(wildcard scripts))
 $(error Makefile.canonical: no scripts/ directory in $(CURDIR). Include this file from a top-level Makefile in a repo that has scripts/ at its root.)
 endif
 
+# Locale determinism (governance/bash.md "Locale Determinism", coding.md
+# "Locale and Reproducibility"): pin every recipe shell and its subprocesses
+# (sort, awk/printf, grep) to the C locale so builds, tests, and coverage math
+# are reproducible across machines and CI regardless of the caller's LANG/LC_*.
+# Consumers inherit this via the include; a consumer need not repeat it.
+export LC_ALL := C
+
 .PHONY: build lint lint-newlines lint-bash lint-markdown \
         test unit-test integration-test clean audit \
         ci-pr-policy ci-secret-scan ci-dco ci-coverage-delta \

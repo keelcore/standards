@@ -127,6 +127,19 @@ These rules govern all code edits in this project. They are non-negotiable.
 1. Do not introduce worse asymptotic complexity where a better one existed.
 2. Do not replace indexed/cached/streaming/incremental behavior with full scans or redundant allocation.
 
+## Locale and Reproducibility
+
+1. Builds, tests, and tooling MUST be reproducible independent of the developer's or CI runner's
+   locale. Never depend on an inherited `LANG`/`LC_*` for program behavior.
+2. Any locale-sensitive operation — collation/sort order, numeric or date formatting, case-folding —
+   MUST pin an explicit, deterministic locale (`LC_ALL=C`, or an equivalent language-native
+   invariant) rather than rely on the ambient default.
+3. Pin at the outermost boundary that covers all subprocesses (e.g. the build entrypoint exports
+   `LC_ALL=C`) so that tools you do not own inherit the deterministic locale too.
+4. Where a locale dependency is load-bearing, add a test that runs the path under a hostile `LC_*`
+   and asserts the invariant holds. Language-specific mechanics live in the per-language standards
+   (e.g. bash.md, "Locale Determinism").
+
 ## Source File Trailing Newlines
 
 1. Every text source file (`.go`, `.sh`, `.md`, `.yml`, `.yaml`, `.toml`, `.json`, `.gitignore`, `.gitattributes`) MUST
