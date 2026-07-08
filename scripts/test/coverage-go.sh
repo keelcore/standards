@@ -54,15 +54,17 @@ function main() {
   log "📊 Go LCOV -> ${GO_LCOV} ($(grep -c '^SF:' "${GO_LCOV}" || echo 0) files)"
 }
 
-# go_module_dirs: repo-relative dirs containing a go.mod (root or nested),
-# excluding vendored trees (filter_src drops top-level vendor + submodules; the
-# .nolint pattern drops nested vendor/).
+# go_module_dirs: repo-relative dirs containing a go.mod (root or nested).
+# `git ls-files` makes discovery layout-agnostic and naturally excludes git
+# submodules (tracked as gitlinks, not their files) and vendored deps (no go.mod),
+# rather than hardcoding one project's module layout. filter_src is retained as a
+# belt-and-suspenders drop of any stray tracked vendor go.mod.
 function go_module_dirs() {
   if [ -f 'go.mod' ]; then
     echo '.'
     return 0
   fi
-  find clients proxy -name go.mod 2>/dev/null \
+  git ls-files '*go.mod' 2>/dev/null \
     | while IFS= read -r m; do dirname "${m}"; done \
     | filter_src \
     | sort
