@@ -29,7 +29,8 @@ SELF_REL="${SELF_REL#"${REPO_ROOT}"/}"
 function main() {
   exec 5>&1
   local rc=0
-  # shellcheck disable= can only appear in shell; markdownlint disable/capture only in markdown.
+  # Suppression directives are type-bound: a shell "disable=" comment can only appear in
+  # shell, and markdownlint disable/capture only in markdown. Scan each over its own type.
   scan 'shellcheck +disable='                'shellcheck disable='          '*.sh' '*.bash' || rc=1
   scan '<!-- *markdownlint-(disable|capture)' 'markdownlint-disable/capture' '*.md' '*.markdown' || rc=1
   if [ "${rc}" -eq 0 ]; then
