@@ -56,3 +56,11 @@ function filter_pkgs() { filter_paths '/%s/' '/%s/|/%s$'; }
 
 function go_source_files() { git ls-files '*.go' | filter_src; }
 function go_pkgs()         { go list ./... | filter_pkgs; }
+
+# source_files: the repo-owned source files matching the given pathspec globs
+# (e.g. `source_files '*.sh' '*.bash'`), with vendored / generated / submodule
+# trees excluded by construction (filter_src honors top-level `^vendor/`, nested
+# `vendor/` at any depth via .nolint, and submodule paths). This is the single
+# generator every extension-based linter should iterate: never a raw
+# `git ls-files` (which includes vendored trees) and never a per-file grep loop.
+function source_files() { git ls-files -- "$@" | filter_src; }

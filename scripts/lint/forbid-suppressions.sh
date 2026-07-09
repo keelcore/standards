@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # scripts/lint/forbid-suppressions.sh
-# Fail if any tracked file contains a lint-suppression directive (shellcheck
-# disable, markdownlint disable/capture). Per feedback_never_bypass_lint:
+# Fail if any repo-owned source file contains a lint-suppression directive
+# (shellcheck disable, markdownlint disable/capture). Per feedback_never_bypass_lint:
 # refactor code so the warning no longer applies; never silence the linter.
 #
 # Allowed (NOT a disable — just a hint that tells the linter where to look):
 #   # shellcheck source=<path>     (e.g., source=./lib/common.sh)
 #
-# Excluded from the scan:
-#   - this script (would self-match on the FORBIDDEN_PATTERNS strings)
-#   - .standards/ submodule (canonical, governed separately)
-#   - documentation that describes the rule (memory/, docs/)
+# Scope: a suppression directive can only live in the file type that carries it, so
+# each pattern is scanned ONLY over its file type — via the vendoring-aware
+# source_files generator (scripts/lib/paths.sh) and a SINGLE `git grep`. Never a
+# per-file grep over the whole tree, and never vendored / submodule content.
 
 set -o nounset
 set -o errexit
@@ -26,60 +26,36 @@ SELF_REL="${SELF_REL#"${REPO_ROOT}"/}"
 # shellcheck source=../lib/paths.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
 
-declare -ar FORBIDDEN_PATTERNS=(
-  'shellcheck +disable='
-  '<!-- *markdownlint-disable'
-  '<!-- *markdownlint-capture'
-)
-
 function main() {
   exec 5>&1
   local rc=0
-  for pat in "${FORBIDDEN_PATTERNS[@]}"; do
-    if scan_pattern "${pat}"; then
-      :
-    else
-      rc=1
-    fi
-  done
+  # shellcheck disable= can only appear in shell; markdownlint disable/capture only in markdown.
+  scan 'shellcheck +disable='                'shellcheck disable='          '*.sh' '*.bash' || rc=1
+  scan '<!-- *markdownlint-(disable|capture)' 'markdownlint-disable/capture' '*.md' '*.markdown' || rc=1
   if [ "${rc}" -eq 0 ]; then
     log '✅ no lint-suppression directives in tracked files'
   fi
   exit "${rc}"
 }
 
-function scan_pattern() {
-  local -r pat="${1}"
-  local matches
-  matches="$( git -C "${REPO_ROOT}" ls-files \
-              | nolint_filter \
-              | git_grep_filter "${pat}" \
-              || true )"
-  if [ -z "${matches}" ]; then
-    return 0
-  fi
-  log "❌ forbidden suppression matches '${pat}':"
+# scan PATTERN LABEL GLOB...: report any repo-owned file of the given globs whose
+# content matches PATTERN. source_files excludes vendored/submodule trees by
+# construction; a single `git grep` over the resulting (small) file set does the
+# content search; this script excludes itself (it necessarily quotes the patterns).
+function scan() {
+  local -r pat="${1}" label="${2}"
+  shift 2
+  local files matches
+  files="$(source_files "$@" | grep -vxF "${SELF_REL}" || true)"
+  [ -z "${files}" ] && return 0
+  # NUL-delimit the (small, type-scoped) file list into a SINGLE `git grep`.
+  matches="$(printf '%s\n' "${files}" | tr '\n' '\0' \
+             | xargs -0 git -C "${REPO_ROOT}" grep -lE "${pat}" -- 2>/dev/null || true)"
+  [ -z "${matches}" ] && return 0
+  log "❌ forbidden suppression (${label}):"
   printf '%s\n' "${matches}" | sed 's/^/   /' >&5
   log '   → refactor to fix the lint issue at the source (feedback_never_bypass_lint)'
   return 1
-}
-
-# Filter tracked file list to those that actually match the pattern, excluding
-# this script and any path under .standards/ (canonical) or memory/ (docs).
-function git_grep_filter() {
-  local -r pat="${1}"
-  local f
-  while IFS= read -r f; do
-    [ -z "${f}" ] && continue
-    [ "${f}" = "${SELF_REL}" ] && continue
-    case "${f}" in
-      .standards/*) continue ;;
-    esac
-    # Match the pattern; use grep -lE on the single file.
-    if grep -lE "${pat}" "${REPO_ROOT}/${f}" >/dev/null 2>&1; then
-      printf '%s\n' "${f}"
-    fi
-  done
 }
 
 function log() {
