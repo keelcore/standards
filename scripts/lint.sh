@@ -25,6 +25,7 @@ function main() {
   run_markdown_lint
   run_shellcheck
   run_newlines_lint
+  run_go_lint
   run_forbid_suppressions
   run_adr_check
   run_governance_check
@@ -57,6 +58,11 @@ function run_shellcheck() {
 function run_newlines_lint() {
   log 'Running trailing-newline check...'
   bash scripts/lint/newlines.sh
+}
+
+function run_go_lint() {
+  log 'Running gofmt check...'
+  bash scripts/lint/go.sh
 }
 
 function run_forbid_suppressions() {

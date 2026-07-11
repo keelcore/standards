@@ -22,7 +22,26 @@ function main() {
   exec 5>&1
   log 'Formatting repository...'
   format_json
+  format_go
   log '✅ Formatting complete'
+}
+
+function format_go() {
+  log 'Formatting Go files...'
+  if ! command -v gofmt >/dev/null 2>&1; then
+    log 'gofmt not found on PATH; skipping Go formatting'
+    return 0
+  fi
+  # Scope to superproject-tracked *.go via go_source_files (like the other
+  # scripts), so vendored / submodule trees are left to their upstream's style.
+  local go_files
+  go_files="$(go_source_files)"
+  if [ -z "${go_files}" ]; then
+    log '✅ no Go files to format'
+    return 0
+  fi
+  printf '%s' "${go_files}" | tr '\n' '\0' | xargs -0 gofmt -w
+  log "✅ Go formatted (gofmt: $(command -v gofmt))"
 }
 
 function format_json() {
