@@ -81,7 +81,9 @@ function collect_module() {
     rm -f "${prof}"
     return 0
   fi
-  modpath="$(cd "${dir}" && go list -m 2>/dev/null)"
+  # GOWORK=off so `go list -m` returns THIS module's path only; in a go.work
+  # workspace it otherwise lists every module (multi-line), corrupting the sed below.
+  modpath="$(cd "${dir}" && GOWORK=off go list -m 2>/dev/null)"
   if [ "${dir}" = '.' ]; then prefix=''; else prefix="${dir}/"; fi
   grep -v '^mode:' "${prof}" | sed "s|^${modpath}/|${prefix}|"
   rm -f "${prof}"
