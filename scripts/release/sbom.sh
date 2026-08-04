@@ -46,12 +46,7 @@ function generate_sbom() {
 
 function log_summary() {
   local component_count
-  component_count="$(python3 -c "
-import json, sys
-data = json.load(open('${OUTPUT_FILE}'))
-pkgs = data.get('packages', [])
-print(len(pkgs))
-" 2>/dev/null || echo 'unknown')"
+  component_count="$(jq '.packages | length' "${OUTPUT_FILE}" 2>/dev/null || echo 'unknown')"
   log "   Components catalogued: ${component_count}"
 }
 
