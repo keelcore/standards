@@ -63,7 +63,7 @@ jobs:
 
       - run: make setup-markdownlint
       - run: make lint-newlines
-      - run: make lint-md
+      - run: make lint-markdown
 
   lint-bash:
     name: lint / bash
@@ -88,3 +88,5 @@ jobs:
           cache: true
 
       - run: make verify-go
+      - run: make lint-go
+
