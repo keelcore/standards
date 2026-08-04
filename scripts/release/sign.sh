@@ -3,7 +3,9 @@
 # Signs release artifacts using Sigstore/cosign keyless signing.
 # Produces .sig and .bundle files alongside each artifact.
 #
-# Usage: scripts/release/sign.sh <artifact-path> [<artifact-path> ...]
+# Usage: scripts/release/sign.sh [--sums-dir DIR] <artifact-path> [<artifact-path> ...]
+#   --sums-dir DIR   directory to write SHA256SUMS and SHA256SUMS.bundle into
+#                    (default: current directory)
 #
 # Requires:
 #   - cosign on PATH (installed in CI via the cosign installer action)
@@ -19,8 +21,14 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
+declare SUMS_DIR='.'
+
 function main() {
   exec 5>&1
+  if [ "${1:-}" = '--sums-dir' ]; then
+    SUMS_DIR="${2}"
+    shift 2
+  fi
   validate_env "${@:-}"
   sign_artifacts "${@:-}"
   generate_checksums "${@:-}"
@@ -34,7 +42,7 @@ function validate_env() {
   fi
   if [ "${#}" -eq 0 ]; then
     log '❌ No artifact paths provided'
-    log '   Usage: sign.sh <artifact> [<artifact> ...]'
+    log '   Usage: sign.sh [--sums-dir DIR] <artifact> [<artifact> ...]'
     exit 1
   fi
   log '✅ Environment valid'
@@ -66,13 +74,13 @@ function generate_checksums() {
   local artifact
   for artifact in "${@}"; do
     sha256sum "${artifact}"
-  done > SHA256SUMS
+  done > "${SUMS_DIR}/SHA256SUMS"
   log '✅ SHA256SUMS written'
   log 'Signing SHA256SUMS...'
   cosign sign-blob \
     --yes \
-    --bundle 'SHA256SUMS.bundle' \
-    SHA256SUMS
+    --bundle "${SUMS_DIR}/SHA256SUMS.bundle" \
+    "${SUMS_DIR}/SHA256SUMS"
   log '✅ SHA256SUMS.bundle written'
 }
 
