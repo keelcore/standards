@@ -11,9 +11,9 @@
 # parent repo root in both contexts — so the same recipe runs the right copy
 # of the script in both the standards repo and any consumer.
 #
-# Standards-only targets (release-*, verify-go, bootstrap-standards) live in
-# the standards repo's private /Makefile, NOT here, because their scripts
-# are intentionally not shipped to consumers.
+# Every shipped script has its target here. release-go/npm/pypi, verify-go, and
+# bootstrap-standards live in this canonical file because their scripts are now
+# shipped to consumers byte-identical (Rule A), so consumers need the targets too.
 
 # Guard: this file must be included from a top-level Makefile in a repo that
 # has scripts/ at its root. Make evaluates $(wildcard ...) against its CWD
@@ -41,6 +41,7 @@ export LC_ALL := C
         check-legal-drift \
         setup-bats setup-markdownlint setup-shellcheck setup-syft \
         verify-canonical install-hooks \
+        release-go release-npm release-pypi verify-go bootstrap-standards \
         format lint-all pre-commit help
 
 ## Universal canonical targets (language-independent; mandated by CI standards)
@@ -214,6 +215,28 @@ governance-refresh:
 ## Adds the include directive and removes canonical target blocks. Idempotent.
 migrate-makefile:
 	bash scripts/migrate-makefile.sh
+
+## Per-language publish targets — scripts shipped byte-identical (Rule A).
+release-go:
+	@echo "🚀 Publishing Go module..."
+	bash scripts/release/go-publish.sh
+
+release-npm:
+	@echo "🚀 Publishing npm package..."
+	bash scripts/release/npm-publish.sh
+
+release-pypi:
+	@echo "🚀 Publishing PyPI package..."
+	bash scripts/release/pypi-publish.sh
+
+## Per-language verify.
+verify-go:
+	@echo "🔍 Verifying Go module..."
+	bash scripts/verify/go.sh
+
+## Bootstrap entrypoint — consumers can also curl the script one-shot.
+bootstrap-standards:
+	bash scripts/bootstrap-standards.sh
 
 ## Help (auto-enumerates targets across every file in $(MAKEFILE_LIST) so
 ## consumers including this Makefile see their own targets alongside the

@@ -9,10 +9,9 @@
 #   1. Includes the same canonical ruleset consumers do — so the standards
 #      repo `dogfoods` itself (running `make audit` here exercises the same
 #      target shapes downstream repos do).
-#   2. Adds targets whose recipes call scripts intentionally NOT shipped to
-#      consumers (the governance-refresh ship-filter excludes
-#      scripts/release/ and scripts/verify/, plus scripts/bootstrap-standards.sh
-#      which consumers `curl` once rather than keep locally).
+#   2. Adds release-sbom / release-sign, whose scripts stay standards-private.
+#      (All other release/verify scripts now ship byte-identical under Rule A,
+#      so their targets live in templates/Makefile.canonical, not here.)
 
 ifeq (,$(wildcard templates/Makefile.canonical))
 $(error templates/Makefile.canonical not found — run make from the standards repo root.)
@@ -20,13 +19,11 @@ endif
 
 include templates/Makefile.canonical
 
-## Standards-only targets (not shipped to consumers)
+## Standards-private targets. sbom/sign stay here (not shipped to consumers).
+## release-go/npm/pypi, verify-go, and bootstrap-standards moved to
+## templates/Makefile.canonical now that Rule A ships their scripts consumer-side.
 
-.PHONY: release-sbom release-sign release-go release-npm release-pypi \
-        verify-go bootstrap-standards
-
-## Release targets — driven by scripts/release/, which governance-refresh
-## intentionally excludes from the consumer ship list.
+.PHONY: release-sbom release-sign
 
 release-sbom:
 	@echo "📋 Generating SBOM..."
@@ -35,28 +32,3 @@ release-sbom:
 release-sign:
 	@echo "✍️  Signing artifacts..."
 	bash scripts/release/sign.sh
-
-release-go:
-	@echo "🚀 Publishing Go module..."
-	bash scripts/release/go-publish.sh
-
-release-npm:
-	@echo "🚀 Publishing npm package..."
-	bash scripts/release/npm-publish.sh
-
-release-pypi:
-	@echo "🚀 Publishing PyPI package..."
-	bash scripts/release/pypi-publish.sh
-
-## Per-language verify (scripts/verify/ is standards-only).
-
-verify-go:
-	@echo "🔍 Verifying Go module..."
-	bash scripts/verify/go.sh
-
-## Bootstrap entrypoint — consumers invoke this from THEIR repo root via a
-## one-shot curl of the script; the script itself is not kept in consumer
-## scripts/. The standards repo exposes the target for local rehearsal.
-
-bootstrap-standards:
-	bash scripts/bootstrap-standards.sh
