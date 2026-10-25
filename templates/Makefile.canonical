@@ -41,7 +41,8 @@ export LC_ALL := C
         check-legal-drift \
         setup-bats setup-markdownlint setup-shellcheck setup-syft \
         verify-canonical install-hooks \
-        release-go release-npm release-pypi verify-go bootstrap-standards \
+        release-go release-npm release-pypi release-sbom release-sign \
+        verify-go bootstrap-standards \
         format lint-all pre-commit help
 
 ## Universal canonical targets (language-independent; mandated by CI standards)
@@ -228,6 +229,15 @@ release-npm:
 release-pypi:
 	@echo "🚀 Publishing PyPI package..."
 	bash scripts/release/pypi-publish.sh
+
+## Release provenance — SBOM (ARGS="--out-dir DIR") and keyless signing (ARGS="<artifact> ...").
+release-sbom:
+	@echo "🧾 Generating SBOM..."
+	bash scripts/release/sbom.sh $(ARGS)
+
+release-sign:
+	@echo "🔏 Signing release artifacts..."
+	bash scripts/release/sign.sh $(ARGS)
 
 ## Per-language verify.
 verify-go:
