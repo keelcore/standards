@@ -31,19 +31,50 @@ endif
 # Consumers inherit this via the include; a consumer need not repeat it.
 export LC_ALL := C
 
-.PHONY: build lint lint-newlines lint-bash lint-markdown lint-suppressions \
-        test unit-test integration-test clean audit \
-        ci-pr-policy ci-secret-scan ci-dco ci-coverage-delta \
-        ci-governance-gate ci-coverage-no-regression \
-        coverage coverage-go coverage-rust coverage-baseline-init \
-        governance-refresh migrate-makefile \
-        check-adr-metadata check-governance-metadata check-rfc-metadata \
-        check-legal-drift \
-        setup-bats setup-markdownlint setup-shellcheck setup-syft \
-        verify-canonical install-hooks \
-        release-go release-npm release-pypi release-sbom release-sign \
-        verify-go bootstrap-standards \
-        format lint-all pre-commit help
+.PHONY: build
+.PHONY: lint
+.PHONY: lint-newlines
+.PHONY: lint-bash
+.PHONY: lint-markdown
+.PHONY: lint-suppressions
+.PHONY: test
+.PHONY: unit-test
+.PHONY: integration-test
+.PHONY: clean
+.PHONY: audit
+.PHONY: ci-pr-policy
+.PHONY: ci-secret-scan
+.PHONY: ci-dco
+.PHONY: ci-coverage-delta
+.PHONY: ci-governance-gate
+.PHONY: ci-coverage-no-regression
+.PHONY: coverage
+.PHONY: coverage-go
+.PHONY: coverage-rust
+.PHONY: coverage-baseline-init
+.PHONY: governance-refresh
+.PHONY: migrate-makefile
+.PHONY: check-adr-metadata
+.PHONY: check-governance-metadata
+.PHONY: check-rfc-metadata
+.PHONY: check-legal-drift
+.PHONY: setup-bats
+.PHONY: setup-markdownlint
+.PHONY: setup-shellcheck
+.PHONY: setup-syft
+.PHONY: verify-canonical
+.PHONY: install-hooks
+.PHONY: release-go
+.PHONY: release-npm
+.PHONY: release-pypi
+.PHONY: release-sbom
+.PHONY: release-sign
+.PHONY: verify-go
+.PHONY: bootstrap-standards
+.PHONY: format
+.PHONY: lint-all
+.PHONY: pre-commit
+.PHONY: help
 
 ## Universal canonical targets (language-independent; mandated by CI standards)
 
@@ -187,7 +218,7 @@ install-hooks:
 ## this canonical set; consumers usually do not invoke this).
 
 verify-canonical:
-	@echo "🔍 Verifying canonical scripts in downstream repo (REPO=<path>)..."
+	@echo "🔍 Verifying canonical scripts are byte-identical (REPO=<path>, default: this repo)…"
 	bash scripts/ci/verify-canonical-scripts.sh $(REPO)
 
 ## Utility targets

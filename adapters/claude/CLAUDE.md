@@ -10,6 +10,12 @@ See [.standards/governance/coding.md](.standards/governance/coding.md).
 
 See [.standards/governance/ci.md](.standards/governance/ci.md).
 
+## Makefile `.PHONY` Declarations
+
+Declare exactly one target per `.PHONY` line — `.PHONY: build`, then `.PHONY: lint` on the next line. Never a
+space-separated or backslash-continued list. Make aggregates repeated `.PHONY:` lines on its own, and one name per line
+keeps diffs and blame to the single target that changed. Adding a target adds its own `.PHONY: <target>` line.
+
 ## Testing Standards
 
 See [.standards/governance/testing.md](.standards/governance/testing.md).
