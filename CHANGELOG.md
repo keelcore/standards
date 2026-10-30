@@ -12,6 +12,14 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+### Fixed
+
+- PyPI publish: `pypa/gh-action-pypi-publish` v1.13.0 → v1.14.3. Its bundled `packaging` 25.0 rejected the wheel's
+  metadata version 2.5 (written by current hatchling), so v0.10.0 never reached PyPI; v1.14.3 bundles `packaging` 26.2,
+  which accepts 2.5
+
+## [0.10.0] - 2026-10-30
+
 ### Added
 
 - Architecture Review Board governance (`governance/arb.md`) — membership, quorum, tie-breaking, escalation
