@@ -1,17 +1,18 @@
 # Release Policy
 
-**Maturity:** Required **Version:** 1.0.0 **Last Reviewed:** 2026-03-11
+**Maturity:** Required **Version:** 1.1.0 **Last Reviewed:** 2026-10-30
 
-This document covers how Keel versions are tagged and released. The authoritative policy lives in the
-[keelcore/standards `ci.md`](ci.md) under **Release Tagging**. This document is the developer-facing how-to that
-complements that policy.
+This document covers how a project that follows the keelcore standards tags and releases a version. The authoritative
+policy lives in [`ci.md`](ci.md) under **Release Tagging**. This document is the developer-facing how-to that
+complements that policy. It applies to every project as written; what a project may change, and where, is set out in
+[Project Customization](#project-customization) below.
 
 ---
 
 ## Versioning Specification
 
-Keel follows **Semantic Versioning 2.0.0** — [https://semver.org](https://semver.org). That document is the canonical
-reference; the rules below are derived from it and must not contradict it.
+Projects follow **Semantic Versioning 2.0.0** — [https://semver.org](https://semver.org). That document is the
+canonical reference; the rules below are derived from it and must not contradict it.
 
 Key semver.org rules in force here:
 
@@ -26,9 +27,11 @@ Key semver.org rules in force here:
 - Pre-release identifiers (`-alpha.1`, `-rc.2`, etc.) and build metadata (`+sha`) are valid semver extensions but are
   **not supported by `create-release.sh`** at this time. `--force` only accepts bare `MAJOR.MINOR.PATCH` versions.
 
-**Scope of automated detection:** The script detects breaking changes by diffing the config YAML field surface
-(`pkg/config/schema.yaml`). Other API-breaking changes — Go type signatures, HTTP API shape, security policy, behavior
-semantics — are not automatically detected. Use `--force` with the appropriate bump level for those cases.
+Git tags are the only source of truth for versions. Projects keep no version file and make no version-bump commit.
+
+**Scope of automated detection:** each project's hook detects only the surface it is written to diff. Breaking changes
+it cannot see — Go type signatures, HTTP API shape, security policy, behavior semantics — are the developer's call: use
+`--force` with the appropriate bump level.
 
 ---
 
@@ -41,27 +44,88 @@ what a commit represents — that decision requires review and cannot be automat
 
 ## Tooling
 
-| Script                              | Purpose                                                         |
-| ----------------------------------- | --------------------------------------------------------------- |
-| `scripts/release/create-release.sh` | Compute, approve, tag, and push a release                       |
-| `scripts/release/gen-schema.sh`     | Regenerate `pkg/config/schema.yaml` after config changes        |
-| `cmd/config-schema/main.go`         | Go tool: reflection-walk of `config.Config` → dotted YAML paths |
-| `make gen-schema`                   | Alias for `gen-schema.sh`                                       |
-| `make create-release`               | Alias for `create-release.sh` (auto mode)                       |
-| `make create-release FORCE=v1.0.0`  | Alias for `create-release.sh --force v1.0.0`                    |
+| Script or target                            | Purpose                                                               |
+| ------------------------------------------- | --------------------------------------------------------------------- |
+| `scripts/release/create-release.sh`         | Canonical (from `keelcore/standards`): compute, approve, tag and push |
+| `scripts/release/create-release.local.sh`   | The project's own bump hook; never canonical, never synced            |
+| `make create-release`                       | Alias for `create-release.sh` (auto mode)                             |
+| `make create-release FORCE=v1.0.0`          | Alias for `create-release.sh --force v1.0.0`                          |
+| `make create-release DRY_RUN=1`             | Alias for `create-release.sh --dry-run`: no prompt, no tag, no push   |
+| `make create-release-local PREV_TAG=vX.Y.Z` | Run the hook alone against a previous tag                             |
 
 ---
 
 ## How Version Bumps Are Computed
 
-The script diffs `pkg/config/schema.yaml` at the previous tag against the file at `HEAD`. The schema lists every
-fully-flattened dotted YAML field path in `config.Config` (e.g. `sidecar.circuit_breaker.reset_timeout`).
+`create-release.sh` gets the bump level from the hook at `scripts/release/create-release.local.sh` in the git toplevel
+of the repo being released — inside a consumer, the consumer's hook, never the copy in `.standards`. The driver calls it
+as `create-release.local.sh <previous-tag>`, and the hook prints two lines to stdout:
 
-| Schema change                              | Bump level                        | semver.org rationale                                                                       |
-| ------------------------------------------ | --------------------------------- | ------------------------------------------------------------------------------------------ |
-| One or more fields **removed**             | **major** — breaking change       | Removing a field is an incompatible API change ([item 4](https://semver.org/#spec-item-4)) |
-| One or more fields **added**, none removed | **minor** — new feature           | New fields are backward-compatible additions ([item 5](https://semver.org/#spec-item-5))   |
-| No field surface changes                   | **patch** — internal improvements | No public API surface change ([item 6](https://semver.org/#spec-item-6))                   |
+1. the bump level: `major`, `minor` or `patch`;
+2. a one-line tag subject (empty means `release vX.Y.Z`).
+
+Anything the hook writes to stderr is shown to the developer and recorded in the tag body. A non-zero exit aborts the
+release. With no hook, every release is a `patch`.
+
+| Hook reports | Meaning                               | semver.org rationale                                                       |
+| ------------ | ------------------------------------- | -------------------------------------------------------------------------- |
+| `major`      | Breaking change to the public surface | Incompatible API change ([item 4](https://semver.org/#spec-item-4))        |
+| `minor`      | New backward-compatible functionality | Backward-compatible addition ([item 5](https://semver.org/#spec-item-5))   |
+| `patch`      | No public surface change              | Bug fixes and internal changes ([item 6](https://semver.org/#spec-item-6)) |
+
+While the major version is 0 ([item 9](https://semver.org/#spec-item-9)), `create-release.sh` demotes the bump one step
+(major → minor, minor → patch) and adds `(pre-1.0 demotion)` to the tag subject. A patch stays a patch when there are
+commits since the previous tag; with none, there is nothing to release.
+
+---
+
+## Project Customization
+
+A project customizes releases in three places, all owned by the project. Everything else in this policy applies
+unchanged.
+
+| What                 | Where                                                  | Purpose                                          |
+| -------------------- | ------------------------------------------------------ | ------------------------------------------------ |
+| Bump policy          | `scripts/release/create-release.local.sh`              | Decide the bump level from the project's surface |
+| Hook target          | `create-release-local` in the project's `Makefile`     | Run the hook alone; satisfies `make audit`       |
+| Release how-to       | The project's `docs/release-policy.md`                 | Document the project's customization             |
+
+### The bump hook
+
+- It defines the project's public surface for versioning: a config schema, an API spec, exported symbols, a changelog —
+  whatever a consumer of the project depends on.
+- It follows the contract in [How Version Bumps Are Computed](#how-version-bumps-are-computed): called with the previous
+  tag, two lines on stdout, findings on stderr, non-zero exit to abort.
+- It reports the raw change. It does not apply pre-1.0 demotion or add the demotion note; the driver does both.
+- It is read-only and deterministic: it runs from the git toplevel against the clean `HEAD`, and never tags, commits,
+  pushes or writes outside temporary files.
+- It is never canonical. `verify-canonical` and `governance-refresh` skip `*.local.sh`, so `keelcore/standards`' own
+  hook is never copied into a project and a project's hook is never overwritten.
+
+### The project's release-policy document
+
+- It incorporates this policy by reference: it links to `.standards/governance/release-policy.md` and states that the
+  standards policy applies in full.
+- It does not restate or contradict this policy. It contains only the project's customization:
+  - what the hook diffs, and why that is the project's public surface;
+  - the breaking changes the hook cannot see, which call for `--force`;
+  - how the hook's input is kept current (e.g. a generated schema and the check that keeps it fresh);
+  - project-specific tooling and anything the hook adds to the tag message.
+
+### Not customizable
+
+- Tags are created only by a developer running `make create-release`; never by CI.
+- `scripts/release/create-release.sh` is canonical and byte-identical in every project. Changes go to
+  `keelcore/standards` first.
+- The preconditions, pre-1.0 demotion, `--force` rules and the signed annotated tag.
+- Tags are the only version source; no version file, no version-bump commit.
+
+### Examples
+
+- **keel** — the hook diffs the config field set of `pkg/config/schema.yaml` at the previous tag against `HEAD`:
+  removed fields → major; added fields → minor; no change → patch. See keel's `docs/release-policy.md`.
+- **keelcore/standards** — the hook reads `CHANGELOG.md` `## [Unreleased]`: any `### Removed` entry → major; else any
+  `### Added` or `### Changed` entry → minor; else patch. An empty `[Unreleased]` fails.
 
 ---
 
@@ -70,29 +134,28 @@ fully-flattened dotted YAML field path in `config.Config` (e.g. `sidecar.circuit
 ```bash
 git checkout main && git pull --ff-only
 # ... merge your work ...
-./scripts/release/create-release.sh
+make create-release DRY_RUN=1   # optional preview
+make create-release
 ```
 
 The script will:
 
 1. Verify you are on `main`, your branch's configured upstream is in sync, and the working tree is clean.
-2. Compute the field diff and determine the bump level.
-3. Print the summary (fields added/removed, bump level, proposed tag message).
+2. Run the project's hook and compute the next version.
+3. Print the summary (the hook's findings, bump level, proposed tag subject).
 4. Prompt for `y/N` approval.
-5. On approval: create a signed annotated tag and push it to the upstream remote.
+5. On approval: create a signed annotated tag and push that one tag to the upstream remote.
 
-CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).
+A dry run prints the version and the full tag message without prompting, tagging or pushing, and reports failed
+preconditions as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).
 
 ---
 
 ## Forcing a Specific Version
 
-Use `--force vX.Y.Z` to override the computed version. Only bare `MAJOR.MINOR.PATCH` versions are accepted — pre-release
-extensions (`-alpha.1`) and build metadata (`+sha`) are not supported.
-
-```bash
-./scripts/release/create-release.sh --force v1.0.0
-```
+Use `--force vX.Y.Z` (`make create-release FORCE=vX.Y.Z`) to override the computed version. Only bare
+`MAJOR.MINOR.PATCH` versions are accepted — pre-release extensions (`-alpha.1`) and build metadata (`+sha`) are not
+supported.
 
 ### Pre-1.0 rules (current major = 0)
 
@@ -101,7 +164,7 @@ stable. Only the following targets are accepted:
 
 - Any `0.x.y` where `0.x.y > current` — normal initial-development progression.
 - Exactly `v1.0.0` — the stable API promotion per [semver.org item 10](https://semver.org/#spec-item-10), regardless of
-  detected bump level.
+  the hook's bump level.
 
 Forcing `v1.1.0`, `v2.0.0`, or any other version outside this range is rejected.
 
@@ -110,49 +173,29 @@ Forcing `v1.1.0`, `v2.0.0`, or any other version outside this range is rejected.
 Once `1.0.0` is released the public API is stable. `--force` is restricted to exact single-step increments per
 semver.org's ordering rules:
 
-| `--force` target              | Condition                                              | Result                                                                                    |
-| ----------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `cur_maj.cur_min.(cur_pat+1)` | any                                                    | **Allowed** — single patch step                                                           |
-| `cur_maj.(cur_min+1).0`       | any                                                    | **Allowed** — single minor step (e.g. internal improvements not reflected in schema diff) |
-| `(cur_maj+1).0.0`             | breaking changes detected AND matches computed version | **Allowed**                                                                               |
-| `(cur_maj+1).0.0`             | no breaking changes, or doesn't match computed         | **Rejected** — major bump requires a detected breaking change                             |
-| anything else                 | —                                                      | **Rejected** — must be a single-step increment                                            |
-
----
-
-## Keeping schema.yaml Fresh
-
-`pkg/config/schema.yaml` is a committed artifact generated from `config.Config` by reflection. The pre-commit hook
-regenerates and stages it automatically whenever any `pkg/config/*.go` file is part of a commit — no manual step
-required.
-
-To regenerate it outside of a commit (e.g. to inspect the current output):
-
-```bash
-./scripts/release/gen-schema.sh
-# or
-make gen-schema
-```
-
-The consistency test suite enforces that `schema.yaml` is never stale — a mismatch between the committed file and the
-reflection output fails CI.
+| `--force` target              | Condition                                         | Result                                                                    |
+| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------- |
+| `cur_maj.cur_min.(cur_pat+1)` | any                                               | **Allowed** — single patch step                                           |
+| `cur_maj.(cur_min+1).0`       | any                                               | **Allowed** — single minor step (e.g. changes the hook cannot see)        |
+| `(cur_maj+1).0.0`             | hook reports `major` AND matches computed version | **Allowed**                                                               |
+| `(cur_maj+1).0.0`             | hook does not report `major`, or no match         | **Rejected** — a major bump requires the hook to report a breaking change |
+| anything else                 | —                                                 | **Rejected** — must be a single-step increment                            |
 
 ---
 
 ## What Goes in the Tag Message
 
-The script auto-generates a signed annotated tag with a structured message:
+The script generates a signed annotated tag with a structured message:
 
-- **Subject line:** `{bump}: {short summary}` (e.g. `minor: added 2 config field(s)`)
-- **Body:** full field list, bump level, previous/new version, commit SHA, and provenance trailers (`Generated-by:`,
-  `Schema:`)
+- **Subject line:** `{bump}: {hook subject}` (e.g. `minor: added 2 config field(s)`)
+- **Body:** bump level, previous/new version, commit SHA, the hook's findings, and the `Generated-by:` trailer
 
-The GitHub Release body is populated directly from the tag message via `gh release create --notes-from-tag`.
+The GitHub Release body can be populated directly from the tag message via `gh release create --notes-from-tag`.
 
 ---
 
 ## Emergency / Break-Glass
 
-If a critical patch must ship and the normal flow is blocked, follow the break-glass procedure in `docs/break-glass.md`.
-The bypass still requires two senior engineers and an incident record — it does not bypass the tag-creation requirement,
-only the precondition checks.
+If a critical patch must ship and the normal flow is blocked, follow the break-glass procedure in
+[`docs/break-glass.md`](../docs/break-glass.md). The bypass still requires two senior engineers and an incident record
+— it does not bypass the tag-creation requirement, only the precondition checks.

@@ -45,6 +45,9 @@ Corrections, clarifications, metadata: patch bump.
   hook, with keel's schema diff and the standards CHANGELOG hook as examples
 - `verify-canonical` and `governance-refresh` skip `*.local.sh`: hooks belong to the repo that holds them and are never
   compared, copied or overwritten
+- `governance/release-policy.md` is now project-agnostic: the hook contract, pre-1.0 demotion, `DRY_RUN=1`, and a
+  "Project Customization" section — what a project may customize (bump hook, `create-release-local` target, its own
+  release-policy doc, which incorporates this one by reference) and what it may not
 
 ### Removed
 
