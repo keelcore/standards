@@ -75,6 +75,16 @@ jobs:
       - run: make setup-shellcheck
       - run: make lint-bash
 
+  integration-test:
+    name: test / bats
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - run: make setup-bats
+      - run: make integration-test
+
   verify-go:
     name: verify / go module
     runs-on: ubuntu-latest

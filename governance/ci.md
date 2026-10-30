@@ -2,7 +2,7 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
-**Maturity:** Required **Version:** 1.0.0 **Last Reviewed:** 2026-03-09
+**Maturity:** Required **Version:** 1.1.0 **Last Reviewed:** 2026-10-30
 
 ## Core Principle
 
@@ -92,7 +92,7 @@ CI alike. Names are fixed; projects may not rename or skip them. Language-specif
 | Generate SBOM      | `make release-sbom`             | `scripts/release/sbom.sh`               | SPDX JSON SBOM via syft; attached to every release.             |
 | Sign artifacts     | `make release-sign`             | `scripts/release/sign.sh`               | cosign keyless signing; bundles attached alongside binaries.    |
 | Upload to release  | `make release-upload`           | `scripts/release/upload.sh`             | Push artifacts + checksums + SBOM to GitHub Release.            |
-| Version tagging    | `make create-release`           | `scripts/release/create-release.sh`     | Schema-diff semver bump + annotated tag; developer action only. |
+| Version tagging    | `make create-release`           | `scripts/release/create-release.sh`     | Semver bump from project hook + signed tag; developer action.   |
 
 ### Required for projects with container images
 
@@ -135,6 +135,11 @@ make verify-canonical REPO=<path-to-downstream-repo-root>
 from the `keelcore/standards` repository root. This compares `sha256sum` of each mandatory script and reports PASS/FAIL
 per file, exiting 1 if any mismatch is found.
 
+Project-local hooks (`scripts/**/*.local.sh`) are owned by the repo that holds them and are never canonical, including
+the ones in `keelcore/standards` itself. `verify-canonical` and `governance-refresh` neither compare nor sync them, so a
+consumer's hook is never overwritten. A canonical script that calls a hook resolves it from the git toplevel of the repo
+it runs in: inside a consumer it calls the consumer's hook, never the copy in `.standards`.
+
 ## Canonical CI Scripts
 
 Scripts whose names and responsibilities are fixed across all projects. Projects must not rename these scripts or move
@@ -168,7 +173,7 @@ from the standards repo to verify compliance.
 | `scripts/release/sbom.sh`           | `make release-sbom`                                        | Generate SPDX JSON SBOM via syft.                               |
 | `scripts/release/sign.sh`           | `make release-sign`                                        | cosign keyless signing of all release artifacts.                |
 | `scripts/release/upload.sh`         | `make release-upload`                                      | Upload artifacts to GitHub Release via gh CLI.                  |
-| `scripts/release/create-release.sh` | `make create-release`                                      | Schema-diff semver version computation + tag; developer action. |
+| `scripts/release/create-release.sh` | `make create-release`                                      | Semver bump from project hook + signed tag; developer action.   |
 
 ### Required for projects with container images
 
@@ -453,15 +458,31 @@ Specific semver.org rules in force:
 
 ### Version Computation
 
-- Bump level (major / minor / patch) is derived from `pkg/config/schema.yaml` by diffing the field set at the previous
-  tag against the field set at HEAD:
-  - Removed fields → breaking change → major bump ([semver.org item 4](https://semver.org/#spec-item-4)).
-  - Added fields (no removals) → new feature → minor bump ([semver.org item 5](https://semver.org/#spec-item-5)).
-  - No field surface change → patch bump ([semver.org item 6](https://semver.org/#spec-item-6)).
-- `scripts/release/create-release.sh` performs this computation, presents findings to the developer for approval, then
-  creates and pushes the annotated tag on confirmation.
-- `scripts/release/gen-schema.sh` regenerates `pkg/config/schema.yaml` from `cmd/config-schema/main.go` after any change
-  to the config struct. The consistency suite enforces that `schema.yaml` is never stale.
+- Git tags are the only source of truth for versions. Projects keep no version file and make no version-bump commit;
+  every publisher derives the version from the tag at publish time.
+- `scripts/release/create-release.sh` is canonical (source of truth: `keelcore/standards`). It checks preconditions (on
+  `main`, upstream set, `HEAD` equals the upstream after a fetch, clean tree), finds the previous tag, computes the next
+  version, presents the findings for approval, then creates a signed annotated tag and pushes that one tag.
+- The bump level comes from the project's own hook, `scripts/release/create-release.local.sh`, resolved from the git
+  toplevel of the repo being released. The driver calls it as `create-release.local.sh <previous-tag>`; the hook prints
+  two lines to stdout: the bump level (`major`, `minor` or `patch`) and a one-line tag subject. Its stderr is shown to
+  the developer and recorded in the tag body; a non-zero exit aborts the release. With no hook, every release is a
+  `patch`.
+- Each hook maps its project's public surface to semver:
+  - Breaking change → major bump ([semver.org item 4](https://semver.org/#spec-item-4)).
+  - New backward-compatible functionality → minor bump ([semver.org item 5](https://semver.org/#spec-item-5)).
+  - Anything else → patch bump ([semver.org item 6](https://semver.org/#spec-item-6)).
+- While the major version is 0 ([semver.org item 9](https://semver.org/#spec-item-9)) the driver demotes the bump one
+  step: major → minor, minor → patch. A patch stays a patch when there are commits since the previous tag; with none,
+  there is nothing to release.
+- `make create-release DRY_RUN=1` (`--dry-run`) computes and prints the version and tag message without prompting,
+  tagging or pushing; failed preconditions are reported as warnings.
+- Worked example (keel): the hook diffs the field set of `pkg/config/schema.yaml` at the previous tag against HEAD.
+  Removed fields → major; added fields (no removals) → minor; no field surface change → patch.
+  `scripts/release/gen-schema.sh` regenerates the schema from `cmd/config-schema/main.go` after any change to the config
+  struct, and the consistency suite enforces that `schema.yaml` is never stale.
+- `keelcore/standards`: the hook reads the `## [Unreleased]` section of `CHANGELOG.md`. Any `### Removed` entry → major;
+  else any `### Added` or `### Changed` entry → minor; else patch. An empty `[Unreleased]` fails: nothing to release.
 
 ### --force Override Rules
 
@@ -473,8 +494,8 @@ pre-release identifiers (`-alpha.1`) and build metadata (`+sha`) are not support
 - **Post-1.0 (major ≥ 1):** `--force` is restricted to exact single-step increments:
   - Patch: `cur_maj.cur_min.(cur_pat+1)` — always allowed.
   - Minor: `cur_maj.(cur_min+1).0` — always allowed (e.g. internal improvements).
-  - Major: only accepted when breaking changes are detected **and** the forced version exactly matches the auto-computed
-    version. `--force` cannot suppress or redirect a breaking-change bump, and cannot skip versions.
+  - Major: only accepted when the hook reports a breaking change (major) **and** the forced version exactly matches the
+    auto-computed version. `--force` cannot suppress or redirect a breaking-change bump, and cannot skip versions.
 
 ## Do Not
 
@@ -493,4 +514,4 @@ pre-release identifiers (`-alpha.1`) and build metadata (`+sha`) are not support
 - Allow release jobs to run without environment protection and required human reviewers.
 - Ship release artifacts without provenance attestation, signatures, or checksums.
 - Create, push, or move version tags from CI. Tags are a developer action only.
-- Bypass the `create-release.sh` script to tag manually without the schema-diff approval step.
+- Bypass the `create-release.sh` script to tag manually without its approval step.

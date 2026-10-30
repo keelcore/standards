@@ -27,5 +27,4 @@ package-lock.json                   @keelcore/platform-infra
 pyproject.toml                      @keelcore/platform-infra
 
 # Version and changelog — ARB review required
-VERSION                             @keelcore/arb
 CHANGELOG.md                        @keelcore/arb

@@ -39,12 +39,15 @@ authoring required:
    - `scripts/lib/paths.sh`
    - `scripts/lint/{markdown,newlines,shellcheck}.sh`
    - `scripts/test/{coverage,coverage-delta}.sh`
+   - `scripts/release/create-release.sh` — release tagging (`make create-release`); the bump level comes from your own
+     `scripts/release/create-release.local.sh` (see step 3)
+
+   `*.local.sh` hooks are never copied or overwritten: they belong to the repo that holds them.
 2. **Starter templates** (created ONLY if the target file doesn't exist; never overwrites operator customizations on
    re-run):
    - `Makefile` — thin seed from `.standards/templates/Makefile.consumer`. The seed `include`s
      `.standards/templates/Makefile.canonical`, which supplies every canonical universal target wired to
-     `bash scripts/X.sh`. Release-*, verify-go, and bootstrap-standards targets are intentionally absent — they live
-     only in the standards repo's private Makefile because their scripts are not shipped to consumers.
+     `bash scripts/X.sh`, release-*, `create-release`, verify-go and bootstrap-standards included.
    - `tests/canonical/smoke.bats` — harness sanity, project-agnostic
    - `tests/integrity.bats` — stub with TODO markers for your built artifact
    - `tests/fixtures/.gitkeep` — testing.md fixture-dir placeholder
@@ -128,6 +131,11 @@ You may stage; you may not commit. The human owns every commit.
      recipes match the include. Drift between the consumer's recipe and the
      canonical recipe is reported but never auto-fixed — reconcile by hand.
      Do NOT replace project-specific targets.
+   - Releases: add `scripts/release/create-release.local.sh` to choose the bump
+     level from your project's public surface (governance/ci.md "Version
+     Computation"), plus a `create-release-local` target for `make audit`.
+     Without it every `make create-release` is a patch.
+     `make create-release DRY_RUN=1` previews the version without tagging.
    - tests/integrity.bats: update the BIN path to point at your built artifact;
      replace example assertions with smoke checks of your binary's surface.
    - .local-claude.md: prune the template stub and add project-specific guidance

@@ -30,6 +30,25 @@ Corrections, clarifications, metadata: patch bump.
 - `.github/CODEOWNERS` — coverage for workflows, scripts, governance, and manifests
 - `.github/dependabot.yml` — automated action SHA pin updates
 - `VERSION` file as single source of truth for standards version
+- Canonical `scripts/release/create-release.sh` and `make create-release` (`FORCE=vX.Y.Z`, `DRY_RUN=1`): signed
+  annotated release tag; the bump level comes from the repo's own `scripts/release/create-release.local.sh`
+  (patch when absent), resolved from the git toplevel of the repo being released
+- `--dry-run` for `create-release.sh`: computes and prints the version and tag message without tagging or pushing
+- Standards bump hook: `CHANGELOG.md` `[Unreleased]` decides the level (Removed → major, Added/Changed → minor, else
+  patch)
+- BATS suites in `tests/` (`make integration-test`, CI job `test / bats`): create-release driver, CHANGELOG hook, and
+  `*.local.sh` exclusion
+
+### Changed
+
+- `governance/ci.md` "Version Computation": tags are the only version source; the bump level comes from the project's
+  hook, with keel's schema diff and the standards CHANGELOG hook as examples
+- `verify-canonical` and `governance-refresh` skip `*.local.sh`: hooks belong to the repo that holds them and are never
+  compared, copied or overwritten
+
+### Removed
+
+- `VERSION` file (nothing read it; tags are the only version source)
 
 ## [0.1.0] - 2026-03-09
 
