@@ -26,6 +26,10 @@ See [governance/observability.md](../../governance/observability.md).
 
 See [governance/security.md](../../governance/security.md).
 
+## DevSecOps Standards
+
+See [governance/devsecops.md](../../governance/devsecops.md).
+
 ## Runtime and Orchestration Standards
 
 See [governance/runtime.md](../../governance/runtime.md).

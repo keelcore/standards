@@ -13,6 +13,7 @@ tools (Claude, Cursor, Copilot) and human contributors alike.
 | [governance/platform.md](governance/platform.md)             | Platform architecture — governance process, DNS, TLS, WAF, networking |
 | [governance/observability.md](governance/observability.md)   | Metrics, logging, tracing, alerting                                   |
 | [governance/security.md](governance/security.md)             | IAM, encryption, key management, data classification                  |
+| [governance/devsecops.md](governance/devsecops.md)           | Repo controls, release integrity, scanning gates, supply chain        |
 | [governance/runtime.md](governance/runtime.md)               | Containers, orchestration, deployment, compliance                     |
 | [governance/api-management.md](governance/api-management.md) | API design, versioning, rate limiting, quotas, gateway                |
 

@@ -12,6 +12,13 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+### Added
+
+- `governance/devsecops.md`: severity-ranked rules for repository controls (rulesets, environments, secret scanning),
+  release integrity (sign before alias, idempotent signing, per-image SBOM and provenance), scanning gates
+  (govulncheck, CodeQL/gosec, image scan, fuzzing), digest-pinned base images, chart defaults, and UTC-only timestamps;
+  indexed in `README.md` and the Claude, Copilot and Cursor adapters
+
 ### Fixed
 
 - PyPI publish: `pypa/gh-action-pypi-publish` v1.13.0 → v1.14.3. Its bundled `packaging` 25.0 rejected the wheel's
