@@ -44,6 +44,7 @@ Corrections, clarifications, metadata: patch bump.
   which accepts 2.5
 - `scripts/lint/utc.sh` lists files through `source_files` (`scripts/lib/paths.sh`), so nested vendored trees listed
   in `.nolint` are skipped like every other linter's
+- `scripts/release/sign.sh` header: it writes a Sigstore bundle (`<artifact>.bundle`) per artifact, not `.sig` files
 
 ## [0.10.0] - 2026-10-30
 
