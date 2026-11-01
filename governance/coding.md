@@ -2,7 +2,7 @@
 
 These rules govern all code edits in this project. They are non-negotiable.
 
-**Maturity:** Required **Version:** 1.0.0 **Last Reviewed:** 2026-03-09
+**Maturity:** Required **Version:** 1.1.0 **Last Reviewed:** 2026-11-02
 
 ## Core Preservation
 
@@ -153,12 +153,14 @@ These rules govern all code edits in this project. They are non-negotiable.
 1. The `go` directive in `go.mod` MUST use the two-component form: `go 1.25` — never `go 1.25.0`.
 2. After every `go mod tidy` or `go get`, verify the `go` directive and strip any trailing `.0`.
 
-## Static Analysis Suppression
+## Static Analysis Configuration
 
-1. The standalone `staticcheck` binary does NOT respect `//nolint:staticcheck` directives. Use
-   `//lint:ignore SA1019 <reason>` instead.
-2. Place the `//lint:ignore` directive on its own line immediately above the flagged statement — inline (end-of-line)
-   placement may be silently ignored.
+1. Lint errors and warnings SHALL never be suppressed in source code, in any language, current or future. Fix the
+   finding at its source, or turn the rule off in the linter's git-versioned configuration (for example gosec's
+   `-exclude` list in `scripts/lint/gosec.sh`), with the reason recorded there.
+2. Rule 1 applies to every language the moment it enters the repository. `scripts/lint/forbid-lint-suppressions.sh`
+   scans every repo-owned file, whatever its type, for known suppression directives; adopting a linter adds its
+   directive syntax to that script's `DIRECTIVES` list.
 
 ## Program Entry Points
 

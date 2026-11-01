@@ -14,6 +14,13 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- Lint errors and warnings are never suppressed in source code, in any language, current or future; only the
+  linter's git-versioned configuration may turn a rule off. `governance/coding.md` v1.1.0 states it as "Static
+  Analysis Configuration" (replacing "Static Analysis Suppression", which recommended `//lint:ignore`).
+  `scripts/lint/forbid-lint-suppressions.sh` now scans every repo-owned file, whatever its type, against a
+  `DIRECTIVES` catalog of known linters' suppression syntax (previously shellcheck in `*.sh` only); markdown is
+  scanned for markdownlint's comment directive only. Covered by `tests/lint-suppressions.bats`
+
 - `governance/devsecops.md`: severity-ranked rules for repository controls (rulesets, environments, secret scanning),
   release integrity (sign before alias, idempotent signing, per-image SBOM and provenance), scanning gates
   (govulncheck, CodeQL/gosec, image scan, fuzzing), digest-pinned base images, chart defaults, and UTC-only timestamps;
@@ -35,6 +42,8 @@ Corrections, clarifications, metadata: patch bump.
 - PyPI publish: `pypa/gh-action-pypi-publish` v1.13.0 → v1.14.3. Its bundled `packaging` 25.0 rejected the wheel's
   metadata version 2.5 (written by current hatchling), so v0.10.0 never reached PyPI; v1.14.3 bundles `packaging` 26.2,
   which accepts 2.5
+- `scripts/lint/utc.sh` lists files through `source_files` (`scripts/lib/paths.sh`), so nested vendored trees listed
+  in `.nolint` are skipped like every other linter's
 
 ## [0.10.0] - 2026-10-30
 
