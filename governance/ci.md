@@ -2,7 +2,7 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
-**Maturity:** Required **Version:** 1.1.0 **Last Reviewed:** 2026-10-30
+**Maturity:** Required **Version:** 1.2.0 **Last Reviewed:** 2026-11-01
 
 ## Core Principle
 
@@ -139,6 +139,12 @@ Project-local hooks (`scripts/**/*.local.sh`) are owned by the repo that holds t
 the ones in `keelcore/standards` itself. `verify-canonical` and `governance-refresh` neither compare nor sync them, so a
 consumer's hook is never overwritten. A canonical script that calls a hook resolves it from the git toplevel of the repo
 it runs in: inside a consumer it calls the consumer's hook, never the copy in `.standards`.
+
+A consumer may opt out of canonical scripts it never runs by listing them, one repo-relative path per line, in
+`.canonical-exclude` at its root (`#` comments allowed). Excluded scripts are neither synced nor verified, and audit
+Rule 5 (`make audit`) accepts their canonical targets pointing at a missing file. Exclude only scripts that no target
+or workflow of the consumer calls — e.g. the `.standards` package publishers (`go-publish.sh`, `npm-publish.sh`,
+`pypi-publish.sh`) in a project that publishes no such package.
 
 ## Canonical CI Scripts
 

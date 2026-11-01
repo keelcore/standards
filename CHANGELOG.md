@@ -18,6 +18,17 @@ Corrections, clarifications, metadata: patch bump.
   release integrity (sign before alias, idempotent signing, per-image SBOM and provenance), scanning gates
   (govulncheck, CodeQL/gosec, image scan, fuzzing), digest-pinned base images, chart defaults, and UTC-only timestamps;
   indexed in `README.md` and the Claude, Copilot and Cursor adapters
+- `scripts/lint/utc.sh` and `make lint-utc` (part of `make lint`): rejects shell `date` without `-u` and Go
+  `time.Local`, `.Local()` and `time.Now().Format` outside tests
+- `Makefile.canonical` exports `TZ := UTC`, so every recipe runs in UTC; workflows set `TZ: UTC`
+- `.canonical-exclude`: a consumer lists canonical scripts it never runs; `verify-canonical` and `governance-refresh`
+  skip them, and audit Rule 5 accepts their targets pointing at a missing file (`governance/ci.md` v1.2.0)
+
+### Changed
+
+- Workflows: `actions/checkout` runs with `persist-credentials: false`; the publish jobs run without
+  `setup-go` / `setup-node` caches (a poisoned cache must not reach a release); npm for trusted publishing is pinned
+  (`npm@11.21.0`) instead of `npm@latest`
 
 ### Fixed
 

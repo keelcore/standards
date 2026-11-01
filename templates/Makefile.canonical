@@ -31,9 +31,15 @@ endif
 # Consumers inherit this via the include; a consumer need not repeat it.
 export LC_ALL := C
 
+# UTC determinism (governance/devsecops.md "Reproducibility and Time"): every recipe and
+# its subprocesses (date, git log, test fixtures, scanners) run in UTC, so timestamps in
+# artifacts, logs and test expectations never depend on the caller's time zone.
+export TZ := UTC
+
 .PHONY: build
 .PHONY: lint
 .PHONY: lint-newlines
+.PHONY: lint-utc
 .PHONY: lint-bash
 .PHONY: lint-markdown
 .PHONY: lint-suppressions
@@ -83,7 +89,7 @@ build:
 	@echo "🔨 Running build..."
 	bash scripts/build.sh
 
-lint: lint-newlines lint-markdown lint-bash lint-go lint-suppressions
+lint: lint-newlines lint-markdown lint-bash lint-go lint-suppressions lint-utc
 
 test: unit-test integration-test
 
@@ -110,6 +116,10 @@ audit:
 lint-newlines:
 	@echo "🔍 Checking trailing newlines..."
 	bash scripts/lint/newlines.sh
+
+lint-utc:
+	@echo "🕛 Checking timestamps are UTC..."
+	bash scripts/lint/utc.sh
 
 lint-bash:
 	@echo "🔍 Running shellcheck..."
