@@ -47,3 +47,6 @@ venv/
 # Materialize output (consumers gitignore this in their own repos)
 .standards/
 .claude
+
+# ---- Local plans (working notes, not committed) ----
+docs/plans/

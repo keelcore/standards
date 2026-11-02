@@ -14,6 +14,14 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- `make update-pins` (`scripts/release/update-pins.sh`): discovers every pinned external input (workflow action SHAs,
+  image digests, GitHub-release tools, Go tools, Go toolchain, go.mod requirements, npm, Node) plus inputs that float
+  unpinned (`@latest`, apk/apt packages without a version, Homebrew, FROM/`image:` without a digest), and resolves
+  each pin's newest eligible candidate from published metadata only: no prereleases, 14-day cooldown (2 days for a
+  Go toolchain patch), new majors and 0.x minors report-only, failed lookups `unresolved`. Discovery only; nothing is
+  applied. Project pins and holds come from `scripts/release/update-pins.local.sh pins|holds`.
+  `tests/update-pins.bats` covers every kind offline through `UPDATE_PINS_FIXTURES`
+
 - Lint errors and warnings are never suppressed in source code, in any language, current or future; only the
   linter's git-versioned configuration may turn a rule off. `governance/coding.md` v1.1.0 states it as "Static
   Analysis Configuration" (replacing "Static Analysis Suppression", which recommended `//lint:ignore`).
