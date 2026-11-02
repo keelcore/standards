@@ -114,6 +114,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - run: make setup-staticcheck
       - run: make verify-go
       - run: make lint-go
 

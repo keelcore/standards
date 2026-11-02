@@ -41,6 +41,7 @@ jobs:
 
       - run: make setup-markdownlint
       - run: make setup-shellcheck
+      - run: make setup-staticcheck
       - run: make setup-bats
 
       - name: verify every stale pin

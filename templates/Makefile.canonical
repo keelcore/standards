@@ -67,6 +67,7 @@ export TZ := UTC
 .PHONY: setup-bats
 .PHONY: setup-markdownlint
 .PHONY: setup-shellcheck
+.PHONY: setup-staticcheck
 .PHONY: setup-syft
 .PHONY: verify-canonical
 .PHONY: install-hooks
@@ -131,7 +132,7 @@ lint-markdown:
 	bash scripts/lint/markdown.sh
 
 lint-go:
-	@echo "🔍 Running gofmt check..."
+	@echo "🔍 Running gofmt check + go vet + staticcheck..."
 	bash scripts/lint/go.sh
 
 lint-suppressions:
@@ -215,6 +216,10 @@ setup-markdownlint:
 setup-shellcheck:
 	@echo "🔧 Installing shellcheck..."
 	bash scripts/ci/setup-shellcheck.sh
+
+setup-staticcheck:
+	@echo "🔧 Installing staticcheck..."
+	bash scripts/ci/setup-staticcheck.sh
 
 setup-syft:
 	@echo "🔧 Installing syft..."

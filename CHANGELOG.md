@@ -32,6 +32,8 @@ Corrections, clarifications, metadata: patch bump.
 - `governance/ci.md` v1.3.0 "Pin Refresh"; `governance/release-policy.md` v1.2.0 "Stale Pins" and the pre-release
   `update-pins` step
 - `.nvmrc` pins the exact Node LTS release (`22.23.3`), not the major
+- `make lint-go` runs `go vet` and `staticcheck` in every repo-owned Go module after the gofmt check;
+  `scripts/ci/setup-staticcheck.sh` and `make setup-staticcheck` (pinned v0.8.2) are canonical
 
 - `make update-pins` (`scripts/release/update-pins.sh`): discovers every pinned external input (workflow action SHAs,
   image digests, GitHub-release tools, Go tools, Go toolchain, go.mod requirements, npm, Node) plus inputs that float
