@@ -86,9 +86,24 @@ function check_gofmt() {
   log '✅ gofmt: all Go sources formatted'
 }
 
+# go_bin: where `go install` puts binaries (GOBIN, else the first GOPATH entry's bin).
+function go_bin() {
+  local gobin
+  gobin="$(go env GOBIN)"
+  [ -n "${gobin}" ] || gobin="$(go env GOPATH | cut -d: -f1)/bin"
+  printf '%s\n' "${gobin}"
+}
+
+# ensure_staticcheck: the pinned staticcheck from `make setup-staticcheck` (go install) is found
+# in the Go install directory whether or not that directory is on PATH.
 function ensure_staticcheck() {
-  command -v staticcheck >/dev/null 2>&1 && return 0
-  log '❌ staticcheck not found on PATH (install with: make setup-staticcheck)'
+  local gobin
+  gobin="$(go_bin)"
+  if [ -x "${gobin}/staticcheck" ]; then
+    PATH="${gobin}:${PATH}"
+    return 0
+  fi
+  log "❌ staticcheck not found in ${gobin} (install with: make setup-staticcheck)"
   exit 1
 }
 
