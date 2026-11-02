@@ -2,7 +2,7 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
-**Maturity:** Required **Version:** 1.2.0 **Last Reviewed:** 2026-11-01
+**Maturity:** Required **Version:** 1.3.0 **Last Reviewed:** 2026-11-02
 
 ## Core Principle
 
@@ -247,6 +247,30 @@ Rules:
 
 - Single source of truth: language version file (e.g. `go.mod`, `.nvmrc`, `.python-version`).
 - Never hardcode toolchain version in workflow YAML.
+
+## Pin Refresh
+
+Every external input is pinned exactly: actions by commit SHA, images by digest, release-asset tools by version
+and committed SHA-256, Go tools and modules by version, toolchains and runtimes by exact version. Pins are refreshed by
+`make update-pins` (`scripts/release/update-pins.sh`), not by hand.
+
+1. **Discovery** finds every pin and every input that floats unpinned, and resolves each pin's newest eligible
+   candidate from published metadata only (no binaries are downloaded).
+2. **Eligibility:** no prereleases; a **14-day cooldown** after publication (fresh releases are where supply-chain
+   compromises surface); **2 days** for a Go toolchain patch release in the same minor. A new major version — or a new
+   minor of a 0.x release — is report-only: adopted only when it works as a drop-in, by a deliberate change.
+3. **Dependabot union:** open Dependabot PRs and alerts join the candidate set; the newer candidate wins, and the
+   report's `SOURCE` column says which side proposed it.
+4. **Verification:** each stale pin is applied alone in a throwaway git worktree, exercised by the make targets mapped
+   to its kind, and rolled back; a failing pin never stops the others. Then every passing pin is applied together for
+   one combined run (lint, audit, the full unit and integration set). Go modules (`go get`, `go mod tidy`,
+   `go mod vendor`) verify against that full set. Kinds the host cannot exercise are verified by the `update-pins`
+   workflow on Linux.
+5. **Apply:** `make update-pins APPLY=1` writes the passing pins to the working tree only after the combined run
+   passes, for human review and staging. The default run is dry: the working tree is never touched.
+6. **Release gate:** `make create-release` refuses while any pin is stale (see `release-policy.md`).
+
+Projects extend discovery, holds, verification targets and appliers through `scripts/release/update-pins.local.sh`.
 
 ## Caching
 

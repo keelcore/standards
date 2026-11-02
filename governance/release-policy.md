@@ -1,6 +1,6 @@
 # Release Policy
 
-**Maturity:** Required **Version:** 1.1.0 **Last Reviewed:** 2026-10-30
+**Maturity:** Required **Version:** 1.2.0 **Last Reviewed:** 2026-11-02
 
 This document covers how a project that follows the keelcore standards tags and releases a version. The authoritative
 policy lives in [`ci.md`](ci.md) under **Release Tagging**. This document is the developer-facing how-to that
@@ -134,6 +134,8 @@ unchanged.
 ```bash
 git checkout main && git pull --ff-only
 # ... merge your work ...
+make update-pins                # verify every stale pin (dry run)
+make update-pins APPLY=1        # write the passing pins; review, stage, commit, push
 make create-release DRY_RUN=1   # optional preview
 make create-release
 ```
@@ -141,13 +143,30 @@ make create-release
 The script will:
 
 1. Verify you are on `main`, your branch's configured upstream is in sync, and the working tree is clean.
-2. Run the project's hook and compute the next version.
-3. Print the summary (the hook's findings, bump level, proposed tag subject).
-4. Prompt for `y/N` approval.
-5. On approval: create a signed annotated tag and push that one tag to the upstream remote.
+2. Check pins (`update-pins.sh --discover-only`): any stale pin blocks the release (see Stale Pins below).
+3. Run the project's hook and compute the next version.
+4. Print the summary (the hook's findings, bump level, proposed tag subject).
+5. Prompt for `y/N` approval.
+6. On approval: create a signed annotated tag and push that one tag to the upstream remote.
 
 A dry run prints the version and the full tag message without prompting, tagging or pushing, and reports failed
-preconditions as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).
+preconditions and stale pins as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).
+
+---
+
+## Stale Pins
+
+A pin is stale when an eligible newer release exists (`governance/ci.md` "Pin Refresh": no prereleases, 14-day
+cooldown, majors report-only) and was not adopted. `create-release` lists every stale pin with the consequence of
+staying on it, and refuses to tag.
+
+- **Fix:** `make update-pins`, then `make update-pins APPLY=1`; review, commit and push the refreshed pins.
+- **Override:** `make create-release ALLOW_STALE_PINS="<reason>"` (`--allow-stale-pins "<reason>"`). A non-empty reason
+  is required. The override is audit-logged even when authorized:
+  - in the **signed tag message**: `Pins-Override` (the reason), `Pins-Override-By` (git identity),
+    `Pins-Override-At` (UTC), and one `Pins-Stale` line per stale pin with its consequence;
+  - in the **GitHub Release notes**, as a "Pin overrides" section built from those trailers;
+  - as a JSON line in the local `<git-dir>/release-audit.log`.
 
 ---
 
@@ -188,7 +207,8 @@ semver.org's ordering rules:
 The script generates a signed annotated tag with a structured message:
 
 - **Subject line:** `{bump}: {hook subject}` (e.g. `minor: added 2 config field(s)`)
-- **Body:** bump level, previous/new version, commit SHA, the hook's findings, and the `Generated-by:` trailer
+- **Body:** bump level, previous/new version, commit SHA, the hook's findings, the `Pins:` summary (plus the
+  `Pins-Override*` and `Pins-Stale` trailers when stale pins were authorized), and the `Generated-by:` trailer
 
 The GitHub Release body can be populated directly from the tag message via `gh release create --notes-from-tag`.
 

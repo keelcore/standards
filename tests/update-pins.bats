@@ -15,6 +15,9 @@ readonly NOW=2000000000
 readonly DAY=86400
 readonly SHA_CHECKOUT='11bd71901bbe5b1630ceea73d27597364c9af683'
 readonly DIGEST="sha256:$(printf 'a%.0s' {1..64})"
+readonly FOO_OLD_HEX="$(printf 'b%.0s' {1..64})"
+readonly FOO_NEW_HEX="$(printf 'c%.0s' {1..64})"
+readonly SHA_CHECKOUT_NEW='22bd71901bbe5b1630ceea73d27597364c9af683'
 
 setup() {
   STANDARDS="$(cd "${BATS_TEST_DIRNAME}/.." && pwd -P)"
@@ -28,8 +31,14 @@ setup() {
   cp -p "${STANDARDS}/scripts/lib/paths.sh" scripts/lib/
   write_consumer
   write_fixtures
+  commit
+  export UPDATE_PINS_FIXTURES="${FIX}" UPDATE_PINS_NOW="${NOW}" UPDATE_PINS_PLATFORM='Darwin'
+}
+
+# commit: the worktree verification checks out HEAD.
+commit() {
   git add --all
-  export UPDATE_PINS_FIXTURES="${FIX}" UPDATE_PINS_NOW="${NOW}"
+  git -c commit.gpgsign=false -c user.name=t -c user.email=t@example.invalid commit --quiet -m fixture
 }
 
 # iso DAYS_AGO: ISO-8601 UTC timestamp DAYS_AGO before NOW.
@@ -45,10 +54,14 @@ fixture() {
 write_consumer() {
   printf 'jobs:\n  x:\n    steps:\n      - uses: actions/checkout@%s  # v4.2.2\n' "${SHA_CHECKOUT}" \
     > .github/workflows/ci.yml
-  printf '#!/usr/bin/env bash\nreadonly FOO_VERSION=%s\nurl="https://github.com/acme/foo/releases/download/v${FOO_VERSION}/foo"\n' \
-    "'1.2.0'" > scripts/ci/setup-foo.sh
-  printf '#!/usr/bin/env bash\nreadonly TOOL_MODULE=%s\nreadonly TOOL_VERSION=%s\n' \
+  printf '#!/usr/bin/env bash\nreadonly FOO_VERSION=%s\nreadonly FOO_SHA256=%s\nurl="https://github.com/acme/foo/releases/download/v${FOO_VERSION}/foo"\n' \
+    "'1.2.0'" "'${FOO_OLD_HEX}'" > scripts/ci/setup-foo.sh
+  # setup-bar fails at v1.1.0: the stale bar pin cannot pass verification.
+  printf '#!/usr/bin/env bash\nreadonly TOOL_MODULE=%s\nreadonly TOOL_VERSION=%s\n[ "${TOOL_VERSION}" != v1.1.0 ]\n' \
     "'example.com/bar/cmd/bar'" "'v1.0.0'" > scripts/ci/setup-bar.sh
+  # test fails while .fail-combined exists: the combined-run gate.
+  printf 'lint-workflows:\n\t@true\nsetup-bar:\n\tbash scripts/ci/setup-bar.sh\nsetup-foo:\n\t@true scripts/ci/setup-foo.sh\nlint:\n\t@true\naudit:\n\t@true\ntest:\n\t@[ ! -f .fail-combined ]\n' \
+    > Makefile
   printf '#!/usr/bin/env bash\ngo install example.com/baz@latest\n' > scripts/ci/setup-baz.sh
   printf 'module example.com/consumer\n\ngo 1.27\n\ntoolchain go1.27.3\n\nrequire (\n\texample.com/lib v0.3.0\n\texample.com/ind v1.0.0 // indirect\n)\n' \
     > go.mod
@@ -78,7 +91,7 @@ write_fixtures() {
 }
 
 pins() {
-  run bash scripts/release/update-pins.sh
+  run bash scripts/release/update-pins.sh --discover-only
   [ "${status}" -eq 0 ]
 }
 
@@ -135,7 +148,7 @@ esac
 EOF
   fixture 'https://api.github.com/repos/acme/foo-mirror/releases?per_page=100' "$(jq -n --arg t "$(iso 30)" \
     '[{tag_name: "v1.2.5", draft: false, prerelease: false, published_at: $t}]')"
-  git add --all
+  commit
   pins
   [[ "$(row 'FOO')" == *'v1.2.5'*'stale'* ]] || false
   [ "$(grep -c '^tool  *FOO ' <<< "${output}")" -eq 1 ]
@@ -156,4 +169,112 @@ EOF
   pins
   [[ "$(row 'FOO')" == *'unresolved'*'lookup failed'* ]] || false
   [[ "$(row 'example.com/lib')" == *'unresolved'*'lookup failed'* ]] || false
+}
+
+# ── verification ─────────────────────────────────────────────────────────────
+
+# verify ARGS...: run the full verification (worktree, per-pin, combined).
+verify() {
+  run bash scripts/release/update-pins.sh "$@"
+}
+
+# result PIN: the verification row for PIN.
+result() {
+  grep -E "^[a-z]+ +${1} +[^ ]+ +[^ ]+ +(pass|fail|verify-on-ci) " <<< "${output}"
+}
+
+checkout_fixture() {
+  fixture 'https://api.github.com/repos/actions/checkout/commits/v4.4.0' "{\"sha\":\"${SHA_CHECKOUT_NEW}\"}"
+}
+
+@test "verify: a failing pin does not stop the others; each kind maps to its targets" {
+  checkout_fixture
+  verify
+  [ "${status}" -eq 1 ]
+  [[ "$(result 'actions/checkout')" == *'pass'*'make lint-workflows'* ]] || false
+  [[ "$(result 'example.com/bar/cmd/bar')" == *'fail'*'make setup-bar'* ]] || false
+  [[ "$(result 'go')" == *'verify-on-ci'* ]] || false
+  [[ "${output}" == *'combined: pass'* ]] || false
+  [[ "${output}" == *'Consequences of staying on a stale pin:'* ]] || false
+}
+
+@test "verify: the working tree is untouched and the worktree is removed" {
+  checkout_fixture
+  local before
+  before="$(git status --porcelain; git diff)"
+  verify
+  [ "$(git status --porcelain; git diff)" = "${before}" ]
+  [ "$(git worktree list | wc -l | tr -d ' ')" -eq 1 ]
+}
+
+@test "verify --apply: writes only passing pins, after the combined run passes" {
+  checkout_fixture
+  verify --apply
+  grep -q "actions/checkout@${SHA_CHECKOUT_NEW}  # v4.4.0" .github/workflows/ci.yml
+  grep -q "TOOL_VERSION='v1.0.0'" scripts/ci/setup-bar.sh
+  grep -q 'toolchain go1.27.3' go.mod
+}
+
+@test "verify --apply: a failing combined run writes nothing" {
+  checkout_fixture
+  touch .fail-combined
+  commit
+  verify --apply
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'combined: fail'* ]] || false
+  [[ "${output}" == *'nothing written'* ]] || false
+  grep -q "actions/checkout@${SHA_CHECKOUT}  # v4.2.2" .github/workflows/ci.yml
+}
+
+@test "verify --apply on Linux: a release tool's checksum follows its version" {
+  fixture 'https://api.github.com/repos/acme/foo/releases?per_page=100' "$(jq -n \
+    --arg old "$(iso 400)" --arg new "$(iso 30)" '[
+      {tag_name: "v1.2.0", draft: false, prerelease: false, published_at: $old},
+      {tag_name: "v1.3.0", draft: false, prerelease: false, published_at: $new}]')"
+  fixture 'https://api.github.com/repos/acme/foo/releases/tags/1.2.0' "$(jq -n --arg h "sha256:${FOO_OLD_HEX}" \
+    '{assets: [{name: "foo_1.2.0_linux_amd64.tar.gz", digest: $h}]}')"
+  fixture 'https://api.github.com/repos/acme/foo/releases/tags/v1.3.0' "$(jq -n --arg h "sha256:${FOO_NEW_HEX}" \
+    '{assets: [{name: "foo_1.3.0_linux_amd64.tar.gz", digest: $h}]}')"
+  checkout_fixture
+  export UPDATE_PINS_PLATFORM=Linux
+  verify --apply
+  [[ "$(result 'FOO')" == *'pass'*'make setup-foo'* ]] || false
+  grep -q "FOO_VERSION='1.3.0'" scripts/ci/setup-foo.sh
+  grep -q "FOO_SHA256='${FOO_NEW_HEX}'" scripts/ci/setup-foo.sh
+}
+
+# ── Dependabot union ─────────────────────────────────────────────────────────
+
+# dependabot ...: a GitHub remote, plus the open PRs and alerts it reports.
+dependabot() {
+  git remote add origin https://github.com/acme/consumer.git
+  fixture 'https://api.github.com/repos/acme/consumer/pulls?state=open&per_page=100' "$(jq -n '[
+    {number: 7, user: {login: "dependabot[bot]"}, title: "chore(ci): bump actions/checkout from 4.2.2 to 4.5.0"},
+    {number: 8, user: {login: "dependabot[bot]"}, title: "Bump alpine from 3.22 to 3.23"},
+    {number: 9, user: {login: "someone"}, title: "Bump example.com/lib from 0.3.0 to 9.9.9"}]')"
+  fixture 'https://api.github.com/repos/acme/consumer/dependabot/alerts?state=open&per_page=100' "$(jq -n '[
+    {number: 3, dependency: {package: {name: "example.com/cur"}},
+     security_vulnerability: {first_patched_version: {identifier: "1.0.1"}}}]')"
+  printf 'require example.com/cur v1.0.0\n' >> go.mod
+  fixture 'https://proxy.golang.org/example.com/cur/@v/list' $'v1.0.0\n'
+  commit
+}
+
+@test "dependabot: a newer PR candidate wins and SOURCE is both" {
+  dependabot
+  pins
+  [[ "$(row 'actions/checkout')" == *'v4.5.0'*'stale'*'both'*'update-pins: v4.4.0, dependabot: v4.5.0 (PR #7)'* ]] || false
+}
+
+@test "dependabot: an alert makes a current pin stale with SOURCE dependabot" {
+  dependabot
+  pins
+  [[ "$(row 'example.com/cur')" == *'v1.0.1'*'stale'*'dependabot'*'dependabot alert #3'* ]] || false
+}
+
+@test "dependabot: an image tag suggestion is a note only; non-Dependabot PRs are ignored" {
+  dependabot
+  pins
+  [[ "$(row 'alpine:3.22')" == *'current'*'(dependabot: 3.23, PR #8)'* ]] || false
+  [[ "$(row 'example.com/lib')" != *'9.9.9'* ]] || false
 }

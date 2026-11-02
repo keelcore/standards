@@ -417,3 +417,79 @@ changelog() {
   [ "$(git tag -l --format='%(contents:subject)' v0.10.0)" = 'minor: CHANGELOG: 1 removed, 1 added (pre-1.0 demotion)' ]
   remote_has_tag v0.10.0
 }
+
+# ---------------------------------------------------------------------------
+# Pins: stale pins block the release; --allow-stale-pins authorizes it and is
+# audit-logged (tag trailers + <git-dir>/release-audit.log)
+# ---------------------------------------------------------------------------
+
+# stale_pin: commit a workflow pinning actions/checkout at v4.2.2, with offline
+# release metadata (UPDATE_PINS_FIXTURES) making v4.4.0 the eligible candidate.
+stale_pin() {
+  local -r now=2000000000 fix="${T}/pin-fixtures"
+  mkdir -p "${fix}" .github/workflows
+  printf 'jobs:\n  x:\n    steps:\n      - uses: actions/checkout@%s  # v4.2.2\n' \
+    '11bd71901bbe5b1630ceea73d27597364c9af683' > .github/workflows/ci.yml
+  jq -n --arg old "$(jq -rn --argjson t $(( now - 400 * 86400 )) '$t | todate')" \
+    --arg new "$(jq -rn --argjson t $(( now - 30 * 86400 )) '$t | todate')" '[
+      {tag_name: "v4.2.2", draft: false, prerelease: false, published_at: $old},
+      {tag_name: "v4.4.0", draft: false, prerelease: false, published_at: $new}]' \
+    > "${fix}/$(printf '%s' 'https://api.github.com/repos/actions/checkout/releases?per_page=100' | tr -c 'A-Za-z0-9._-' '_')"
+  commit_and_push .github/workflows/ci.yml 'pin checkout'
+  export UPDATE_PINS_FIXTURES="${fix}" UPDATE_PINS_NOW="${now}"
+}
+
+@test "pins: a stale pin blocks the release and nothing is tagged" {
+  ready_at v1.2.3
+  stale_pin
+  run bash "${DRIVER}"
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'action actions/checkout v4.2.2 -> v4.4.0: missed security fixes'* ]] || false
+  [[ "${output}" == *'Release blocked by stale pins'* ]] || false
+  [ "$(tag_count)" -eq 1 ]
+  remote_lacks_tag v1.2.4
+}
+
+@test "pins: --allow-stale-pins tags, recording reason, identity, time and pins in the tag and the audit log" {
+  ready_at v1.2.3
+  stale_pin
+  run bash "${DRIVER}" --allow-stale-pins 'checkout v4.4.0 waits on a runner image fix'
+  [ "${status}" -eq 0 ]
+  remote_has_tag v1.2.4
+  run git tag -l --format='%(contents:body)' v1.2.4
+  [[ "${output}" == *'Pins: 1 pins: 1 stale'* ]] || false
+  [[ "${output}" == *'Pins-Override: checkout v4.4.0 waits on a runner image fix'* ]] || false
+  [[ "${output}" == *'Pins-Override-By: Release Tester <tester@example.invalid>'* ]] || false
+  [[ "${output}" =~ Pins-Override-At:\ [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z ]] || false
+  [[ "${output}" == *'Pins-Stale: action actions/checkout v4.2.2 -> v4.4.0'* ]] || false
+  run jq -r '[.event, .tag, .reason, .stale[0].pin, .stale[0].candidate] | join("|")' "$(git rev-parse --git-dir)/release-audit.log"
+  [ "${output}" = 'allow-stale-pins|v1.2.4|checkout v4.4.0 waits on a runner image fix|actions/checkout|v4.4.0' ]
+}
+
+@test "pins: --allow-stale-pins without a reason is rejected" {
+  ready_at v1.2.3
+  run bash "${DRIVER}" --allow-stale-pins
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'--allow-stale-pins needs a reason'* ]] || false
+  run bash "${DRIVER}" --allow-stale-pins --dry-run
+  [ "${status}" -eq 1 ]
+}
+
+@test "pins: a dry run with stale pins warns and tags nothing" {
+  ready_at v1.2.3
+  stale_pin
+  run bash "${DRIVER}" --dry-run
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *'(dry run) This release would be blocked by stale pins.'* ]] || false
+  [ "$(tag_count)" -eq 1 ]
+}
+
+@test "pins: with no stale pins the tag records the pin summary and no override" {
+  ready_at v1.2.3
+  run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  run git tag -l --format='%(contents:body)' v1.2.4
+  [[ "${output}" == *'Pins: 0 pins'* ]] || false
+  [[ "${output}" != *'Pins-Override'* ]] || false
+  [ ! -e "$(git rev-parse --git-dir)/release-audit.log" ]
+}

@@ -1,0 +1,58 @@
+name: update-pins
+
+# Manual: the full pin-refresh verification (`make update-pins`) on Linux, where
+# every pin kind can be exercised (release-asset tools install as pinned Linux
+# binaries here). Report and per-pin logs are uploaded; nothing is written back
+# to the repository.
+on:
+  workflow_dispatch:
+
+# One verification at a time per ref; a second dispatch waits for the first.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# Repositories are UTC internally (governance/devsecops.md): every step runs in UTC.
+env:
+  TZ: UTC
+
+jobs:
+  update-pins:
+    name: update-pins / verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
+        with:
+          node-version-file: ".nvmrc"
+
+      - run: make setup-markdownlint
+      - run: make setup-shellcheck
+      - run: make setup-bats
+
+      - name: verify every stale pin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATE_PINS_LOGDIR: target/update-pins/logs
+        run: make update-pins REPORT=target/update-pins/report.txt
+
+      - name: upload report and logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: update-pins
+          path: target/update-pins/
+          if-no-files-found: warn

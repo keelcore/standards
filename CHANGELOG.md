@@ -14,6 +14,25 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- `make update-pins` verifies: each stale pin is applied alone in a throwaway git worktree (submodules from the local
+  clones, private tool bin and npm prefix), exercised by the make targets for its kind, and rolled back — a failing pin
+  never stops the others — then all passing pins run together (`lint audit test`, or the project's combined targets).
+  Appliers for every kind: action SHA + version comment, image digest, release tool version + committed SHA-256
+  (remapped through the digests GitHub publishes per asset, no download), Go tool, toolchain, npm, Node, and Go
+  modules (`go get`, `go mod tidy`, `go mod vendor`). `APPLY=1` writes the passing pins only after the combined run
+  passes; `DISCOVER=1` reports only; `REPORT=FILE` saves the report. Each stale or failing pin lists the consequence of
+  staying on it. The hook contract adds `verify`, `combined`, `apply` and `cleanup`
+- Dependabot union in `update-pins`: open Dependabot PRs and alerts join the candidates; the newer candidate wins and a
+  `SOURCE` column shows `update-pins`, `dependabot` or `both` (image tag suggestions stay notes)
+- `create-release` pin gate: stale pins block the release; `--allow-stale-pins "<reason>"`
+  (`make create-release ALLOW_STALE_PINS=...`) authorizes it and records the override in the signed tag
+  (`Pins-Override`, `-By`, `-At`, `Pins-Stale` trailers) and `<git-dir>/release-audit.log`; every tag carries a
+  `Pins:` summary
+- `.github/workflows/update-pins.yml` (`workflow_dispatch`): the full verification on Linux, report and logs uploaded
+- `governance/ci.md` v1.3.0 "Pin Refresh"; `governance/release-policy.md` v1.2.0 "Stale Pins" and the pre-release
+  `update-pins` step
+- `.nvmrc` pins the exact Node LTS release (`22.23.3`), not the major
+
 - `make update-pins` (`scripts/release/update-pins.sh`): discovers every pinned external input (workflow action SHAs,
   image digests, GitHub-release tools, Go tools, Go toolchain, go.mod requirements, npm, Node) plus inputs that float
   unpinned (`@latest`, apk/apt packages without a version, Homebrew, FROM/`image:` without a digest), and resolves
