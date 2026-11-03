@@ -80,11 +80,13 @@ export TZ := UTC
 .PHONY: release-sign
 .PHONY: create-release
 .PHONY: update-pins
+.PHONY: pins-doc
 .PHONY: dev-shell
 .PHONY: dev-image-push
 .PHONY: dev-image-merge
 .PHONY: dev-image-sign
 .PHONY: dev-image-ref
+.PHONY: dev-image-publish
 .PHONY: verify-go
 .PHONY: bootstrap-standards
 .PHONY: format
@@ -210,35 +212,36 @@ coverage-baseline-init:
 	@echo "🪴 coverage-baseline-init (capture current LCOV)..."
 	bash scripts/dev/run.sh --writable bash scripts/test/coverage-baseline-init.sh
 
-## Setup targets
+## Setup targets — the tool images run these installers at build time; `make setup-<tool>` runs
+## one in the dev image (a throwaway install: how update-pins checks a new tool pin).
 
 setup-bats:
 	@echo "🔧 Installing bats-core test harness..."
-	bash scripts/ci/setup-bats.sh
+	bash scripts/dev/run.sh bash scripts/ci/setup-bats.sh
 
 setup-cosign:
 	@echo "🔧 Installing cosign..."
-	bash scripts/ci/setup-cosign.sh
+	bash scripts/dev/run.sh bash scripts/ci/setup-cosign.sh
 
 setup-gitleaks:
 	@echo "🔧 Installing gitleaks..."
-	bash scripts/ci/setup-gitleaks.sh
+	bash scripts/dev/run.sh bash scripts/ci/setup-gitleaks.sh
 
 setup-markdownlint:
 	@echo "🔧 Installing markdownlint-cli..."
-	bash scripts/ci/setup-markdownlint.sh
+	bash scripts/dev/run.sh bash scripts/ci/setup-markdownlint.sh
 
 setup-shellcheck:
 	@echo "🔧 Installing shellcheck..."
-	bash scripts/ci/setup-shellcheck.sh
+	bash scripts/dev/run.sh bash scripts/ci/setup-shellcheck.sh
 
 setup-staticcheck:
 	@echo "🔧 Installing staticcheck..."
-	bash scripts/ci/setup-staticcheck.sh
+	bash scripts/dev/run.sh bash scripts/ci/setup-staticcheck.sh
 
 setup-syft:
 	@echo "🔧 Installing syft..."
-	bash scripts/ci/setup-syft.sh
+	bash scripts/dev/run.sh bash scripts/ci/setup-syft.sh
 
 ## Pre-commit hook installation (symlinks scripts/git_precommit.sh into .git/hooks)
 
@@ -321,12 +324,17 @@ update-pins:
 	@echo "📌 Refreshing pins..."
 	bash scripts/release/update-pins.sh $(if $(APPLY),--apply,) $(if $(DISCOVER),--discover-only,) $(if $(REPORT),--report $(REPORT),)
 
+pins-doc:
+	@echo "📌 Writing docs/current_pins.md..."
+	bash scripts/release/update-pins.sh --discover-only --pins-md docs/current_pins.md
+
 ## Tool images (containers/NAME/Containerfile): every tool target above runs in one, with
 ## the repository mounted read-only (scripts/dev/run.sh). dev-shell opens a shell in the dev
 ## image. The dev-image workflow publishes them: dev-image-push ARCH=amd64|arm64 builds and
 ## pushes natively per architecture, dev-image-merge joins and signs the multi-arch index,
 ## dev-image-sign REF=<repository@digest> signs one. dev-image-ref pins the published images
-## of the current build context by digest in containers/NAME/image.ref.
+## of the current build context by digest in containers/NAME/image.ref. dev-image-publish
+## (macOS) builds, pushes and pins every unpublished image before the commit.
 dev-shell:
 	@echo "🐚 Shell in the dev image (repository read-only; target/ writable)..."
 	bash scripts/dev/run.sh bash
@@ -346,6 +354,10 @@ dev-image-sign:
 dev-image-ref:
 	@echo "📌 Pinning published tool images by digest..."
 	bash scripts/dev/run.sh --writable bash scripts/dev/publish.sh ref
+
+dev-image-publish:
+	@echo "📦 Building, pushing and pinning unpublished tool images (Apple container)..."
+	bash scripts/dev/publish.sh local
 
 ## Per-language verify.
 verify-go:

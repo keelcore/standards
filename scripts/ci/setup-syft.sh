@@ -18,9 +18,9 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
-readonly SYFT_VERSION='1.42.1'
-readonly SYFT_SHA256_AMD64='989ded4e772810f93de6ccdc4512f79a6dabb5fb2dd2a9ffc72a80c955e6125a'
-readonly SYFT_SHA256_ARM64='dfc9ac5fffa8fea95b4f84b427e200dbb2bd9bd0bbf2760d1a9369715b60a91d'
+readonly SYFT_VERSION='1.55.0'
+readonly SYFT_SHA256_AMD64='bb65249542db5fedeeb4d3f9b018b75e7264dbfbbb10486f044581a92f90490d'
+readonly SYFT_SHA256_ARM64='929bd163db2d7cd2255d3bcb8967208079813d7b46b0c952f7b794d8e2c7d304'
 if [ "$(uname -m)" = 'aarch64' ]; then
   readonly SYFT_ARCH='arm64' SYFT_SHA256="${SYFT_SHA256_ARM64}"
 else

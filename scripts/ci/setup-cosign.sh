@@ -14,9 +14,9 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
-readonly COSIGN_VERSION='3.0.5'
-readonly COSIGN_SHA256_AMD64='db15cc99e6e4837daabab023742aaddc3841ce57f193d11b7c3e06c8003642b2'
-readonly COSIGN_SHA256_ARM64='d098f3168ae4b3aa70b4ca78947329b953272b487727d1722cb3cb098a1a20ab'
+readonly COSIGN_VERSION='3.1.3'
+readonly COSIGN_SHA256_AMD64='4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71'
+readonly COSIGN_SHA256_ARM64='c5d324e091826b0d7a78eb16fef316450b4eb9aaec045611c08ba06f5e73220a'
 readonly COSIGN_RELEASES='https://github.com/sigstore/cosign/releases/download'
 readonly COSIGN_INSTALL_PATH='/usr/local/bin/cosign'
 

@@ -14,9 +14,9 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
-readonly GITLEAKS_VERSION='8.27.2'
-readonly GITLEAKS_SHA256_X64='141c3b2dede46d8b3a53b47116da756bd223decc0374797559a6b50ecba5590c'
-readonly GITLEAKS_SHA256_ARM64='fd59a77b3d898ab14782264bf7a22db457871db56debc5d7ac3e30b64b379921'
+readonly GITLEAKS_VERSION='8.30.1'
+readonly GITLEAKS_SHA256_X64='551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
+readonly GITLEAKS_SHA256_ARM64='e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080'
 readonly GITLEAKS_RELEASES='https://github.com/gitleaks/gitleaks/releases/download'
 readonly GITLEAKS_INSTALL_PATH='/usr/local/bin/gitleaks'
 

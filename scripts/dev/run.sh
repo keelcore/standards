@@ -11,9 +11,9 @@
 # Mounts: the repository read-only, except its output directories (builds, coverage,
 # reports), which are writable: those listed in containers/writable, one per line, else
 # target/. --writable mounts the whole repository writable, for the targets whose job is
-# editing tracked files (format, coverage baseline). A submodule (its git directory lives in
-# the superproject) is mounted as a standalone snapshot under /tmp: a clone holding its
-# current files; a writable run's edits are copied back.
+# editing tracked files (format, coverage baseline). A submodule or worktree (its git
+# directory lives outside it) is mounted as a standalone snapshot under /tmp: a clone holding
+# its current files; a writable run's edits are copied back.
 #
 # Image: the digest-pinned reference in containers/NAME/image.ref when it was
 # built from the current build context (the files the Containerfile COPYs);
@@ -123,11 +123,12 @@ function output_dirs() {
   fi
 }
 
-# snapshot DIR: a standalone copy of submodule DIR under /tmp — a clone (its own .git, so
-# git works without the superproject) holding DIR's current files, tracked and untracked.
+# snapshot DIR: a standalone copy of DIR (a submodule or worktree) under /tmp — a clone (its
+# own .git, so git works without the outer repository) holding DIR's current files, tracked
+# and untracked.
 function snapshot() {
   local -r dir="${1}"
-  local -r dest="/tmp/keelcore-dev-snapshot/$(dev_repo_name "${dir}")"
+  local -r dest="/tmp/keelcore-dev-snapshot/$(dev_repo_name "${dir}")-$(printf '%s' "${dir}" | git hash-object --stdin | cut -c1-12)"
   if [ -d "${dest}/.git" ]; then
     git -C "${dest}" fetch --quiet "${dir}" HEAD
     git -C "${dest}" reset --quiet --hard FETCH_HEAD
@@ -166,10 +167,15 @@ function run_in() {
   local here src name
   here="$(git rev-parse --show-toplevel)"
   src="${here}"
-  if [ -n "$(git rev-parse --show-superproject-working-tree)" ]; then
+  # A submodule or worktree: its .git is a file pointing at a git directory outside it.
+  if [ -f "${here}/.git" ]; then
     src="$(snapshot "${here}")"
   fi
-  local -a args=(run --rm -i -v "${src}:/work:${mode}" -w "/work${PWD#"${here}"}")
+  # git reports the physical path (macOS /tmp and /var are symlinks into /private).
+  local rel
+  rel="$(pwd -P)"
+  rel="${rel#"${here}"}"
+  local -a args=(run --rm -i -v "${src}:/work:${mode}" -w "/work${rel}")
   local out
   if [ "${mode}" = 'ro' ]; then
     while IFS= read -r out; do

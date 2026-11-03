@@ -15,10 +15,14 @@ function dev_registry() {
   printf '%s' "${KEELCORE_DEV_REGISTRY:-ghcr.io/keelcore}"
 }
 
-# dev_repo_name DIR: DIR's repository name, as an image-name component.
+# dev_repo_name DIR: DIR's repository name, as an image-name component — the same for every
+# checkout of it (worktrees and submodules included): the name of its shared git directory
+# (<repo>/.git, or <superproject>/.git/modules/<name> for a submodule).
 function dev_repo_name() {
-  basename "$(cd "${1}" && git rev-parse --show-toplevel)" | tr '[:upper:]' '[:lower:]' \
-    | tr -c 'a-z0-9\n-' '-' | sed -E 's/^-+//'
+  local common
+  common="$(cd "${1}" && git rev-parse --path-format=absolute --git-common-dir)"
+  [ "$(basename "${common}")" = '.git' ] && common="$(dirname "${common}")"
+  basename "${common}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n-' '-' | sed -E 's/^-+//'
 }
 
 # dev_repository DIR NAME: the registry repository of DIR's NAME image.

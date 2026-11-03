@@ -403,3 +403,28 @@ dependabot() {
   [ -z "$(row 'apt:jq')" ]
   [[ "$(row 'apt:xz-utils')" == *'unpinned'* ]] || false
 }
+
+@test "verify --apply: a Node pin moves the node base image with it" {
+  printf '22.1.0\n' > .nvmrc
+  printf 'FROM node:22.1.0-slim@%s AS node\n' "${DIGEST}" > Containerfile.node
+  fixture 'https://nodejs.org/dist/index.json' "$(jq -n --arg old "$(iso 300 | cut -c1-10)" --arg new "$(iso 30 | cut -c1-10)" '[
+    {version: "v22.1.0", date: $old, lts: "Jod"},
+    {version: "v22.1.1", date: $new, lts: "Jod"}]')"
+  fixture 'digest:node:22.1.0-slim' "${DIGEST}"
+  fixture 'digest:node:22.1.1-slim' "sha256:${FOO_NEW_HEX}"
+  checkout_fixture
+  commit
+  verify --apply
+  [[ "$(result 'node')" == *'pass'*'make lint'* ]] || false
+  grep -qx '22.1.1' .nvmrc
+  grep -qF "FROM node:22.1.1-slim@sha256:${FOO_NEW_HEX} AS node" Containerfile.node
+}
+
+@test "--pins-md: every pin and floating input as a Markdown table" {
+  run bash scripts/release/update-pins.sh --discover-only --pins-md current_pins.md
+  [ "${status}" -eq 0 ]
+  grep -qx '# Current pins' current_pins.md
+  grep -qx '| Kind | Pin | Pinned | Status | Candidate | Pinned in |' current_pins.md
+  grep -qF '| action | `actions/checkout` | `v4.2.2` | stale | `v4.4.0` | `.github/workflows/ci.yml:4` |' current_pins.md
+  grep -qF '| unpinned | `apk:curl` |' current_pins.md
+}

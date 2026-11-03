@@ -86,12 +86,28 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- Pins refreshed (`make update-pins APPLY=1`; each verified alone, then together with `make lint audit test`):
+  actions/attest-build-provenance v4.2.2, actions/checkout v6.1.0, actions/upload-artifact v7.0.2, Node 22.23.4
+  (`.nvmrc` and the dev image's node base), npm 11.21.1, setuptools 84.2.0, cosign 3.1.3, gitleaks 8.30.1, syft 1.55.0.
+  `docs/current_pins.md` lists every pin
 - Workflows: `actions/checkout` runs with `persist-credentials: false`; the publish jobs run without
   `setup-go` / `setup-node` caches (a poisoned cache must not reach a release); npm for trusted publishing is pinned
   (`npm@11.21.0`) instead of `npm@latest`
 
 ### Fixed
 
+- `scripts/dev/run.sh`: a git worktree is mounted as a standalone /tmp snapshot like a submodule (its `.git` points
+  outside it), the working directory is computed from the physical path (macOS `/tmp` and `/var` are symlinks), and
+  image tags and snapshots are named by the repository's shared git directory, so every checkout reuses one image
+- `make dev-image-publish` (macOS): builds every unpublished tool image for linux/amd64 and linux/arm64 with Apple
+  `container`, pushes it and pins it in `image.ref`, so one commit carries published, digest-pinned images; the
+  dev-image workflow then signs them (`sign-image.sh` skips an image this repository already signed)
+- `update-pins` verifies stale pins in parallel, each in its own worktree (`UPDATE_PINS_JOBS`, default 4); a pin that
+  fails is retried once after every other pin has had its first run; `make pins-doc` (`--pins-md FILE`) writes
+  every pin and floating input as a Markdown table to `docs/current_pins.md`
+- `update-pins`: tool, Node, npm and PyPI pins verify in the tool images on every host (`make setup-<tool>` runs
+  the installer in the dev image), no longer only on Linux; applying a Node pin moves every `node:<version>-…`
+  base image to the new version's digest, so the image that supplies Node follows `.nvmrc`
 - Audit Rule 5 checks the script a tool-image recipe runs (`bash scripts/dev/run.sh ... bash scripts/X.sh`), not
   only the runner
 - Markdown lint ran `npx --yes markdownlint-cli2` at whatever version npm served, because `setup-markdownlint`
