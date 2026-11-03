@@ -16,4 +16,4 @@ source = "vcs"
 include = ["governance/"]
 
 [tool.hatch.build.targets.sdist]
-include = ["governance/", "README.md", "CHANGELOG.md", "pyproject.toml"]
+include = ["governance/", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]

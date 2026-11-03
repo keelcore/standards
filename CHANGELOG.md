@@ -14,6 +14,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `LICENSE` (MIT, Copyright (c) 2026 Paul Charlton): the packages declared MIT but carried no license text; the
+  npm tarball, the wheel, the sdist and the Go module now ship it
 - The GitHub Release job failed for v0.10.5: it took the PyPI publish action's attestation files for packages. It now
   fetches every artifact from its registry (npm integrity, PyPI sha256, the Go checksum database via
   `go mod download`), reads the tag's own CHANGELOG, pins and image refs, and runs as `github-release.yml`, which
