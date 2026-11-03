@@ -65,6 +65,8 @@ export TZ := UTC
 .PHONY: check-rfc-metadata
 .PHONY: check-legal-drift
 .PHONY: setup-bats
+.PHONY: setup-cosign
+.PHONY: setup-gitleaks
 .PHONY: setup-markdownlint
 .PHONY: setup-shellcheck
 .PHONY: setup-staticcheck
@@ -78,6 +80,11 @@ export TZ := UTC
 .PHONY: release-sign
 .PHONY: create-release
 .PHONY: update-pins
+.PHONY: dev-shell
+.PHONY: dev-image-push
+.PHONY: dev-image-merge
+.PHONY: dev-image-sign
+.PHONY: dev-image-ref
 .PHONY: verify-go
 .PHONY: bootstrap-standards
 .PHONY: format
@@ -89,7 +96,7 @@ export TZ := UTC
 
 build:
 	@echo "🔨 Running build..."
-	bash scripts/build.sh
+	bash scripts/dev/run.sh bash scripts/build.sh
 
 lint: lint-newlines lint-markdown lint-bash lint-go lint-suppressions lint-utc
 
@@ -97,11 +104,11 @@ test: unit-test integration-test
 
 unit-test:
 	@echo "🧪 Running unit tests..."
-	bash scripts/unit-test.sh
+	bash scripts/dev/run.sh bash scripts/unit-test.sh
 
 integration-test:
 	@echo "🧪 Running integration tests..."
-	bash scripts/integration-test.sh
+	bash scripts/dev/run.sh bash scripts/integration-test.sh
 
 clean:
 	@echo "🧹 Cleaning..."
@@ -111,73 +118,73 @@ clean:
 
 audit:
 	@echo "🔍 Running CI/Makefile audit..."
-	bash scripts/ci/audit-make-targets.sh
+	bash scripts/dev/run.sh bash scripts/ci/audit-make-targets.sh
 
 ## Lint targets
 
 lint-newlines:
 	@echo "🔍 Checking trailing newlines..."
-	bash scripts/lint/newlines.sh
+	bash scripts/dev/run.sh bash scripts/lint/newlines.sh
 
 lint-utc:
 	@echo "🕛 Checking timestamps are UTC..."
-	bash scripts/lint/utc.sh
+	bash scripts/dev/run.sh bash scripts/lint/utc.sh
 
 lint-bash:
 	@echo "🔍 Running shellcheck..."
-	bash scripts/lint/shellcheck.sh
+	bash scripts/dev/run.sh bash scripts/lint/shellcheck.sh
 
 lint-markdown:
 	@echo "🔍 Running markdown lint (markdownlint-cli2)..."
-	bash scripts/lint/markdown.sh
+	bash scripts/dev/run.sh bash scripts/lint/markdown.sh
 
 lint-go:
 	@echo "🔍 Running gofmt check + go vet + staticcheck..."
-	bash scripts/lint/go.sh
+	bash scripts/dev/run.sh bash scripts/lint/go.sh
 
 lint-suppressions:
 	@echo "🔍 Checking for lint-suppression directives..."
-	bash scripts/lint/forbid-lint-suppressions.sh
+	bash scripts/dev/run.sh bash scripts/lint/forbid-lint-suppressions.sh
 
 ## Check targets
 
 check-adr-metadata:
 	@echo "🔍 Checking ADR metadata..."
-	bash scripts/check/adr-metadata.sh
+	bash scripts/dev/run.sh bash scripts/check/adr-metadata.sh
 
 check-governance-metadata:
 	@echo "🔍 Checking governance metadata..."
-	bash scripts/check/governance-metadata.sh
+	bash scripts/dev/run.sh bash scripts/check/governance-metadata.sh
 
 check-rfc-metadata:
 	@echo "🔍 Checking RFC metadata..."
-	bash scripts/check/rfc-metadata.sh
+	bash scripts/dev/run.sh bash scripts/check/rfc-metadata.sh
 
 check-legal-drift:
 	@echo "⚖️  Checking legal file drift..."
-	bash scripts/check-legal-drift.sh
+	bash scripts/dev/run.sh bash scripts/check-legal-drift.sh
 
 ## CI gate targets
 
 ci-pr-policy:
 	@echo "🔍 Running PR policy check..."
-	bash scripts/ci/pr-policy.sh
+	bash scripts/dev/run.sh bash scripts/ci/pr-policy.sh
 
 ci-secret-scan:
 	@echo "🔍 Running secret scan..."
-	bash scripts/ci/secret-scan.sh
+	bash scripts/dev/run.sh bash scripts/ci/secret-scan.sh
 
 ci-dco:
 	@echo "🔍 Running DCO sign-off check..."
-	bash scripts/ci/dco-check.sh
+	bash scripts/dev/run.sh bash scripts/ci/dco-check.sh
 
 ci-coverage-delta:
 	@echo "📊 Checking coverage delta..."
-	bash scripts/test/coverage-delta.sh
+	bash scripts/dev/run.sh bash scripts/test/coverage-delta.sh
 
 ci-governance-gate:
 	@echo "🚦 Governance CI gate (governance-refresh --dry-run)..."
-	bash scripts/ci/governance-gate.sh
+	bash scripts/dev/run.sh bash scripts/ci/governance-gate.sh
 
 ## Coverage
 
@@ -185,29 +192,37 @@ coverage: coverage-go coverage-rust coverage-aggregate
 
 coverage-go:
 	@echo "📊 Go coverage..."
-	bash scripts/test/coverage-go.sh
+	bash scripts/dev/run.sh bash scripts/test/coverage-go.sh
 
 coverage-rust:
 	@echo "📊 Rust coverage (cargo-llvm-cov)..."
-	bash scripts/test/coverage-rust.sh
+	bash scripts/dev/run.sh bash scripts/test/coverage-rust.sh
 
 coverage-aggregate:
 	@echo "📊 Coverage aggregate (merge per-language LCOV, bucket by extension)..."
-	bash scripts/test/coverage-aggregate.sh
+	bash scripts/dev/run.sh bash scripts/test/coverage-aggregate.sh
 
 ci-coverage-no-regression:
 	@echo "🚦 coverage-no-regression (per-file)..."
-	bash scripts/test/coverage-no-regression.sh
+	bash scripts/dev/run.sh bash scripts/test/coverage-no-regression.sh
 
 coverage-baseline-init:
 	@echo "🪴 coverage-baseline-init (capture current LCOV)..."
-	bash scripts/test/coverage-baseline-init.sh
+	bash scripts/dev/run.sh --writable bash scripts/test/coverage-baseline-init.sh
 
 ## Setup targets
 
 setup-bats:
 	@echo "🔧 Installing bats-core test harness..."
 	bash scripts/ci/setup-bats.sh
+
+setup-cosign:
+	@echo "🔧 Installing cosign..."
+	bash scripts/ci/setup-cosign.sh
+
+setup-gitleaks:
+	@echo "🔧 Installing gitleaks..."
+	bash scripts/ci/setup-gitleaks.sh
 
 setup-markdownlint:
 	@echo "🔧 Installing markdownlint-cli..."
@@ -236,17 +251,17 @@ install-hooks:
 
 verify-canonical:
 	@echo "🔍 Verifying canonical scripts are byte-identical (REPO=<path>, default: this repo)…"
-	bash scripts/ci/verify-canonical-scripts.sh $(REPO)
+	bash scripts/dev/run.sh bash scripts/ci/verify-canonical-scripts.sh $(REPO)
 
 ## Utility targets
 
 format:
 	@echo "🖊️  Formatting repository..."
-	bash scripts/format.sh
+	bash scripts/dev/run.sh --writable bash scripts/format.sh
 
 lint-all:
 	@echo "🔍 Running all linters (full suite)..."
-	bash scripts/lint.sh
+	bash scripts/dev/run.sh bash scripts/lint.sh
 
 pre-commit:
 	@echo "🪝 Running pre-commit checks..."
@@ -268,24 +283,24 @@ migrate-makefile:
 ## Per-language publish targets — scripts shipped byte-identical (Rule A).
 release-go:
 	@echo "🚀 Publishing Go module..."
-	bash scripts/release/go-publish.sh
+	bash scripts/dev/run.sh bash scripts/release/go-publish.sh
 
 release-npm:
 	@echo "🚀 Publishing npm package..."
-	bash scripts/release/npm-publish.sh
+	bash scripts/dev/run.sh --writable bash scripts/release/npm-publish.sh
 
 release-pypi:
 	@echo "🚀 Publishing PyPI package..."
-	bash scripts/release/pypi-publish.sh
+	bash scripts/dev/run.sh --image pypi bash scripts/release/pypi-publish.sh
 
 ## Release provenance — SBOM (ARGS="--out-dir DIR") and keyless signing (ARGS="<artifact> ...").
 release-sbom:
 	@echo "🧾 Generating SBOM..."
-	bash scripts/release/sbom.sh $(ARGS)
+	bash scripts/dev/run.sh bash scripts/release/sbom.sh $(ARGS)
 
 release-sign:
 	@echo "🔏 Signing release artifacts..."
-	bash scripts/release/sign.sh $(ARGS)
+	bash scripts/dev/run.sh bash scripts/release/sign.sh $(ARGS)
 
 ## Release tagging — developer action only (governance/ci.md "Release Tagging").
 ## The bump level comes from the repo's own scripts/release/create-release.local.sh.
@@ -306,10 +321,36 @@ update-pins:
 	@echo "📌 Refreshing pins..."
 	bash scripts/release/update-pins.sh $(if $(APPLY),--apply,) $(if $(DISCOVER),--discover-only,) $(if $(REPORT),--report $(REPORT),)
 
+## Tool images (containers/NAME/Containerfile): every tool target above runs in one, with
+## the repository mounted read-only (scripts/dev/run.sh). dev-shell opens a shell in the dev
+## image. The dev-image workflow publishes them: dev-image-push ARCH=amd64|arm64 builds and
+## pushes natively per architecture, dev-image-merge joins and signs the multi-arch index,
+## dev-image-sign REF=<repository@digest> signs one. dev-image-ref pins the published images
+## of the current build context by digest in containers/NAME/image.ref.
+dev-shell:
+	@echo "🐚 Shell in the dev image (repository read-only; target/ writable)..."
+	bash scripts/dev/run.sh bash
+
+dev-image-push:
+	@echo "📦 Building and pushing tool images ($(ARCH))..."
+	bash scripts/dev/publish.sh push $(ARCH)
+
+dev-image-merge:
+	@echo "📦 Publishing multi-arch tool images..."
+	bash scripts/dev/publish.sh merge
+
+dev-image-sign:
+	@echo "🔏 Signing $(REF)..."
+	bash scripts/dev/run.sh bash scripts/dev/sign-image.sh $(REF)
+
+dev-image-ref:
+	@echo "📌 Pinning published tool images by digest..."
+	bash scripts/dev/run.sh --writable bash scripts/dev/publish.sh ref
+
 ## Per-language verify.
 verify-go:
 	@echo "🔍 Verifying Go module..."
-	bash scripts/verify/go.sh
+	bash scripts/dev/run.sh bash scripts/verify/go.sh
 
 ## Bootstrap entrypoint — consumers can also curl the script one-shot.
 bootstrap-standards:

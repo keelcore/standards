@@ -24,7 +24,7 @@ env:
 jobs:
   sbom:
     name: release / sbom
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -33,18 +33,17 @@ jobs:
         with:
           persist-credentials: false
 
-      - run: make setup-syft
-      - run: make release-sbom
+      - run: make release-sbom ARGS="--out-dir target/sbom"
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: sbom
-          path: sbom.spdx.json
+          path: target/sbom/sbom.spdx.json
           retention-days: 90
 
   publish-npm:
     name: publish / npm
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: npm-publish
     permissions:
@@ -55,24 +54,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
-        with:
-          node-version-file: ".nvmrc"
-          registry-url: "https://registry.npmjs.org"
-          # No package cache in a publish job: a poisoned cache must not reach a release.
-          package-manager-cache: false
-
-      # Pinned: npm trusted publishing (OIDC) needs npm >= 11.5.
-      - run: npm install -g npm@11.21.0
-
       - run: make release-npm
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
+          KEELCORE_DEV_ENV: INPUT_TAG
 
   publish-pypi:
     name: publish / pypi
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: pypi-publish
     permissions:
@@ -85,23 +75,21 @@ jobs:
           persist-credentials: false
           fetch-tags: true
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
-        with:
-          python-version-file: ".python-version"
-
       - run: make release-pypi
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
+        with:
+          packages-dir: target/dist/
 
       - name: Attest PyPI provenance
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
         with:
-          subject-path: "dist/*"
+          subject-path: "target/dist/*"
 
   publish-go:
     name: publish / go (pkg.go.dev)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: go-publish
     permissions:
@@ -111,13 +99,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6.3.0
-        with:
-          go-version-file: go.mod
-          # No module cache in a publish job: a poisoned cache must not reach a release.
-          cache: false
-
       - run: make release-go
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
+          KEELCORE_DEV_ENV: INPUT_TAG

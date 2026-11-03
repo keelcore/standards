@@ -36,6 +36,9 @@ venv/
 # Go
 /vendor/
 
+# Build, test and coverage outputs (the only path the dev image writes in the repository)
+/target/
+
 # Script log files (written by scripts/lint.sh, scripts/release/*.sh, etc.)
 /tmp/*.log
 

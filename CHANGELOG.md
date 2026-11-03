@@ -14,6 +14,19 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- Tool images (`governance/ci.md` v1.5.0 "Tool Images"): every tool target runs in an immutable image, locally
+  (Apple `container`) and in CI (docker), with the repository mounted read-only and `target/` writable
+  (`scripts/dev/run.sh`; `--writable` for `format`, `coverage-baseline-init` and `release-npm`). `containers/dev`
+  bakes in Go 1.27.3, Node 22.23.3, npm 11.21.0 (lockfile), shellcheck, bats, markdownlint, staticcheck, gitleaks,
+  syft and cosign; `containers/pypi` carries CPython 3.12.15 and the hash-locked build tooling. Hosts install no
+  tools: workflows drop every `setup-*` step and `actions/setup-go|node|python`, and the macOS Homebrew installs are
+  gone. `dev-image.yml` publishes each image to GHCR by build context (`ctx-<hash>`), per-architecture native builds
+  joined into a signed multi-arch index; `make dev-image-ref` pins it by digest (`containers/NAME/image.ref`);
+  `make dev-shell` opens a shell in the image. New canonical installers `setup-gitleaks.sh` and `setup-cosign.sh`
+  (per-architecture SHA-256); syft gains its arm64 SHA-256; `secret-scan.sh` no longer installs at run time
+- `update-pins`: packages a Containerfile installs at build time are pinned by its image digest once
+  `image.ref` exists, and float until then
+
 - `make update-pins` verifies: each stale pin is applied alone in a throwaway git worktree (submodules from the local
   clones, private tool bin and npm prefix), exercised by the make targets for its kind, and rolled back — a failing pin
   never stops the others — then all passing pins run together (`lint audit test`, or the project's combined targets).
@@ -34,6 +47,16 @@ Corrections, clarifications, metadata: patch bump.
 - `.nvmrc` pins the exact Node LTS release (`22.23.3`), not the major
 - `make lint-go` runs `go vet` and `staticcheck` in every repo-owned Go module after the gofmt check;
   `scripts/ci/setup-staticcheck.sh` and `make setup-staticcheck` (pinned v0.8.2) are canonical
+- Everything else pinned exactly (`governance/ci.md` v1.4.0 "Pin Refresh"): the Go toolchain (`toolchain go1.27.3`;
+  `go 1.22` stays the consumers' minimum); runners by image label (`ubuntu-24.04`, never `*-latest`); Python
+  (`.python-version` 3.12.15); the PyPI build tooling as a hash-locked closure
+  (`scripts/release/pypi/requirements-build.txt`, installed `--require-hashes`, built `--no-isolation`; exact
+  build-system requirements in `pyproject.toml`); markdownlint from a committed lockfile (`scripts/ci/markdownlint/`,
+  `npm ci` into a cache keyed by the lockfile; `scripts/lib/markdownlint.sh`); shellcheck (v0.11.0, per-arch
+  SHA-256) and bats (v1.14.0, verified commit) on Linux instead of unversioned apt packages
+- `update-pins` kinds `runner` (newer images report-only), `python`, `pypi` (hashes follow the version), `npmlock`
+  (lockfile regenerated outside the cooldown), and release tags cloned with git (`*_COMMIT` follows the version);
+  `*-latest` runners, npx and pip installs without a version or hashes, and package.json ranges report as `unpinned`
 
 - `make update-pins` (`scripts/release/update-pins.sh`): discovers every pinned external input (workflow action SHAs,
   image digests, GitHub-release tools, Go tools, Go toolchain, go.mod requirements, npm, Node) plus inputs that float
@@ -68,6 +91,14 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- Audit Rule 5 checks the script a tool-image recipe runs (`bash scripts/dev/run.sh ... bash scripts/X.sh`), not
+  only the runner
+- Markdown lint ran `npx --yes markdownlint-cli2` at whatever version npm served, because `setup-markdownlint`
+  installed a different package (`markdownlint-cli`); it now runs the pinned, lockfile-installed markdownlint. The
+  unused `markdownlint-cli2` devDependency is gone from `package.json`
+- `sbom.sh` install hints name `make setup-syft` instead of piping syft's `main` install script to `sh`
+- `update-pins` retries every failed fetch (`--retry-all-errors`: dropped HTTP/2 streams and timeouts were reported
+  as `unresolved`), and skips the project hook when scanning (its quoted patterns were reported as pins)
 - PyPI publish: `pypa/gh-action-pypi-publish` v1.13.0 → v1.14.3. Its bundled `packaging` 25.0 rejected the wheel's
   metadata version 2.5 (written by current hatchling), so v0.10.0 never reached PyPI; v1.14.3 bundles `packaging` 26.2,
   which accepts 2.5

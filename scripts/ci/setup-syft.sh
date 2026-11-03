@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # setup-syft.sh
-# Install a pinned, checksum-verified syft binary on a Linux CI runner.
+# Install a pinned, checksum-verified syft binary (Linux; runs when the dev image is built).
 # Downloads the release tarball and verifies its SHA256 before installing —
 # never pipes a remote installer into a shell. No-op if the pinned version is
 # already present.
 #
 # Pinned version: v1.42.1
-# Update SYFT_VERSION and SYFT_SHA256 together when bumping.
+# Update SYFT_VERSION and the SYFT_SHA256_* sums together when bumping (make update-pins does).
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -19,8 +19,14 @@ set -o errexit
 set -o pipefail
 
 readonly SYFT_VERSION='1.42.1'
-readonly SYFT_SHA256='989ded4e772810f93de6ccdc4512f79a6dabb5fb2dd2a9ffc72a80c955e6125a'
-readonly SYFT_TARBALL="syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+readonly SYFT_SHA256_AMD64='989ded4e772810f93de6ccdc4512f79a6dabb5fb2dd2a9ffc72a80c955e6125a'
+readonly SYFT_SHA256_ARM64='dfc9ac5fffa8fea95b4f84b427e200dbb2bd9bd0bbf2760d1a9369715b60a91d'
+if [ "$(uname -m)" = 'aarch64' ]; then
+  readonly SYFT_ARCH='arm64' SYFT_SHA256="${SYFT_SHA256_ARM64}"
+else
+  readonly SYFT_ARCH='amd64' SYFT_SHA256="${SYFT_SHA256_AMD64}"
+fi
+readonly SYFT_TARBALL="syft_${SYFT_VERSION}_linux_${SYFT_ARCH}.tar.gz"
 readonly SYFT_URL="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/${SYFT_TARBALL}"
 readonly SYFT_INSTALL_PATH='/usr/local/bin/syft'
 
@@ -50,6 +56,10 @@ function validate_args() {
   fi
 }
 
+function as_root() {
+  if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi
+}
+
 function is_pinned_version_installed() {
   command -v syft >/dev/null 2>&1 && \
     syft version 2>/dev/null | grep -qF "${SYFT_VERSION}"
@@ -57,8 +67,7 @@ function is_pinned_version_installed() {
 
 function require_linux() {
   if [[ "$(uname -s)" != 'Linux' ]]; then
-    log "ERROR: setup-syft.sh only supports Linux CI runners"
-    log "  For macOS: brew install syft"
+    log 'ERROR: syft installs in the dev image (Linux); run the release targets through make'
     exit 1
   fi
 }
@@ -90,8 +99,8 @@ function extract_binary() {
 }
 
 function install_syft() {
-  sudo mv /tmp/syft-staged "${SYFT_INSTALL_PATH}"
-  sudo chmod +x "${SYFT_INSTALL_PATH}"
+  as_root mv /tmp/syft-staged "${SYFT_INSTALL_PATH}"
+  as_root chmod +x "${SYFT_INSTALL_PATH}"
 }
 
 main "${@:-}"

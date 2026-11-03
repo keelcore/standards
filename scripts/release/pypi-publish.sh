@@ -3,6 +3,9 @@
 # Builds the keelcore-standards wheel and sdist for PyPI.
 # Version is read from the git tag via hatch-vcs — no manual version management.
 # Upload is handled by pypa/gh-action-pypi-publish (Trusted Publisher / OIDC) in CI.
+# Runs in the PyPI build image (containers/pypi), which carries CPython and the hash-locked
+# build tooling (scripts/release/pypi/requirements-build.txt); the build runs without
+# isolation, so nothing else is installed. Artifacts: target/dist/.
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -17,7 +20,6 @@ set -o pipefail
 function main() {
   exec 5>&1
   validate_env
-  install_tooling
   build
 }
 
@@ -30,19 +32,9 @@ function validate_env() {
   log '✅ Environment valid'
 }
 
-function install_tooling() {
-  log 'Installing hatch and hatch-vcs...'
-  if [ -n "${CI:-}" ]; then
-    pip install --quiet hatch hatch-vcs
-  else
-    command -v hatch >/dev/null 2>&1 || pipx install hatch
-  fi
-  log '✅ Tooling installed'
-}
-
 function build() {
   log 'Building wheel and sdist...'
-  hatch build
+  python -m build --no-isolation --outdir target/dist
   log '✅ Artifacts built'
 }
 

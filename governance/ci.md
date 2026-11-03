@@ -2,7 +2,7 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
-**Maturity:** Required **Version:** 1.3.0 **Last Reviewed:** 2026-11-02
+**Maturity:** Required **Version:** 1.5.0 **Last Reviewed:** 2026-11-03
 
 ## Core Principle
 
@@ -248,11 +248,43 @@ Rules:
 - Single source of truth: language version file (e.g. `go.mod`, `.nvmrc`, `.python-version`).
 - Never hardcode toolchain version in workflow YAML.
 
+## Tool Images
+
+Every tool runs in an immutable tool image, on developer machines and in CI alike. Hosts install no tools: they
+need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS, docker on Linux).
+
+- **Definition:** `containers/NAME/Containerfile` (`dev` for the lint, test and release tools; one per extra
+  toolchain, e.g. `pypi`). Base images are pinned by digest; each tool is installed at build time by its
+  `scripts/ci/setup-<tool>.sh`, which verifies a committed checksum, commit SHA, lockfile integrity or the Go
+  checksum database. A consumer's dev image builds `FROM` the `.standards` dev image (`ARG BASE_DEV_IMAGE`).
+- **Build time only:** packages and tools are installed when the image is built; nothing is installed or updated
+  when a target runs.
+- **Run:** each tool target runs `scripts/dev/run.sh`, which starts the image with the repository mounted
+  read-only and `target/` (outputs) writable. Targets whose job is editing tracked files (`format`,
+  `coverage-baseline-init`, a publish step that stamps a version) mount it writable explicitly (`--writable`).
+  `make dev-shell` opens a shell in the image.
+- **Identity:** an image is identified by its build context (the Containerfile, every file it copies, and its base
+  image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per architecture, joined into
+  a multi-arch index and signed keyless. `make dev-image-ref` pins the published image by digest in
+  `containers/NAME/image.ref`; until a context is published and pinned, `run.sh` builds that context locally.
+- **Workflows** run the same `make` targets: no `setup-*` steps and no `actions/setup-<language>` actions in jobs
+  that run tool targets.
+
 ## Pin Refresh
 
-Every external input is pinned exactly: actions by commit SHA, images by digest, release-asset tools by version
-and committed SHA-256, Go tools and modules by version, toolchains and runtimes by exact version. Pins are refreshed by
-`make update-pins` (`scripts/release/update-pins.sh`), not by hand.
+Every external input is pinned exactly:
+
+- actions by commit SHA; images by digest;
+- release-asset tools by version and committed SHA-256; a tool built from a release tag by version and committed
+  commit SHA;
+- Go tools and modules by version; the Go toolchain by the `toolchain` directive in `go.mod`;
+- Node (`.nvmrc`) and Python (`.python-version`) by exact release;
+- npm tools from a committed `package-lock.json` (`npm ci`); pip packages from a hash-locked requirements file
+  (`--require-hashes`), with exact build-system requirements in `pyproject.toml`;
+- runners by an exact image label (`ubuntu-24.04`), never `*-latest`. Job names use a stable platform name, so a
+  runner bump never renames a required check.
+
+Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not by hand.
 
 1. **Discovery** finds every pin and every input that floats unpinned, and resolves each pin's newest eligible
    candidate from published metadata only (no binaries are downloaded).

@@ -1,0 +1,53 @@
+# containers/dev/Containerfile
+# keelcore-standards dev image: every tool the canonical make targets run, at
+# its pinned version, installed once at build time. Nothing is installed or
+# updated at run time: scripts/dev/run.sh runs make targets in this image with
+# the repository mounted read-only. Build context: the repository root.
+#
+# Base images are pinned by digest (multi-arch indexes: linux/amd64, linux/arm64).
+# Tools are installed by the canonical setup scripts, each verifying its
+# committed checksum, commit SHA, lockfile integrity or Go checksum database.
+
+FROM node:22.23.3-trixie-slim@sha256:28d03803f09ba76560e273af33beb7eda4ed68fa0698bc9bd15e9a6e35693923 AS node
+
+FROM golang:1.27.3@sha256:2920bb124f1a2e12a1d39f0cab756ae0068441ee1da7655dec7f5e374944095b
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends jq xz-utils \
+ && rm -rf /var/lib/apt/lists/*
+
+# Node (.nvmrc) from the official image; the npm CLI from its committed lockfile
+# (scripts/ci/npm: npm ci checks every package against its integrity hash).
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY scripts/ci/npm/ /opt/npm-cli/
+RUN /usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js ci --prefix /opt/npm-cli \
+      --ignore-scripts --no-audit --no-fund \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+ && ln -s /opt/npm-cli/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s /opt/npm-cli/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+ENV GOTOOLCHAIN=local \
+    XDG_CACHE_HOME=/opt/cache \
+    KEELCORE_DEV_IMAGE=1
+
+COPY scripts/lib/markdownlint.sh /opt/keelcore/scripts/lib/
+COPY scripts/ci/setup-bats.sh scripts/ci/setup-cosign.sh scripts/ci/setup-gitleaks.sh scripts/ci/setup-markdownlint.sh \
+     scripts/ci/setup-shellcheck.sh scripts/ci/setup-staticcheck.sh scripts/ci/setup-syft.sh \
+     /opt/keelcore/scripts/ci/
+COPY scripts/ci/markdownlint/ /opt/keelcore/scripts/ci/markdownlint/
+
+WORKDIR /opt/keelcore
+RUN bash scripts/ci/setup-shellcheck.sh \
+ && bash scripts/ci/setup-bats.sh \
+ && bash scripts/ci/setup-markdownlint.sh \
+ && bash scripts/ci/setup-staticcheck.sh \
+ && bash scripts/ci/setup-gitleaks.sh \
+ && bash scripts/ci/setup-syft.sh \
+ && bash scripts/ci/setup-cosign.sh \
+ && go clean -modcache -cache
+
+# The repository is mounted from the host (another owner); git trusts it.
+RUN git config --system safe.directory '*'
+
+WORKDIR /work

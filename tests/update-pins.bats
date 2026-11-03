@@ -278,3 +278,128 @@ dependabot() {
   [[ "$(row 'alpine:3.22')" == *'current'*'(dependabot: 3.23, PR #8)'* ]] || false
   [[ "$(row 'example.com/lib')" != *'9.9.9'* ]] || false
 }
+
+@test "runner: an exact image label is a pin; a newer image is report-only; -latest floats" {
+  printf 'jobs:\n  a:\n    runs-on: ubuntu-24.04\n  b:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        include:\n          - os: macos-26\n  c:\n    runs-on: windows-latest\n' \
+    > .github/workflows/runners.yml
+  fixture 'https://raw.githubusercontent.com/actions/runner-images/main/README.md' \
+    $'| x | `ubuntu-24.04` |\n| y | `ubuntu-26.04` |\n| z | `ubuntu-26.04-arm` |\n| m | `macos-26` |\n'
+  commit
+  pins
+  [[ "$(row 'ubuntu-24.04')" == *'ubuntu-26.04'*'major'*'(report-only)'* ]] || false
+  [[ "$(row 'macos-26')" == *'current'* ]] || false
+  [[ "$(row 'windows-latest')" == *'unpinned'*'floats (runner image)'* ]] || false
+}
+
+@test "python: newest eligible patch in the pinned minor; a minor-only pin floats" {
+  printf '3.12.15\n' > .python-version
+  mkdir -p sub && printf '3.12\n' > sub/.python-version
+  fixture 'https://api.github.com/repos/actions/python-versions/releases?per_page=100' "$(jq -n \
+    --arg old "$(iso 30)" --arg fresh "$(iso 3)" '[
+      {tag_name: "3.12.16-100", draft: false, prerelease: false, published_at: $old},
+      {tag_name: "3.12.17-101", draft: false, prerelease: false, published_at: $fresh},
+      {tag_name: "3.13.9-102", draft: false, prerelease: false, published_at: $old}]')"
+  commit
+  pins
+  [[ "$(grep -F '(.python-version:1)' <<< "${output}")" == *'3.12.16'*'stale'* ]] || false
+  [[ "$(grep -F '(sub/.python-version:1)' <<< "${output}")" == *'unpinned'*'minor only'* ]] || false
+}
+
+@test "pypi: hash-locked requirement and exact build-system requirement; pip without hashes floats" {
+  printf 'build==1.0.0 \\\n    --hash=sha256:%s\n' "${FOO_OLD_HEX}" > requirements-build.txt
+  printf '[build-system]\nrequires = ["hatchling==1.0.0"]\n' > pyproject.toml
+  printf '#!/usr/bin/env bash\npip install --quiet hatch\n' > scripts/ci/setup-py.sh
+  fixture 'https://pypi.org/pypi/build/json' "$(jq -n --arg old "$(iso 300)" --arg new "$(iso 20)" '{releases: {
+    "1.0.0": [{upload_time_iso_8601: $old, yanked: false}],
+    "1.1.0": [{upload_time_iso_8601: $new, yanked: false}],
+    "1.2.0rc1": [{upload_time_iso_8601: $new, yanked: false}]}}')"
+  fixture 'https://pypi.org/pypi/hatchling/json' "$(jq -n --arg old "$(iso 300)" '{releases: {
+    "1.0.0": [{upload_time_iso_8601: $old, yanked: false}]}}')"
+  commit
+  pins
+  [[ "$(row 'build')" == *'1.1.0'*'stale'* ]] || false
+  [[ "$(row 'hatchling')" == *'current'* ]] || false
+  [[ "$(row 'pip:hatch')" == *'unpinned'* ]] || false
+}
+
+@test "npmlock: exact dependency beside a lockfile is a pin; a range and npx without a version float" {
+  mkdir -p tools/lint
+  printf '{\n  "dependencies": {\n    "lintcli": "1.0.0"\n  }\n}\n' > tools/lint/package.json
+  printf '{}\n' > tools/lint/package-lock.json
+  printf '{\n  "devDependencies": {\n    "loose": "^2.0.0"\n  }\n}\n' > package.json
+  printf '#!/usr/bin/env bash\nnpx --yes some-cli .\n' > scripts/ci/setup-npx.sh
+  fixture 'https://registry.npmjs.org/lintcli' "$(jq -n --arg old "$(iso 300)" --arg new "$(iso 20)" \
+    '{time: {"1.0.0": $old, "1.0.1": $new}}')"
+  commit
+  pins
+  [[ "$(row 'lintcli')" == *'1.0.1'*'stale'* ]] || false
+  [[ "$(row 'npm:loose')" == *'unpinned'* ]] || false
+  [[ "$(row 'npx:some-cli')" == *'unpinned'* ]] || false
+}
+
+@test "tool: a release tag cloned with git resolves against its GitHub repo" {
+  printf '#!/usr/bin/env bash\nreadonly QUX_VERSION=%s\nreadonly QUX_COMMIT=%s\ngit clone --branch "v${QUX_VERSION}" https://github.com/acme/qux.git\n' \
+    "'1.0.0'" "'${SHA_CHECKOUT}'" > scripts/ci/setup-qux.sh
+  fixture 'https://api.github.com/repos/acme/qux/releases?per_page=100' "$(jq -n \
+    --arg old "$(iso 300)" --arg new "$(iso 20)" '[
+      {tag_name: "v1.0.0", draft: false, prerelease: false, published_at: $old},
+      {tag_name: "v1.1.0", draft: false, prerelease: false, published_at: $new}]')"
+  commit
+  pins
+  [[ "$(row 'QUX')" == *'v1.1.0'*'stale'* ]] || false
+}
+
+@test "verify --apply on Linux: a cloned tool's commit follows its version" {
+  printf '#!/usr/bin/env bash\nreadonly QUX_VERSION=%s\nreadonly QUX_COMMIT=%s\ngit clone --branch "v${QUX_VERSION}" https://github.com/acme/qux.git\n' \
+    "'1.0.0'" "'${SHA_CHECKOUT}'" > scripts/ci/setup-qux.sh
+  printf 'setup-qux:\n\t@true scripts/ci/setup-qux.sh\n' >> Makefile
+  fixture 'https://api.github.com/repos/acme/qux/releases?per_page=100' "$(jq -n \
+    --arg old "$(iso 300)" --arg new "$(iso 20)" '[
+      {tag_name: "v1.0.0", draft: false, prerelease: false, published_at: $old},
+      {tag_name: "v1.1.0", draft: false, prerelease: false, published_at: $new}]')"
+  fixture 'https://api.github.com/repos/acme/qux/releases/tags/1.0.0' '{"assets": []}'
+  fixture 'https://api.github.com/repos/acme/qux/releases/tags/v1.1.0' '{"assets": []}'
+  fixture 'https://api.github.com/repos/acme/qux/commits/v1.1.0' "{\"sha\":\"${SHA_CHECKOUT_NEW}\"}"
+  checkout_fixture
+  commit
+  export UPDATE_PINS_PLATFORM=Linux
+  verify --apply
+  [[ "$(result 'QUX')" == *'pass'*'make setup-qux'* ]] || false
+  grep -q "QUX_VERSION='1.1.0'" scripts/ci/setup-qux.sh
+  grep -q "QUX_COMMIT='${SHA_CHECKOUT_NEW}'" scripts/ci/setup-qux.sh
+}
+
+@test "verify --apply: a pypi pin's hashes follow its version" {
+  printf 'build==1.0.0 \\\n    --hash=sha256:%s \\\n    --hash=sha256:%s\nother==2.0.0 \\\n    --hash=sha256:%s\n' \
+    "${FOO_OLD_HEX}" "${FOO_OLD_HEX}" "${FOO_OLD_HEX}" > requirements-build.txt
+  # The project hook verifies pypi pins locally with lint.
+  printf '#!/usr/bin/env bash\ncase "${1}" in\n  verify) [ "${2}" = pypi ] && printf lint ;;\n  apply) exit 3 ;;\nesac\nexit 0\n' \
+    > scripts/release/update-pins.local.sh
+  fixture 'https://pypi.org/pypi/build/json' "$(jq -n --arg old "$(iso 300)" --arg new "$(iso 20)" '{releases: {
+    "1.0.0": [{upload_time_iso_8601: $old, yanked: false}],
+    "1.1.0": [{upload_time_iso_8601: $new, yanked: false}]}}')"
+  fixture 'https://pypi.org/pypi/other/json' "$(jq -n --arg old "$(iso 300)" '{releases: {
+    "2.0.0": [{upload_time_iso_8601: $old, yanked: false}]}}')"
+  fixture 'https://pypi.org/pypi/build/1.1.0/json' "$(jq -n --arg a "${FOO_NEW_HEX}" --arg b "${DIGEST#sha256:}" \
+    '{urls: [{digests: {sha256: $a}}, {digests: {sha256: $b}}]}')"
+  checkout_fixture
+  commit
+  verify --apply
+  [[ "$(result 'build')" == *'pass'*'make lint'* ]] || false
+  grep -q '^build==1.1.0 \\$' requirements-build.txt
+  grep -q "sha256:${FOO_NEW_HEX}" requirements-build.txt
+  grep -q "sha256:${DIGEST#sha256:}" requirements-build.txt
+  [ "$(grep -c "sha256:${FOO_OLD_HEX}" requirements-build.txt)" -eq 1 ]
+  grep -q '^other==2.0.0 \\$' requirements-build.txt
+}
+
+@test "unpinned: build-time packages float until the tool image is pinned by digest" {
+  mkdir -p containers/dev containers/other
+  printf 'FROM scratch\nRUN apt-get install -y jq\n' > containers/dev/Containerfile
+  printf 'example.invalid/x-dev:ctx-1@%s\n' "${DIGEST}" > containers/dev/image.ref
+  printf 'FROM scratch\nRUN apt-get install -y xz-utils\n' > containers/other/Containerfile
+  commit
+  pins
+  [ -z "$(row 'apt:jq')" ]
+  [[ "$(row 'apt:xz-utils')" == *'unpinned'* ]] || false
+}

@@ -20,14 +20,22 @@
 # Pin kinds:
 #   action     workflow `uses: owner/repo@<sha>  # vX.Y.Z`
 #   image      `name:tag@sha256:<digest>` in any repo-owned file
-#   tool       `X_VERSION=` in a file that downloads a GitHub release asset
+#   tool       `X_VERSION=` in a file that downloads a GitHub release asset, or
+#              clones its release tag (`*_COMMIT=` is the verified commit)
 #   gotool     `go install module@version` (TOOL_MODULE/TOOL_VERSION, X_MODULE='m@v')
 #   toolchain  go.mod `toolchain goX.Y.Z`
 #   gomod      go.mod direct requirements (go.sum + vendor/ follow them)
 #   npm        `npm install <pkg>@<version>` (literal or X_VERSION variable)
 #   node       .nvmrc
+#   python     .python-version (CPython builds published for setup-python)
+#   pypi       `name==version` in a hash-locked requirements file, or an exact
+#              pyproject build-system requirement
+#   npmlock    exact dependencies of a package.json beside its package-lock.json
+#   runner     workflow `runs-on:` / matrix `os:` image labels (newer images report-only)
 #   unpinned   inputs that float: @latest, apk/apt packages without a version,
-#              Homebrew installs, FROM / image: references without a digest
+#              Homebrew installs, FROM / image: references without a digest,
+#              `*-latest` runners, npx and pip installs without a version or
+#              hashes, package.json version ranges
 #   unresolved an X_VERSION= pin no adapter recognizes (listed, never skipped)
 #
 # Eligibility of a candidate: not a prerelease; published at least 14 days ago
@@ -186,6 +194,10 @@ function discover_generic() {
   discover_gomods
   discover_npm
   discover_node
+  discover_runners
+  discover_python
+  discover_pypi
+  discover_npmlock
   discover_unpinned
 }
 
@@ -206,10 +218,10 @@ function grep_files() {
   grep -HnE "${re}" "${files[@]}" 2>/dev/null | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true
 }
 
-# files_of GLOB...: repo-owned files, minus this driver (it quotes every pattern it
-# looks for).
+# files_of GLOB...: repo-owned files, minus this driver and the project hook (both
+# quote the patterns they look for and rewrite).
 function files_of() {
-  source_files "$@" | grep_exclude -vxF 'scripts/release/update-pins.sh'
+  source_files "$@" | grep_exclude -vxF -e 'scripts/release/update-pins.sh' -e "${LOCAL_HOOK}"
 }
 
 function discover_actions() {
@@ -243,6 +255,9 @@ function discover_tools() {
   while IFS= read -r file; do
     repo="$(grep -oE 'github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases/download' "${file}" | head -1 \
       | cut -d/ -f2-3)"
+    # A release tag cloned with git (`git clone --branch v${X_VERSION} https://github.com/O/R.git`).
+    [ -n "${repo}" ] || repo="$(grep -oE 'github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_-]+\.git' "${file}" | head -1 \
+      | cut -d/ -f2-3 | sed 's/\.git$//')"
     while IFS= read -r line; do
       [ -n "${line}" ] || continue
       var="$(sed -E 's/^[^:]+:[0-9]+:(.*[^A-Z0-9_])?([A-Z0-9_]+_VERSION)=.*/\2/' <<< "${line}")"
@@ -339,6 +354,74 @@ function discover_node() {
   done < <(files_of '.nvmrc' '*/.nvmrc')
 }
 
+# Workflow runner labels (`runs-on:` or a matrix `os:`) that name an exact image.
+function discover_runners() {
+  local line label
+  while IFS= read -r line; do
+    [ -n "${line}" ] || continue
+    label="$(sed -E 's/.*(runs-on|os):[[:space:]]*["'\'']?([a-z]+-[0-9][A-Za-z0-9.-]*).*/\2/' <<< "${line#*:*:}")"
+    record runner "${label}" "$(cut -d: -f1-2 <<< "${line}")" "${label}" 'runner-images'
+  done < <(files_of '.github/workflows/*.yml' '.github/workflows/*.yaml' \
+    | grep_files '^[[:space:]]*(-[[:space:]]+)?(runs-on|os):[[:space:]]*["'\'']?(ubuntu|macos|windows)-[0-9]')
+}
+
+# .python-version: the exact CPython release setup-python installs.
+function discover_python() {
+  local f
+  while IFS= read -r f; do
+    [ -n "${f}" ] || continue
+    record python python "${f}:1" "$(tr -d '[:space:]' < "${f}")" 'python-versions'
+  done < <(files_of '.python-version' '*/.python-version')
+}
+
+# Hash-locked pip requirements (`name==version` + --hash lines) and exact
+# pyproject build-system requirements.
+function discover_pypi() {
+  local line spec
+  while IFS= read -r line; do
+    [ -n "${line}" ] || continue
+    spec="$(sed -E 's/^[^:]+:[0-9]+:[[:space:]]*([A-Za-z0-9._-]+==[^[:space:]\\]+).*/\1/' <<< "${line}")"
+    record pypi "${spec%%==*}" "$(cut -d: -f1-2 <<< "${line}")" "${spec##*==}" "pypi:${spec%%==*}"
+  done < <(files_of '*requirements*.txt' | grep_files '^[A-Za-z0-9._-]+==[0-9]')
+  while IFS= read -r line; do
+    [ -n "${line}" ] || continue
+    while IFS= read -r spec; do
+      [ -n "${spec}" ] || continue
+      record pypi "${spec%%==*}" "$(cut -d: -f1-2 <<< "${line}")" "${spec##*==}" "pypi:${spec%%==*}"
+    done < <(grep -oE '"[A-Za-z0-9._-]+==[0-9][^"]*"' <<< "${line#*:*:}" | tr -d '"')
+  done < <(files_of 'pyproject.toml' '*/pyproject.toml' | grep_files '^requires[[:space:]]*=')
+}
+
+# Exact dependency versions in a package.json that sits next to its
+# package-lock.json (the lockfile pins the rest of the tree).
+function discover_npmlock() {
+  local pkg dir
+  while IFS= read -r pkg; do
+    [ -n "${pkg}" ] || continue
+    dir="$(dirname "${pkg}")"
+    [ -f "${dir}/package-lock.json" ] || continue
+    awk -v f="${pkg}" '
+      /"(dependencies|devDependencies)"[[:space:]]*:/ { blk = 1; next }
+      blk && /}/ { blk = 0; next }
+      blk && match($0, /"[^"]+"[[:space:]]*:[[:space:]]*"[0-9][0-9.]*"/) {
+        split(substr($0, RSTART, RLENGTH), kv, "\"")
+        printf "npmlock\t%s\t%s:%d\t%s\tnpm:%s\n", kv[2], f, NR, kv[4], kv[2]
+      }' "${pkg}"
+  done < <(files_of 'package.json' '*/package.json')
+}
+
+# digest_pinned_filter: drop file:line:text matches from a Containerfile whose image is
+# pinned by digest (containers/NAME/image.ref) — packages it installs at build time are
+# fixed by that digest.
+function digest_pinned_filter() {
+  local line file
+  while IFS= read -r line; do
+    file="${line%%:*}"
+    [[ "${file}" == */Containerfile ]] && [ -s "$(dirname "${file}")/image.ref" ] && continue
+    printf '%s\n' "${line}"
+  done
+}
+
 function discover_unpinned() {
   local line
   while IFS= read -r line; do
@@ -349,12 +432,13 @@ function discover_unpinned() {
     [ -n "${line}" ] || continue
     record unpinned "apk:$(sed -E 's/.*apk add[[:space:]]+(--[a-z-]+[[:space:]]+)*//' <<< "${line}" | tr -s ' ' ',')" \
       "$(cut -d: -f1-2 <<< "${line}")" 'no version' 'floats'
-  done < <(files_of '*Containerfile*' '*Dockerfile*' '*.sh' | grep_files 'apk add' | grep -vE 'apk add[^#]*=[0-9]')
+  done < <(files_of '*Containerfile*' '*Dockerfile*' '*.sh' | grep_files 'apk add' | grep -vE 'apk add[^#]*=[0-9]' | digest_pinned_filter)
   while IFS= read -r line; do
     [ -n "${line}" ] || continue
     record unpinned "apt:$(sed -E 's/.*apt(-get)? install[[:space:]]+(-[a-zA-Z-]+[[:space:]]+)*//; s/[[:space:]]+--.*//' <<< "${line}" | tr -s ' ' ',')" \
       "$(cut -d: -f1-2 <<< "${line}")" 'no version' 'floats'
-  done < <(files_of '*.sh' '*Containerfile*' '*Dockerfile*' | grep_files 'apt(-get)? install' | grep -v "log '" | grep -vE 'install[^#]*=[0-9]')
+  done < <(files_of '*.sh' '*Containerfile*' '*Dockerfile*' | grep_files 'apt(-get)? install' | grep -v "log '" | grep -vE 'install[^#]*=[0-9]' \
+    | digest_pinned_filter)
   while IFS= read -r line; do
     [ -n "${line}" ] || continue
     record unpinned "brew:$(sed -E "s/.*brew install[[:space:]]+([^;|&\"')]+).*/\1/" <<< "${line}" | xargs | tr ' ' ',')" \
@@ -371,6 +455,28 @@ function discover_unpinned() {
       "$(cut -d: -f1-2 <<< "${line}")" 'no digest' 'floats'
   done < <(files_of '*.yml' '*.yaml' | grep_files '^[[:space:]]*(-[[:space:]]+)?image:[[:space:]]*[a-z]' \
     | grep -v '@sha256:' | grep -v '{{')
+  while IFS= read -r line; do
+    [ -n "${line}" ] || continue
+    record unpinned "$(grep -oE '(ubuntu|macos|windows)-latest' <<< "${line#*:*:}" | head -1)" "$(cut -d: -f1-2 <<< "${line}")" \
+      'latest' 'floats (runner image)'
+  done < <(files_of '.github/workflows/*.yml' '.github/workflows/*.yaml' | grep_files '(ubuntu|macos|windows)-latest')
+  while IFS= read -r line; do
+    [ -n "${line}" ] || continue
+    record unpinned "npx:$(sed -E 's/.*npx[[:space:]]+(-[-a-z]+[[:space:]]+)*([^[:space:]"]+).*/\2/' <<< "${line#*:*:}")" \
+      "$(cut -d: -f1-2 <<< "${line}")" 'no version' 'floats'
+  done < <(files_of '*.sh' 'Makefile' '*.mk' '*.yml' '*.yaml' | grep_files 'npx[[:space:]]' | grep -v "log '" \
+    | grep -vE 'npx[[:space:]]+(-[-a-z]+[[:space:]]+)*[@a-z0-9][^[:space:]]*@[0-9]')
+  while IFS= read -r line; do
+    [ -n "${line}" ] || continue
+    record unpinned "pip:$(sed -E 's/.*pip[0-9]? install[[:space:]]+(-[-a-zA-Z]+[[:space:]]+)*//' <<< "${line#*:*:}" | xargs | tr ' ' ',')" \
+      "$(cut -d: -f1-2 <<< "${line}")" 'no version' 'floats'
+  done < <(files_of '*.sh' 'Makefile' '*.mk' '*.yml' '*.yaml' '*Containerfile*' '*Dockerfile*' \
+    | grep_files '(pip[0-9]?|pipx) install' | grep -v "log '" | grep -v -- '--require-hashes')
+  while IFS= read -r line; do
+    [ -n "${line}" ] || continue
+    record unpinned "npm:$(sed -E 's/^[^:]+:[0-9]+:[[:space:]]*"([^"]+)".*/\1/' <<< "${line}")" "$(cut -d: -f1-2 <<< "${line}")" \
+      'range' 'floats'
+  done < <(files_of 'package.json' '*/package.json' | grep_files '^[[:space:]]*"[^"]+"[[:space:]]*:[[:space:]]*"[~^>*]')
 }
 
 # ── resolution ───────────────────────────────────────────────────────────────
@@ -387,10 +493,10 @@ function fetch() {
     return
   fi
   if [[ "${url}" == https://api.github.com/* ]]; then
-    curl -fsL --retry 3 --retry-delay 2 --max-time 60 -H "Authorization: Bearer $(github_token)" \
+    curl -fsL --retry 3 --retry-all-errors --retry-delay 2 --max-time 60 -H "Authorization: Bearer $(github_token)" \
       -H 'Accept: application/vnd.github+json' "${url}"
   else
-    curl -fsL --retry 3 --retry-delay 2 --max-time 60 "${url}"
+    curl -fsL --retry 3 --retry-all-errors --retry-delay 2 --max-time 60 "${url}"
   fi
 }
 
@@ -476,6 +582,28 @@ function versions_node() {
   body="$(fetch 'https://nodejs.org/dist/index.json')" || { failed_lookup; return 0; }
   jq -r --arg m "v${1%%.*}." '.[] | select(.lts) | select(.version | startswith($m))
          | "\(.version)\t\(.date + "T00:00:00Z" | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
+    || failed_lookup
+}
+
+# versions_python CURRENT: "<X.Y.Z>\t<epoch>" for the CPython builds setup-python
+# publishes (actions/python-versions) in CURRENT's minor.
+function versions_python() {
+  local -r minor="$(cut -d. -f1-2 <<< "${1}")"
+  local body
+  body="$(fetch 'https://api.github.com/repos/actions/python-versions/releases?per_page=100')" || { failed_lookup; return 0; }
+  jq -r --arg m "${minor}." '.[] | select(.draft | not) | select(.prerelease | not)
+         | (.tag_name | sub("-.*$"; "")) as $v | select($v | startswith($m)) | select($v | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
+         | "\($v)\t\(.published_at | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
+    || failed_lookup
+}
+
+# versions_pypi PKG: "<version>\t<epoch>" for every final, unyanked release.
+function versions_pypi() {
+  local body
+  body="$(fetch "https://pypi.org/pypi/${1}/json")" || { failed_lookup; return 0; }
+  jq -r '.releases | to_entries[] | select(.value | length > 0) | select(.key | test("^[0-9]+(\\.[0-9]+)*$"))
+         | select(any(.value[]; .yanked) | not)
+         | "\(.key)\t\(.value[0].upload_time_iso_8601 | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
     || failed_lookup
 }
 
@@ -596,6 +724,14 @@ function resolve() {
       versions_npm "${source#npm:}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
     node)
       resolve_node "${current}" ;;
+    python)
+      resolve_python "${current}" ;;
+    pypi)
+      versions_pypi "${source#pypi:}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
+    npmlock)
+      versions_npm "${source#npm:}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
+    runner)
+      resolve_runner "${current}" ;;
     image)
       resolve_image "${name}" "${current}" ;;
     unpinned)
@@ -614,6 +750,46 @@ function resolve_node() {
     return
   fi
   versions_node "${current#v}" | choose "${current}" "${COOLDOWN_DAYS}"
+}
+
+function resolve_python() {
+  local -r current="${1}"
+  if [[ "${current}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    local latest
+    latest="$(versions_python "${current}" | grep -v '^!fail' | sort -t$'\t' -k1,1V | tail -1 | cut -f1)"
+    printf 'unpinned\t%s\t-\tminor only; pin the exact release\n' "${latest:--}"
+    return
+  fi
+  versions_python "${current}" | choose "${current}" "${COOLDOWN_DAYS}"
+}
+
+# resolve_runner LABEL: a newer image of the same family and shape (the labels
+# actions/runner-images lists) is report-only — an OS upgrade is never drop-in.
+function resolve_runner() {
+  local -r current="${1}"
+  local body labels shape label best=''
+  body="$(fetch 'https://raw.githubusercontent.com/actions/runner-images/main/README.md')" \
+    || { printf 'unresolved\t-\t-\trunner-images lookup failed\n'; return; }
+  labels="$(grep -oE '`[a-z]+-[0-9][A-Za-z0-9.-]*`' <<< "${body}" | tr -d '`' | sort -u)"
+  if ! grep -qxF -- "${current}" <<< "${labels}"; then
+    printf 'unresolved\t-\t-\tlabel not listed by actions/runner-images (retired?)\n'
+    return
+  fi
+  shape="$(sed -E 's/-[0-9]+(\.[0-9]+)?/-N/' <<< "${current}")"
+  while IFS= read -r label; do
+    [ "$(sed -E 's/-[0-9]+(\.[0-9]+)?/-N/' <<< "${label}")" = "${shape}" ] || continue
+    newer "$(runner_version "${label}")" "$(runner_version "${best:-${current}}")" && best="${label}"
+  done <<< "${labels}"
+  if [ -n "${best}" ]; then
+    printf 'major\t%s\t-\tnewer image %s (report-only)\n' "${best}" "${best}"
+  else
+    printf 'current\t-\t-\t\n'
+  fi
+}
+
+# runner_version LABEL: the OS version in a runner label (ubuntu-24.04 → 24.04).
+function runner_version() {
+  sed -E 's/^[a-z]+-([0-9]+(\.[0-9]+)?).*/\1/' <<< "${1}"
 }
 
 function resolve_image() {
@@ -942,6 +1118,8 @@ function verify_targets() {
       if [ "${PLATFORM}" = 'Linux' ] && [ -n "${setup}" ]; then printf '%s' "${setup}"; else printf 'verify-on-ci'; fi ;;
     toolchain)
       if [ "${PLATFORM}" = 'Linux' ]; then printf 'test'; else printf 'verify-on-ci'; fi ;;
+    npmlock)
+      printf 'lint' ;;
     *)
       printf 'verify-on-ci' ;;
   esac
@@ -953,6 +1131,8 @@ function verify_on_ci_reason() {
     toolchain) printf 'the toolchain switch is exercised on the CI runner' ;;
     image) printf 'image builds run in the CI stacks' ;;
     node) printf 'Node runs in CI only' ;;
+    python | pypi) printf 'Python runs in CI only (never on the host)' ;;
+    runner) printf 'runner images exist only on GitHub-hosted runners' ;;
     *) printf 'no local verification for this kind' ;;
   esac
 }
@@ -998,9 +1178,12 @@ function apply_pin() {
   case "${kind}" in
     action) apply_action "${root}" "${name}" "${current}" "${cand}" "${source#github:}" ;;
     image) replace_all "${root}" "${name}@${current}" "${name}@${cand}" ;;
-    tool) replace_at "${root}" "${locs}" "${current}" "${new}" && refresh_checksums "${root}" "${locs}" "${source#github:}" "${current}" "${cand}" ;;
-    gotool | toolchain | npm | node) replace_at "${root}" "${locs}" "${current}" "${new}" ;;
+    tool) replace_at "${root}" "${locs}" "${current}" "${new}" && refresh_checksums "${root}" "${locs}" "${source#github:}" "${current}" "${cand}" \
+      && refresh_commits "${root}" "${locs}" "${source#github:}" "${cand}" ;;
+    gotool | toolchain | npm | node | python | runner) replace_at "${root}" "${locs}" "${current}" "${new}" ;;
     gomod) apply_gomod "${root}" "${name}" "${cand}" "${locs}" ;;
+    pypi) replace_at "${root}" "${locs}" "${current}" "${new}" && refresh_pypi_hashes "${root}" "${locs}" "${name}" "${new}" ;;
+    npmlock) replace_at "${root}" "${locs}" "${current}" "${new}" && relock_npm "${root}" "${locs}" ;;
     *) printf 'no apply adapter for %s\n' "${kind}"; return 1 ;;
   esac
 }
@@ -1099,6 +1282,57 @@ function release_assets() {
   return 1
 }
 
+# refresh_commits ROOT LOCS REPO CAND: every committed `*_COMMIT=<sha>` in the
+# pin's files becomes the commit tag CAND points at (a tool cloned at its
+# release tag and verified against that commit).
+function refresh_commits() {
+  local -r root="${1}" locs="${2}" repo="${3}" cand="${4}"
+  local loc file sha all=()
+  IFS=',' read -r -a all <<< "${locs}"
+  for loc in "${all[@]}"; do
+    file="${loc%%:*}"
+    grep -qE '[A-Z0-9_]+_COMMIT=["'"'"']?[0-9a-f]{40}' "${root}/${file}" || continue
+    sha="$(fetch "https://api.github.com/repos/${repo}/commits/${cand}" | jq -r '.sha // empty')"
+    [[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || { printf 'no commit for %s@%s\n' "${repo}" "${cand}"; return 1; }
+    SHA="${sha}" perl -pi -e 's/([A-Z0-9_]+_COMMIT=["\x27]?)[0-9a-f]{40}/$1$ENV{SHA}/' "${root}/${file}"
+    printf '%s: commit %s (%s@%s)\n' "${file}" "${sha}" "${repo}" "${cand}"
+  done
+}
+
+# refresh_pypi_hashes ROOT LOCS PKG VERSION: in each requirements file among
+# LOCS, the --hash lines under PKG==VERSION become the sha256 of every file PyPI
+# publishes for that release.
+function refresh_pypi_hashes() {
+  local -r root="${1}" locs="${2}" pkg="${3}" version="${4}"
+  local loc file hashes all=()
+  hashes="$(fetch "https://pypi.org/pypi/${pkg}/${version}/json" | jq -r '.urls[].digests.sha256' | sort -u)"
+  [ -n "${hashes}" ] || { printf 'no files published for %s %s\n' "${pkg}" "${version}"; return 1; }
+  IFS=',' read -r -a all <<< "${locs}"
+  for loc in "${all[@]}"; do
+    file="${loc%%:*}"
+    [[ "${file}" == *requirements*.txt ]] || continue
+    PKG="${pkg}" VER="${version}" HASHES="${hashes}" perl -0pi -e '
+      my $h = join(" \\\n", map { "    --hash=sha256:$_" } split /\n/, $ENV{HASHES});
+      s/^(\Q$ENV{PKG}\E==\Q$ENV{VER}\E)[ \t]*\\\n(?:[ \t]+--hash=sha256:[0-9a-f]{64}[ \t]*\\?\n)+/$1 \\\n$h\n/m' "${root}/${file}"
+    grep -qF -- "${pkg}==${version} \\" "${root}/${file}" \
+      || { printf '%s: %s==%s hash block not rewritten\n' "${file}" "${pkg}" "${version}"; return 1; }
+  done
+}
+
+# relock_npm ROOT LOCS: regenerate the package-lock.json next to each
+# package.json among LOCS, resolving only releases outside the cooldown.
+function relock_npm() {
+  local -r root="${1}" locs="${2}"
+  local loc dir before all=()
+  before="$(jq -rn --argjson t "$(( NOW - COOLDOWN_DAYS * DAY ))" '$t | todate')"
+  IFS=',' read -r -a all <<< "${locs}"
+  for loc in "${all[@]}"; do
+    dir="$(dirname "${root}/${loc%%:*}")"
+    (cd "${dir}" && npm install --package-lock-only --ignore-scripts --no-audit --no-fund --before="${before}") \
+      || { printf 'npm lock regeneration failed in %s\n' "${dir}"; return 1; }
+  done
+}
+
 # apply_gomod ROOT MODULE CAND LOCS: go get + tidy (+ vendor when the module vendors).
 function apply_gomod() {
   local -r root="${1}" module="${2}" cand="${3}" locs="${4}"
@@ -1161,6 +1395,10 @@ function consequence() {
     gomod) printf 'known CVEs in linked dependencies (govulncheck reports the reachable ones)' ;;
     npm) printf 'trusted publishing (OIDC) breaks when the registry raises its minimum client version' ;;
     node) printf 'an end-of-life runtime without security updates' ;;
+    python) printf 'unpatched CPython security fixes in the publish job' ;;
+    pypi) printf 'build-backend fixes and metadata-format support (an index rejects metadata a stale backend writes)' ;;
+    npmlock) printf 'linter rule fixes; vulnerable packages kept in the locked tree' ;;
+    runner) printf 'a retired image stops scheduling jobs; its preinstalled toolchains age' ;;
     *) printf 'unknown' ;;
   esac
 }

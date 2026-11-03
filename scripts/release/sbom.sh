@@ -6,7 +6,7 @@
 #   --out-dir DIR   directory to write sbom.spdx.json into (default: current directory)
 #
 # Requires: syft on PATH (https://github.com/anchore/syft)
-# Install in CI: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
+# Install: make setup-syft (pinned version, verified SHA-256)
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -35,7 +35,7 @@ function validate_env() {
   log 'Validating environment...'
   if ! command -v syft > /dev/null 2>&1; then
     log '❌ syft not found on PATH'
-    log '   Install: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin'
+    log '   Install: make setup-syft (pinned version, verified SHA-256)'
     exit 1
   fi
   log '✅ Environment valid'

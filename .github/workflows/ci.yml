@@ -13,6 +13,8 @@ concurrency:
 permissions:
   contents: read
 
+# Every make target runs its tools in the dev image (containers/dev/Containerfile, via
+# scripts/dev/run.sh and docker): no tool is installed on the runner.
 # Repositories are UTC internally (governance/devsecops.md): every step runs in UTC.
 env:
   TZ: UTC
@@ -20,7 +22,7 @@ env:
 jobs:
   audit:
     name: audit / makefile
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -30,7 +32,7 @@ jobs:
 
   pr-policy:
     name: policy / pr
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: github.event_name == 'pull_request'
     env:
@@ -47,7 +49,7 @@ jobs:
 
   check-governance:
     name: check / governance metadata
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -59,62 +61,45 @@ jobs:
 
   lint-markdown:
     name: lint / markdown
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
-        with:
-          node-version-file: ".nvmrc"
-          cache: "npm"
-          cache-dependency-path: "package-lock.json"
-
-      - run: make setup-markdownlint
       - run: make lint-newlines
       - run: make lint-markdown
 
   lint-bash:
     name: lint / bash
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
-
-      - run: make setup-shellcheck
       - run: make lint-bash
 
   integration-test:
     name: test / bats
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
-
-      - run: make setup-bats
       - run: make integration-test
 
   verify-go:
     name: verify / go module
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6.3.0
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - run: make setup-staticcheck
       - run: make verify-go
       - run: make lint-go
 

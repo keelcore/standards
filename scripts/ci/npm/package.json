@@ -1,0 +1,8 @@
+{
+  "name": "keelcore-npm-cli",
+  "private": true,
+  "description": "Pinned npm CLI for the dev image (trusted publishing needs npm >= 11.5); installed with npm ci from package-lock.json.",
+  "dependencies": {
+    "npm": "11.21.0"
+  }
+}
