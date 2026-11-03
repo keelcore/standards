@@ -12,6 +12,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+## [0.10.7] - 2026-11-03
+
 ### Added
 
 - The GitHub Release carries each artifact's provenance as its registry published it: npm's attestations
