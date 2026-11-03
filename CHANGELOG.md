@@ -96,6 +96,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `update-pins` reads the GitHub token once per run (`GITHUB_TOKEN`, else one `gh auth token`) and exports it; it ran
+  `gh auth token`, a keychain read, for every GitHub API request
 - `scripts/dev/run.sh`: a git worktree is mounted as a standalone /tmp snapshot like a submodule (its `.git` points
   outside it), the working directory is computed from the physical path (macOS `/tmp` and `/var` are symlinks), and
   image tags and snapshots are named by the repository's shared git directory, so every checkout reuses one image

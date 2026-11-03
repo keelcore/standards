@@ -86,7 +86,6 @@ readonly LOCAL_HOOK='scripts/release/update-pins.local.sh'
 readonly SEMVER_RE='^v?[0-9]+(\.[0-9]+)*$'
 
 NOW=0
-GH_TOKEN_CACHE=''
 HOLDS=''
 ROOT=''
 MODE='verify'
@@ -109,6 +108,7 @@ function main() {
   cd "${ROOT}"
   NOW="${UPDATE_PINS_NOW:-$(date -u +%s)}"
   PLATFORM="${UPDATE_PINS_PLATFORM:-$(uname -s)}"
+  cache_github_token
   if [ -n "${REPORT_OUT}" ]; then
     mkdir -p "$(dirname "${REPORT_OUT}")"
     : > "${REPORT_OUT}"
@@ -507,11 +507,20 @@ function fetch() {
   fi
 }
 
+# github_token: the token resolved once by cache_github_token (every fetch runs in a subshell, so
+# a lazy cache would be lost and `gh auth token`, a keychain read, would run per request).
 function github_token() {
-  if [ -z "${GH_TOKEN_CACHE}" ]; then
-    GH_TOKEN_CACHE="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+  printf '%s' "${GITHUB_TOKEN:-}"
+}
+
+# cache_github_token: GITHUB_TOKEN, else `gh auth token` read once, exported for every
+# subshell and child (verification worktrees, the project hook).
+function cache_github_token() {
+  [ -n "${UPDATE_PINS_FIXTURES:-}" ] && return 0
+  if [ -z "${GITHUB_TOKEN:-}" ]; then
+    GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
   fi
-  printf '%s' "${GH_TOKEN_CACHE}"
+  export GITHUB_TOKEN
 }
 
 # versions_github O/R: "<tag>\t<epoch>" for every published, non-draft release.

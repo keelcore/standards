@@ -131,11 +131,13 @@ function merge_image() {
     >> "${GITHUB_STEP_SUMMARY}"
 }
 
-# local_login: registry login for Apple `container` with the developer's gh credentials
+# local_login: registry login for Apple `container` with the developer's gh credentials,
 # (write:packages).
 function local_login() {
-  gh auth token | container registry login "$(dev_registry | cut -d/ -f1)" \
-    -u "$(gh api user --jq .login)" --password-stdin
+  local token user
+  token="${GITHUB_TOKEN:-$(gh auth token)}"
+  user="$(curl -fsSL -H "Authorization: Bearer ${token}" https://api.github.com/user | jq -r .login)"
+  printf '%s' "${token}" | container registry login "$(dev_registry | cut -d/ -f1)" -u "${user}" --password-stdin
 }
 
 # local_image NAME HASH BASE: (macOS) build the multi-arch ctx-HASH index with Apple `container`
