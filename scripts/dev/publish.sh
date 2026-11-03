@@ -167,7 +167,7 @@ function remote_digest() {
   local -a auth=()
   [ -z "${GITHUB_TOKEN:-}" ] || auth=(-u "token:${GITHUB_TOKEN}")
   local token digest
-  token="$(curl -fsSL "${auth[@]}" "https://${host}/token?scope=repository:${path}:pull" | jq -r '.token')" || return 1
+  token="$(curl -fsSL ${auth[@]+"${auth[@]}"} "https://${host}/token?scope=repository:${path}:pull" | jq -r '.token')" || return 1
   digest="$(curl -fsSI -H "Authorization: Bearer ${token}" \
     -H 'Accept: application/vnd.oci.image.index.v1+json' \
     -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \

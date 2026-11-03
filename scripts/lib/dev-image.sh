@@ -19,6 +19,11 @@ function dev_registry() {
 # checkout of it (worktrees and submodules included): the name of its shared git directory
 # (<repo>/.git, or <superproject>/.git/modules/<name> for a submodule).
 function dev_repo_name() {
+  # Inside a tool image the repository is mounted at /work: scripts/dev/run.sh passes its name.
+  if [ -n "${KEELCORE_DEV_REPO:-}" ] && [ "$(cd "${1}" && pwd -P)" = "$(git rev-parse --show-toplevel)" ]; then
+    printf '%s\n' "${KEELCORE_DEV_REPO}"
+    return 0
+  fi
   local common
   common="$(cd "${1}" && git rev-parse --path-format=absolute --git-common-dir)"
   [ "$(basename "${common}")" = '.git' ] && common="$(dirname "${common}")"

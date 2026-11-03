@@ -78,6 +78,9 @@ export TZ := UTC
 .PHONY: release-pypi
 .PHONY: release-sbom
 .PHONY: release-sign
+.PHONY: release-assets
+.PHONY: release-github
+.PHONY: release-verify-blobs
 .PHONY: create-release
 .PHONY: update-pins
 .PHONY: pins-doc
@@ -304,6 +307,22 @@ release-sbom:
 release-sign:
 	@echo "🔏 Signing release artifacts..."
 	bash scripts/dev/run.sh bash scripts/release/sign.sh $(ARGS)
+
+## GitHub Release (publish workflow, after the packages are published): release-assets collects
+## the published files in target/release with per-artifact SBOMs, build-environment SBOMs of
+## the pinned tool images, current_pins.md, SHA256SUMS and cosign bundles; release-github
+## creates the Release with notes and every asset; release-verify-blobs checks them all.
+release-assets:
+	@echo "📦 Assembling release assets for $(TAG)..."
+	bash scripts/dev/run.sh bash scripts/release/release-assets.sh $(TAG) target/release
+
+release-github:
+	@echo "🚀 Publishing the GitHub Release for $(TAG)..."
+	bash scripts/dev/run.sh bash scripts/release/github-release.sh $(TAG) target/release
+
+release-verify-blobs:
+	@echo "🔍 Verifying release assets..."
+	bash scripts/dev/run.sh bash scripts/release/verify-blobs.sh target/release
 
 ## Release tagging — developer action only (governance/ci.md "Release Tagging").
 ## The bump level comes from the repo's own scripts/release/create-release.local.sh.

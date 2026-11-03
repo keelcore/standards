@@ -22,7 +22,12 @@ function main() {
   version="${tag#v}"
   log "Publishing @keelcore/standards@${version}..."
   npm version "${version}" --no-git-tag-version
-  npm publish --access public
+  # Publish the packed tarball itself, kept in target/dist/ for the release's SBOM, checksums
+  # and signature.
+  mkdir -p target/dist
+  local tarball
+  tarball="$(npm pack --pack-destination target/dist | tail -1)"
+  npm publish "target/dist/${tarball}" --access public
   log '✅ Published to npm'
 }
 

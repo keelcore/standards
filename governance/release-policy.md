@@ -1,6 +1,6 @@
 # Release Policy
 
-**Maturity:** Required **Version:** 1.2.0 **Last Reviewed:** 2026-11-02
+**Maturity:** Required **Version:** 1.3.0 **Last Reviewed:** 2026-11-03
 
 This document covers how a project that follows the keelcore standards tags and releases a version. The authoritative
 policy lives in [`ci.md`](ci.md) under **Release Tagging**. This document is the developer-facing how-to that
@@ -147,7 +147,9 @@ The script will:
 3. Run the project's hook and compute the next version.
 4. Print the summary (the hook's findings, bump level, proposed tag subject).
 5. Prompt for `y/N` approval.
-6. On approval: create a signed annotated tag and push that one tag to the upstream remote.
+6. On approval: when `CHANGELOG.md` has `[Unreleased]` entries, move them under `## [X.Y.Z] - <date>` in a signed
+   release commit; create a signed annotated tag on it, and push the release commit and the tag atomically to the
+   upstream remote (without a CHANGELOG cut, only the tag is pushed).
 
 A dry run prints the version and the full tag message without prompting, tagging or pushing, and reports failed
 preconditions and stale pins as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).

@@ -174,6 +174,7 @@ function run_in() {
   rel="$(pwd -P)"
   rel="${rel#"${here}"}"
   local -a args=(run --rm -i -v "${src}:/work:${mode}" -w "/work${rel}")
+  args+=(-e "KEELCORE_DEV_REPO=$(dev_repo_name "${here}")")
   local out
   if [ "${mode}" = 'ro' ]; then
     while IFS= read -r out; do

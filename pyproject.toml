@@ -14,3 +14,6 @@ source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 include = ["governance/"]
+
+[tool.hatch.build.targets.sdist]
+include = ["governance/", "README.md", "CHANGELOG.md", "pyproject.toml"]

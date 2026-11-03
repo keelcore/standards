@@ -14,6 +14,43 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- A GitHub Release for every tag (`publish.yml` job `release / github`, after npm, PyPI and Go publish): the
+  published files (npm tarball, wheel, sdist, the Go module zip from the proxy), one SPDX SBOM per artifact, one
+  build-environment SBOM per pinned tool image, `current_pins.md`, `SHA256SUMS` and a keyless cosign bundle per
+  file; notes from the signed tag message, the version's CHANGELOG section and the pins table; the job ends by
+  verifying every checksum and signature against the workflow identity (`make release-assets`, `release-github`,
+  `release-verify-blobs`; `governance/ci.md` v1.6.0)
+- `create-release` moves the `[Unreleased]` entries under `## [X.Y.Z] - <date>` in a signed release commit, tags that
+  commit, and pushes both atomically
+
+### Changed
+
+- `scripts/release/sbom.sh` writes one SBOM per published artifact (`--name`, `--version`, `--license`, targets), each
+  cataloged by its own ecosystem's metadata, plus SBOMs of tool images by digest; it no longer scans the source tree
+  (the v0.10.4 SBOM listed 245 npm and 12 PyPI build-tool packages that ship in no artifact, and named nothing)
+- `npm-publish.sh` publishes the tarball it packs into `target/dist/`; the sdist carries only `governance/`, the
+  README, the CHANGELOG and `pyproject.toml`; the dev image adds `unzip`
+
+### Fixed
+
+- `make dev-image-publish` wrote no `image.ref` after a successful push: an empty array under `nounset` (bash 3.2)
+  aborted the digest lookup; inside a tool image, image names came from the mount path (`/work`) instead of the
+  repository (`run.sh` passes `KEELCORE_DEV_REPO`)
+- CHANGELOG: v0.10.1–v0.10.4 shipped without their sections; their entries now sit under each release, by the tag
+  whose `[Unreleased]` first held them
+
+## [0.10.4] - 2026-11-03
+
+### Fixed
+
+- `scripts/dev/run.sh` passes every `GITHUB_*`, `RUNNER_*` and `ACTIONS_*` variable into the tool image. npm builds
+  its provenance statement from that context; with only a fixed list passed, the v0.10.3 npm publish sent
+  `undefined/keelcore/standards` and the registry rejected it (422), so v0.10.3 is not on npm
+
+## [0.10.3] - 2026-11-03
+
+### Added
+
 - Tool images (`governance/ci.md` v1.5.0 "Tool Images"): every tool target runs in an immutable image, locally
   (Apple `container`) and in CI (docker), with the repository mounted read-only and its output directories writable
   (`containers/writable`; default `target/`), a submodule as a standalone /tmp snapshot (`scripts/dev/run.sh`;
@@ -27,7 +64,6 @@ Corrections, clarifications, metadata: patch bump.
   (per-architecture SHA-256); syft gains its arm64 SHA-256; `secret-scan.sh` no longer installs at run time
 - `update-pins`: packages a Containerfile installs at build time are pinned by its image digest once
   `image.ref` exists, and float until then
-
 - `make update-pins` verifies: each stale pin is applied alone in a throwaway git worktree (submodules from the local
   clones, private tool bin and npm prefix), exercised by the make targets for its kind, and rolled back — a failing pin
   never stops the others — then all passing pins run together (`lint audit test`, or the project's combined targets).
@@ -58,7 +94,6 @@ Corrections, clarifications, metadata: patch bump.
 - `update-pins` kinds `runner` (newer images report-only), `python`, `pypi` (hashes follow the version), `npmlock`
   (lockfile regenerated outside the cooldown), and release tags cloned with git (`*_COMMIT` follows the version);
   `*-latest` runners, npx and pip installs without a version or hashes, and package.json ranges report as `unpinned`
-
 - `make update-pins` (`scripts/release/update-pins.sh`): discovers every pinned external input (workflow action SHAs,
   image digests, GitHub-release tools, Go tools, Go toolchain, go.mod requirements, npm, Node) plus inputs that float
   unpinned (`@latest`, apk/apt packages without a version, Homebrew, FROM/`image:` without a digest), and resolves
@@ -66,7 +101,6 @@ Corrections, clarifications, metadata: patch bump.
   Go toolchain patch), new majors and 0.x minors report-only, failed lookups `unresolved`. Discovery only; nothing is
   applied. Project pins and holds come from `scripts/release/update-pins.local.sh pins|holds`.
   `tests/update-pins.bats` covers every kind offline through `UPDATE_PINS_FIXTURES`
-
 - Lint errors and warnings are never suppressed in source code, in any language, current or future; only the
   linter's git-versioned configuration may turn a rule off. `governance/coding.md` v1.1.0 states it as "Static
   Analysis Configuration" (replacing "Static Analysis Suppression", which recommended `//lint:ignore`).
@@ -74,31 +108,15 @@ Corrections, clarifications, metadata: patch bump.
   `DIRECTIVES` catalog of known linters' suppression syntax (previously shellcheck in `*.sh` only); markdown is
   scanned for markdownlint's comment directive only. Covered by `tests/lint-suppressions.bats`
 
-- `governance/devsecops.md`: severity-ranked rules for repository controls (rulesets, environments, secret scanning),
-  release integrity (sign before alias, idempotent signing, per-image SBOM and provenance), scanning gates
-  (govulncheck, CodeQL/gosec, image scan, fuzzing), digest-pinned base images, chart defaults, and UTC-only timestamps;
-  indexed in `README.md` and the Claude, Copilot and Cursor adapters
-- `scripts/lint/utc.sh` and `make lint-utc` (part of `make lint`): rejects shell `date` without `-u` and Go
-  `time.Local`, `.Local()` and `time.Now().Format` outside tests
-- `Makefile.canonical` exports `TZ := UTC`, so every recipe runs in UTC; workflows set `TZ: UTC`
-- `.canonical-exclude`: a consumer lists canonical scripts it never runs; `verify-canonical` and `governance-refresh`
-  skip them, and audit Rule 5 accepts their targets pointing at a missing file (`governance/ci.md` v1.2.0)
-
 ### Changed
 
 - Pins refreshed (`make update-pins APPLY=1`; each verified alone, then together with `make lint audit test`):
   actions/attest-build-provenance v4.2.2, actions/checkout v6.1.0, actions/upload-artifact v7.0.2, Node 22.23.4
   (`.nvmrc` and the dev image's node base), npm 11.21.1, setuptools 84.2.0, cosign 3.1.3, gitleaks 8.30.1, syft 1.55.0.
   `docs/current_pins.md` lists every pin
-- Workflows: `actions/checkout` runs with `persist-credentials: false`; the publish jobs run without
-  `setup-go` / `setup-node` caches (a poisoned cache must not reach a release); npm for trusted publishing is pinned
-  (`npm@11.21.0`) instead of `npm@latest`
 
 ### Fixed
 
-- `scripts/dev/run.sh` passes every `GITHUB_*`, `RUNNER_*` and `ACTIONS_*` variable into the tool image. npm builds
-  its provenance statement from that context; with only a fixed list passed, the v0.10.3 npm publish sent
-  `undefined/keelcore/standards` and the registry rejected it (422), so v0.10.3 is not on npm
 - `update-pins` reads the GitHub token once per run (`GITHUB_TOKEN`, else one `gh auth token`) and exports it; it ran
   `gh auth token`, a keychain read, for every GitHub API request
 - `scripts/dev/run.sh`: a git worktree is mounted as a standalone /tmp snapshot like a submodule (its `.git` points
@@ -121,12 +139,37 @@ Corrections, clarifications, metadata: patch bump.
 - `sbom.sh` install hints name `make setup-syft` instead of piping syft's `main` install script to `sh`
 - `update-pins` retries every failed fetch (`--retry-all-errors`: dropped HTTP/2 streams and timeouts were reported
   as `unresolved`), and skips the project hook when scanning (its quoted patterns were reported as pins)
-- PyPI publish: `pypa/gh-action-pypi-publish` v1.13.0 → v1.14.3. Its bundled `packaging` 25.0 rejected the wheel's
-  metadata version 2.5 (written by current hatchling), so v0.10.0 never reached PyPI; v1.14.3 bundles `packaging` 26.2,
-  which accepts 2.5
 - `scripts/lint/utc.sh` lists files through `source_files` (`scripts/lib/paths.sh`), so nested vendored trees listed
   in `.nolint` are skipped like every other linter's
 - `scripts/release/sign.sh` header: it writes a Sigstore bundle (`<artifact>.bundle`) per artifact, not `.sig` files
+
+## [0.10.2] - 2026-11-01
+
+### Added
+
+- `governance/devsecops.md`: severity-ranked rules for repository controls (rulesets, environments, secret scanning),
+  release integrity (sign before alias, idempotent signing, per-image SBOM and provenance), scanning gates
+  (govulncheck, CodeQL/gosec, image scan, fuzzing), digest-pinned base images, chart defaults, and UTC-only timestamps;
+  indexed in `README.md` and the Claude, Copilot and Cursor adapters
+- `scripts/lint/utc.sh` and `make lint-utc` (part of `make lint`): rejects shell `date` without `-u` and Go
+  `time.Local`, `.Local()` and `time.Now().Format` outside tests
+- `Makefile.canonical` exports `TZ := UTC`, so every recipe runs in UTC; workflows set `TZ: UTC`
+- `.canonical-exclude`: a consumer lists canonical scripts it never runs; `verify-canonical` and `governance-refresh`
+  skip them, and audit Rule 5 accepts their targets pointing at a missing file (`governance/ci.md` v1.2.0)
+
+### Changed
+
+- Workflows: `actions/checkout` runs with `persist-credentials: false`; the publish jobs run without
+  `setup-go` / `setup-node` caches (a poisoned cache must not reach a release); npm for trusted publishing is pinned
+  (`npm@11.21.0`) instead of `npm@latest`
+
+## [0.10.1] - 2026-10-31
+
+### Fixed
+
+- PyPI publish: `pypa/gh-action-pypi-publish` v1.13.0 → v1.14.3. Its bundled `packaging` 25.0 rejected the wheel's
+  metadata version 2.5 (written by current hatchling), so v0.10.0 never reached PyPI; v1.14.3 bundles `packaging` 26.2,
+  which accepts 2.5
 
 ## [0.10.0] - 2026-10-30
 

@@ -493,3 +493,34 @@ stale_pin() {
   [[ "${output}" != *'Pins-Override'* ]] || false
   [ ! -e "$(git rev-parse --git-dir)/release-audit.log" ]
 }
+
+# ---------------------------------------------------------------------------
+# CHANGELOG cut: the release commit the tag points at
+# ---------------------------------------------------------------------------
+
+@test "CHANGELOG [Unreleased] entries move to the release section in a signed commit the tag points at" {
+  ready_at v1.2.3
+  printf '# Changelog\n\n## [Unreleased]\n\n### Added\n\n- a widget\n\n## [1.2.3] - 2026-01-01\n\n- old\n' > CHANGELOG.md
+  git add CHANGELOG.md
+  git commit --quiet -m 'changelog'
+  git push --quiet
+  HOOK_STDOUT='minor\nadded a widget\n' run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  grep -qx '## \[Unreleased\]' CHANGELOG.md
+  grep -qE '^## \[1\.3\.0\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$' CHANGELOG.md
+  [ -z "$(awk '/^## \[Unreleased\]/ { p = 1; next } /^## / { exit } p' CHANGELOG.md | tr -d '[:space:]')" ]
+  [ "$(git log -1 --format=%s)" = 'chore(release): v1.3.0' ]
+  git verify-commit HEAD
+  [ "$(git rev-parse 'v1.3.0^{commit}')" = "$(git rev-parse HEAD)" ]
+  [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "$(git rev-parse HEAD)" ]
+  remote_has_tag v1.3.0
+}
+
+@test "no [Unreleased] entries: no release commit; the tag points at the approved HEAD" {
+  ready_at v1.2.3
+  local -r head="$(git rev-parse HEAD)"
+  HOOK_STDOUT='patch\nfix\n' run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  [ "$(git rev-parse HEAD)" = "${head}" ]
+  [ "$(git rev-parse 'v1.2.4^{commit}')" = "${head}" ]
+}

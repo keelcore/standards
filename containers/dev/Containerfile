@@ -13,7 +13,7 @@ FROM node:22.23.4-trixie-slim@sha256:2117f713a417f3aff682ac8f5bc2ebbdf1beed51f36
 FROM golang:1.27.3@sha256:2920bb124f1a2e12a1d39f0cab756ae0068441ee1da7655dec7f5e374944095b
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends jq xz-utils \
+ && apt-get install -y --no-install-recommends jq unzip xz-utils \
  && rm -rf /var/lib/apt/lists/*
 
 # Node (.nvmrc) from the official image; the npm CLI from its committed lockfile
