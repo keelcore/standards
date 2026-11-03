@@ -12,6 +12,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+## [0.10.8] - 2026-11-03
+
 ### Changed
 
 - `update-pins` discovery reads metadata only and resolves pins in parallel (`UPDATE_PINS_RESOLVE_JOBS`, default 16):
