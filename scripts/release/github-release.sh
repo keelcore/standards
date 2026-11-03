@@ -62,7 +62,7 @@ function release_notes() {
   printf '%s\n\n' "$(git for-each-ref "refs/tags/${tag}" --format='%(contents:subject)')"
   git for-each-ref "refs/tags/${tag}" --format='%(contents:body)' | sed -e '/^$/N;/^\n$/D'
   printf '\n## Changes\n\n'
-  changelog_section "${version}"
+  changelog_section "${tag}" "${version}"
   if [ -f "${dir}/current_pins.md" ]; then
     printf '\n## Pins\n\n'
     sed -n '/^| Kind |/,$p' "${dir}/current_pins.md"
@@ -76,14 +76,15 @@ function release_notes() {
   printf 'the other image SBOMs describe the pinned tool images the release was built in.\n'
 }
 
-# changelog_section VERSION: the CHANGELOG.md section for VERSION, else [Unreleased].
+# changelog_section TAG VERSION: TAG's CHANGELOG.md section for VERSION, else its [Unreleased].
 function changelog_section() {
-  local -r version="${1}"
-  [ -f CHANGELOG.md ] || { printf 'No CHANGELOG.md.\n'; return 0; }
-  local section
-  section="$(awk -v h="## [${version}]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md)"
+  local -r tag="${1}" version="${2}"
+  local changelog section
+  changelog="$(git show "${tag}:CHANGELOG.md" 2> /dev/null || true)"
+  [ -n "${changelog}" ] || { printf 'No CHANGELOG.md.\n'; return 0; }
+  section="$(awk -v h="## [${version}]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' <<< "${changelog}")"
   if [ -z "${section}" ]; then
-    section="$(awk 'index($0, "## [Unreleased]") == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md)"
+    section="$(awk 'index($0, "## [Unreleased]") == 1 { on = 1; next } on && /^## \[/ { exit } on' <<< "${changelog}")"
   fi
   printf '%s\n' "${section}"
 }

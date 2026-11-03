@@ -128,7 +128,7 @@ function snapshot() {
   local -r dir="${1}"
   local -r dest="/tmp/keelcore-dev-snapshot/$(dev_repo_name "${dir}")-$(printf '%s' "${dir}" | git hash-object --stdin | cut -c1-12)"
   if [ -d "${dest}/.git" ]; then
-    git -C "${dest}" fetch --quiet "${dir}" HEAD
+    git -C "${dest}" fetch --quiet --tags --force "${dir}" HEAD
     git -C "${dest}" reset --quiet --hard FETCH_HEAD
     git -C "${dest}" clean --quiet -fdx
   else

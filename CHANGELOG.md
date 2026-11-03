@@ -12,6 +12,14 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+### Fixed
+
+- The GitHub Release job failed for v0.10.5: it took the PyPI publish action's attestation files for packages. It now
+  fetches every artifact from its registry (npm integrity, PyPI sha256, the Go checksum database via
+  `go mod download`), reads the tag's own CHANGELOG, pins and image refs, and runs as `github-release.yml`, which
+  `publish.yml` calls and which can be dispatched for any published tag
+- `scripts/dev/run.sh` snapshots fetch tags, so tag-based targets work from a submodule
+
 ## [0.10.5] - 2026-11-03
 
 ### Added
