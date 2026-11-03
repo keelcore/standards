@@ -12,6 +12,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+## [0.10.5] - 2026-11-03
+
 ### Added
 
 - A GitHub Release for every tag (`publish.yml` job `release / github`, after npm, PyPI and Go publish): the
