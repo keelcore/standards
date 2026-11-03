@@ -12,6 +12,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-11-03
+
 ### Fixed
 
 - `LICENSE` (MIT, Copyright (c) 2026 Paul Charlton): the packages declared MIT but carried no license text; the
