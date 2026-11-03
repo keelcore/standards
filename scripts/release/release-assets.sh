@@ -32,27 +32,35 @@ function main() {
   fetch_go_module "${tag}" "${dir}"
   local -a artifacts=()
   local f
-  while IFS= read -r f; do
-    artifacts+=("${dir}/${f}")
-  done < <(cd "${dir}" && ls -1 | grep -vE '\.(spdx\.json|bundle)$|^SHA256SUMS|^current_pins\.md$')
+  for f in "${dir}"/*; do
+    [ -f "${f}" ] || continue
+    case "$(basename "${f}")" in
+      *.spdx.json | *.bundle | SHA256SUMS* | current_pins.md) continue ;;
+    esac
+    artifacts+=("${f}")
+  done
   [ "${#artifacts[@]}" -gt 0 ] || { log "❌ no published artifacts in ${dir}"; exit 1; }
   bash scripts/release/sbom.sh --out-dir "${dir}" --name "${name}" --version "${version}" \
     --license "$(project_license)" "${artifacts[@]}"
   local -a images=()
-  while IFS= read -r f; do
-    images+=("$(cat "${f}")")
-  done < <(ls -1 containers/*/image.ref 2>/dev/null)
+  for f in containers/*/image.ref; do
+    [ -f "${f}" ] && images+=("$(cat "${f}")")
+  done
   if [ "${#images[@]}" -gt 0 ]; then
     bash scripts/release/sbom.sh --out-dir "${dir}" --name "${name}-build-environment" --version "${version}" \
       "${images[@]}"
   fi
   [ ! -f docs/current_pins.md ] || cp docs/current_pins.md "${dir}/current_pins.md"
   local -a files=()
-  while IFS= read -r f; do
-    files+=("${f}")
-  done < <(cd "${dir}" && ls -1 | grep -vE '\.bundle$|^SHA256SUMS')
+  for f in "${dir}"/*; do
+    [ -f "${f}" ] || continue
+    case "$(basename "${f}")" in
+      *.bundle | SHA256SUMS*) continue ;;
+    esac
+    files+=("$(basename "${f}")")
+  done
   (cd "${dir}" && bash "${root}/scripts/release/sign.sh" --sums-dir . "${files[@]}")
-  log "✅ release assets for ${tag}: $(cd "${dir}" && ls -1 | wc -l | tr -d ' ') files in ${dir}"
+  log "✅ release assets for ${tag}: $(find "${dir}" -maxdepth 1 -type f | wc -l | tr -d ' ') files in ${dir}"
 }
 
 function log() {
