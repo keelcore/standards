@@ -523,10 +523,30 @@ function cache_github_token() {
   export GITHUB_TOKEN
 }
 
+# github_releases O/R [COUNT]: the repository's latest COUNT releases (default 20; REST: 100)
+# as [{tag_name, published_at, draft, prerelease}]. GraphQL returns only those fields — the REST list carries every asset, which
+# runs to megabytes for a project like sigstore/cosign — so it needs a token; without one
+# (and in tests) the REST list is used.
+function github_releases() {
+  local -r repo="${1}" count="${2:-20}"
+  if [ -n "${UPDATE_PINS_FIXTURES:-}" ] || [ -z "$(github_token)" ]; then
+    fetch "https://api.github.com/repos/${repo}/releases?per_page=100"
+    return
+  fi
+  local query body
+  query="$(jq -n --arg o "${repo%%/*}" --arg n "${repo#*/}" --argjson c "${count}" '{
+    query: "query($o: String!, $n: String!, $c: Int!) { repository(owner: $o, name: $n) { releases(first: $c, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { tagName publishedAt isDraft isPrerelease } } } }",
+    variables: {o: $o, n: $n, c: $c}}')"
+  body="$(curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 --max-time 60 -X POST \
+    -H "Authorization: Bearer $(github_token)" -d "${query}" https://api.github.com/graphql)" || return 1
+  jq -e '[.data.repository.releases.nodes[] | {tag_name: .tagName, published_at: .publishedAt,
+           draft: .isDraft, prerelease: .isPrerelease}]' <<< "${body}"
+}
+
 # versions_github O/R: "<tag>\t<epoch>" for every published, non-draft release.
 function versions_github() {
   local body
-  body="$(fetch "https://api.github.com/repos/${1}/releases?per_page=100")" || { failed_lookup; return 0; }
+  body="$(github_releases "${1}")" || { failed_lookup; return 0; }
   jq -r '.[] | select(.draft | not) | select(.prerelease | not)
          | "\(.tag_name)\t\(.published_at | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
     || failed_lookup
@@ -560,6 +580,10 @@ function versions_goproxy() {
   local -r mod="${1}" current="${2}"
   local root esc v t
   root="$(goproxy_root "${mod}")" || { failed_lookup; return 0; }
+  if [ -z "${UPDATE_PINS_FIXTURES:-}" ]; then
+    latest_first go "${root}" "${current}"
+    return
+  fi
   esc="$(goproxy_escape "${root}")"
   while IFS= read -r v; do
     [ -n "${v}" ] || continue
@@ -570,8 +594,41 @@ function versions_goproxy() {
   done < <(fetch "https://proxy.golang.org/${esc}/@v/list" | sed 's/+incompatible$//')
 }
 
-# versions_toolchain CURRENT: "<goX.Y.Z>\t<epoch>" for Go releases newer than CURRENT.
+# versions_toolchain CURRENT: "<goX.Y.Z>\t<epoch>" for Go releases newer than CURRENT. Each
+# release's .info (about 200 bytes) is probed in order — the next patches of CURRENT's minor, then
+# each next minor from .0 — until one does not exist; the full toolchain list (every platform of
+# every release) is read only in tests.
 function versions_toolchain() {
+  local -r current="${1}"
+  if [ -n "${UPDATE_PINS_FIXTURES:-}" ]; then
+    versions_toolchain_list "${current}"
+    return
+  fi
+  local -r cur="${current#go}"
+  local major minor patch m p t
+  IFS=. read -r major minor patch <<< "${cur}"
+  for (( m = minor; m <= minor + 2; m++ )); do
+    p=0
+    [ "${m}" -eq "${minor}" ] && p=$(( ${patch:-0} + 1 ))
+    while t="$(toolchain_time "go${major}.${m}.${p}")"; do
+      printf 'go%s.%s.%s\t%s\n' "${major}" "${m}" "${p}" "${t}"
+      p=$(( p + 1 ))
+    done
+    # A minor with no .0 release does not exist yet; later ones cannot either.
+    [ "${m}" -eq "${minor}" ] || [ "${p}" -gt 0 ] || break
+  done
+}
+
+# toolchain_time goX.Y.Z: the release's publish time (epoch); fails when it does not exist.
+function toolchain_time() {
+  local t
+  t="$(fetch "https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-${1}.linux-amd64.info" 2> /dev/null \
+    | jq -r '.Time | sub("\\.[0-9]+"; "") | fromdateiso8601' 2> /dev/null)" || return 1
+  [ -n "${t}" ] && printf '%s' "${t}"
+}
+
+# versions_toolchain_list CURRENT: as versions_toolchain, from the proxy's full toolchain list.
+function versions_toolchain_list() {
   local -r current="${1}"
   local v t list
   list="$(fetch 'https://proxy.golang.org/golang.org/toolchain/@v/list')" || { failed_lookup; return 0; }
@@ -584,17 +641,101 @@ function versions_toolchain() {
   done < <(sed -nE 's/^v0\.0\.1-(go[0-9]+\.[0-9]+(\.[0-9]+)?)\.linux-amd64$/\1/p' <<< "${list}" | sort -u)
 }
 
+# latest_first SYSTEM NAME CURRENT: "<version>\t<epoch>" for an npm, PyPI or Go package from
+# metadata only, smallest first. The latest stable version and its publish date settle almost
+# every pin (current, or an eligible candidate in the same major); the recent version list is
+# read only when the latest is inside the cooldown or a new major — then an older release may be
+# the newest eligible one.
+function latest_first() {
+  local -r system="${1}" name="${2}" current="${3}"
+  local line v t
+  line="$(latest_version "${system}" "${name}")" || { failed_lookup; return 0; }
+  IFS=$'\t' read -r v t <<< "${line}"
+  printf '%s\n' "${line}"
+  if [ "${v#v}" = "${current#v}" ] || ! newer "${v}" "${current}"; then
+    return 0
+  fi
+  if [ $(( (NOW - t) / DAY )) -ge "${COOLDOWN_DAYS}" ] && [ "$(major_of "${v}")" = "$(major_of "${current}")" ]; then
+    return 0
+  fi
+  recent_versions "${system}" "${name}"
+}
+
+# latest_version SYSTEM NAME: "<version>\t<epoch>" of the latest stable release.
+function latest_version() {
+  local -r system="${1}" name="${2}"
+  local enc v body
+  case "${system}" in
+    npm)
+      v="$(fetch "https://registry.npmjs.org/-/package/${name/\//%2f}/dist-tags" | jq -r '.latest // empty')" || return 1
+      [ -n "${v}" ] || return 1
+      enc="$(jq -rn --arg n "${name}" '$n | @uri')"
+      fetch "https://api.deps.dev/v3/systems/npm/packages/${enc}/versions/${v}" \
+        | jq -r '"\(.versionKey.version)\t\(.publishedAt | sub("\\.[0-9]+"; "") | fromdateiso8601)"' ;;
+    pypi)
+      recent_versions pypi "${name}" | awk -F'\t' '$1 ~ /^[0-9]+(\.[0-9]+)*$/' | head -1 ;;
+    go)
+      body="$(fetch "https://proxy.golang.org/$(goproxy_escape "${name}")/@latest")" || return 1
+      jq -r '"\(.Version | sub("\\+incompatible$"; ""))\t\(.Time | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" ;;
+  esac
+}
+
+# recent_versions SYSTEM NAME: "<version>\t<epoch>" for recent releases: PyPI's releases feed
+# (the last 40), else deps.dev's version list (versions and dates only).
+function recent_versions() {
+  local -r system="${1}" name="${2}"
+  if [ "${system}" = 'pypi' ]; then
+    fetch "https://pypi.org/rss/project/${name}/releases.xml" | awk '
+      BEGIN { split("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec", m, " "); for (i = 1; i <= 12; i++) mon[m[i]] = sprintf("%02d", i) }
+      /<item>/ { v = "" }
+      match($0, /<title>[^<]+<\/title>/) { v = substr($0, RSTART + 7, RLENGTH - 15) }
+      match($0, /<pubDate>[^<]+<\/pubDate>/) {
+        split(substr($0, RSTART + 9, RLENGTH - 19), d, " ")
+        if (v != "") printf "%s\t%s-%s-%sT%sZ\n", v, d[4], mon[d[3]], d[2], d[5]
+      }' | while IFS=$'\t' read -r v t; do
+        printf '%s\t%s\n' "${v}" "$(jq -rn --arg t "${t}" '$t | fromdateiso8601')"
+      done
+    return
+  fi
+  versions_depsdev "${system}" "${name}" | sed 's/+incompatible\t/\t/'
+}
+
+# versions_depsdev SYSTEM NAME: "<version>\t<epoch>" for every version deps.dev lists for an npm,
+# PyPI or Go package — one small response with versions and publish dates only (the registries'
+# own documents carry every version's full metadata or files: tens of MB for npm itself).
+# Tests read the registries' fixtures instead (UPDATE_PINS_FIXTURES).
+function versions_depsdev() {
+  local -r system="${1}" name="${2}"
+  local enc body
+  enc="$(jq -rn --arg n "${name}" '$n | @uri')"
+  body="$(fetch "https://api.deps.dev/v3/systems/${system}/packages/${enc}")" || { failed_lookup; return 0; }
+  jq -r '.versions[] | select(.publishedAt != null)
+         | "\(.versionKey.version)\t\(.publishedAt | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
+    || failed_lookup
+}
+
 function versions_npm() {
   local body
+  if [ -z "${UPDATE_PINS_FIXTURES:-}" ]; then latest_first npm "${1}" "${2:-}"; return; fi
   body="$(fetch "https://registry.npmjs.org/${1}")" || { failed_lookup; return 0; }
   jq -r '.time | to_entries[] | select(.key | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
          | "\(.key)\t\(.value | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
     || failed_lookup
 }
 
-# versions_node MAJOR: "<vX.Y.Z>\t<epoch>" for LTS releases in that major.
+# versions_node MAJOR: "<vX.Y.Z>\t<epoch>" for releases in that (LTS) major: nodejs/node's 50 newest
+# GitHub releases (tags and dates only); the full dist index (every file of every release) only in
+# tests.
 function versions_node() {
   local body
+  if [ -z "${UPDATE_PINS_FIXTURES:-}" ]; then
+    body="$(github_releases nodejs/node 50)" || { failed_lookup; return 0; }
+    jq -r --arg m "v${1%%.*}." '.[] | select(.draft | not) | select(.prerelease | not)
+           | select(.tag_name | startswith($m)) | select(.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+           | "\(.tag_name)\t\(.published_at | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
+      || failed_lookup
+    return
+  fi
   body="$(fetch 'https://nodejs.org/dist/index.json')" || { failed_lookup; return 0; }
   jq -r --arg m "v${1%%.*}." '.[] | select(.lts) | select(.version | startswith($m))
          | "\(.version)\t\(.date + "T00:00:00Z" | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
@@ -606,7 +747,7 @@ function versions_node() {
 function versions_python() {
   local -r minor="$(cut -d. -f1-2 <<< "${1}")"
   local body
-  body="$(fetch 'https://api.github.com/repos/actions/python-versions/releases?per_page=100')" || { failed_lookup; return 0; }
+  body="$(github_releases actions/python-versions)" || { failed_lookup; return 0; }
   jq -r --arg m "${minor}." '.[] | select(.draft | not) | select(.prerelease | not)
          | (.tag_name | sub("-.*$"; "")) as $v | select($v | startswith($m)) | select($v | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
          | "\($v)\t\(.published_at | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
@@ -616,6 +757,7 @@ function versions_python() {
 # versions_pypi PKG: "<version>\t<epoch>" for every final, unyanked release.
 function versions_pypi() {
   local body
+  if [ -z "${UPDATE_PINS_FIXTURES:-}" ]; then latest_first pypi "${1}" "${2:-}"; return; fi
   body="$(fetch "https://pypi.org/pypi/${1}/json")" || { failed_lookup; return 0; }
   jq -r '.releases | to_entries[] | select(.value | length > 0) | select(.key | test("^[0-9]+(\\.[0-9]+)*$"))
          | select(any(.value[]; .yanked) | not)
@@ -737,15 +879,15 @@ function resolve() {
     toolchain)
       versions_toolchain "${current}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
     npm)
-      versions_npm "${source#npm:}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
+      versions_npm "${source#npm:}" "${current}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
     node)
       resolve_node "${current}" ;;
     python)
       resolve_python "${current}" ;;
     pypi)
-      versions_pypi "${source#pypi:}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
+      versions_pypi "${source#pypi:}" "${current}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
     npmlock)
-      versions_npm "${source#npm:}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
+      versions_npm "${source#npm:}" "${current}" | choose "${current}" "${COOLDOWN_DAYS}" ;;
     runner)
       resolve_runner "${current}" ;;
     image)
@@ -925,21 +1067,37 @@ function dependabot_union() {
 
 # resolve_all GROUPED: one resolved line per pin:
 # kind name loc current source status candidate age note locations (TAB-separated)
+# resolve_all PINS: every pin resolved, UPDATE_PINS_RESOLVE_JOBS (default 16) at a time — each lookup
+# is network-bound — in the order the pins came in.
 function resolve_all() {
-  local kind name loc current source locs status cand age note reason
-  while IFS=$'\t' read -r kind name loc current source locs; do
-    [ -n "${kind}" ] || continue
-    if reason="$(held "${name}")"; then
-      status='hold'
-      cand='-'
-      age='-'
-      note="${reason}"
-    else
-      IFS=$'\t' read -r status cand age note < <(resolve "${kind}" "${name}" "${current}" "${source}")
-    fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${kind}" "${name}" "${loc}" "${current}" "${source}" \
-      "${status}" "${cand}" "${age}" "${note:--}" "${locs}"
+  local -r jobs="${UPDATE_PINS_RESOLVE_JOBS:-16}"
+  local tmp row i=0
+  tmp="$(mktemp -d)"
+  while IFS= read -r row; do
+    [ -n "${row}" ] || continue
+    i=$(( i + 1 ))
+    while [ "$(jobs -rp | wc -l)" -ge "${jobs}" ]; do sleep 0.2; done
+    resolve_row "${row}" > "${tmp}/$(printf '%05d' "${i}")" &
   done <<< "${1}"
+  wait
+  cat "${tmp}"/* 2> /dev/null || true
+  rm -rf "${tmp}"
+}
+
+# resolve_row ROW: one discovered pin with its status, candidate, age and note.
+function resolve_row() {
+  local kind name loc current source locs status cand age note reason
+  IFS=$'\t' read -r kind name loc current source locs <<< "${1}"
+  if reason="$(held "${name}")"; then
+    status='hold'
+    cand='-'
+    age='-'
+    note="${reason}"
+  else
+    IFS=$'\t' read -r status cand age note < <(resolve "${kind}" "${name}" "${current}" "${source}")
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${kind}" "${name}" "${loc}" "${current}" "${source}" \
+    "${status}" "${cand}" "${age}" "${note:--}" "${locs}"
 }
 
 function report() {

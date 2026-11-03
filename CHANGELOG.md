@@ -12,6 +12,15 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+### Changed
+
+- `update-pins` discovery reads metadata only and resolves pins in parallel (`UPDATE_PINS_RESOLVE_JOBS`, default 16):
+  GitHub releases through GraphQL (tag and date of the newest releases; the REST list carries every asset, 13.5 MB for
+  cosign), the latest npm, PyPI and Go version first (`dist-tags`, the PyPI releases feed, the Go proxy's `@latest`),
+  a short version list only when the latest is inside the cooldown or a new major, Node from `nodejs/node`'s
+  releases, and the Go toolchain by probing the next releases. A full check of this repository took 223 s; it takes
+  about 20 s
+
 ## [0.10.7] - 2026-11-03
 
 ### Added
