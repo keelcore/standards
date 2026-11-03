@@ -96,6 +96,9 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `scripts/dev/run.sh` passes every `GITHUB_*`, `RUNNER_*` and `ACTIONS_*` variable into the tool image. npm builds
+  its provenance statement from that context; with only a fixed list passed, the v0.10.3 npm publish sent
+  `undefined/keelcore/standards` and the registry rejected it (422), so v0.10.3 is not on npm
 - `update-pins` reads the GitHub token once per run (`GITHUB_TOKEN`, else one `gh auth token`) and exports it; it ran
   `gh auth token`, a keychain read, for every GitHub API request
 - `scripts/dev/run.sh`: a git worktree is mounted as a standalone /tmp snapshot like a submodule (its `.git` points

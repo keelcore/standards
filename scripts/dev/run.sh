@@ -36,14 +36,12 @@ set -o pipefail
 # shellcheck source=../lib/dev-image.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/dev-image.sh"
 
-# Environment passed into the container: CI context, PR metadata, coverage settings, the
-# GitHub OIDC token request (keyless signing, trusted publishing), plus any names a project
-# lists in KEELCORE_DEV_ENV.
-readonly PASS_ENV="TZ CI GITHUB_ACTIONS GITHUB_TOKEN GITHUB_REPOSITORY GITHUB_EVENT_NAME GITHUB_EVENT_PATH
-  GITHUB_REF GITHUB_REF_NAME GITHUB_SHA GITHUB_BASE_REF GITHUB_HEAD_REF GITHUB_OUTPUT GITHUB_STEP_SUMMARY
-  PR_TITLE PR_BODY PR_AUTHOR BASE_SHA HEAD_SHA COVERAGE_DIR COVERAGE_THRESHOLD COVERAGE_BASE_FILE COVERAGE_PR_FILE
+# Environment passed into the container: every GITHUB_*, RUNNER_* and ACTIONS_* variable (the
+# Actions context: npm and cosign build provenance from it; the OIDC token request), plus CI,
+# PR metadata, coverage settings, and any names a project lists in KEELCORE_DEV_ENV.
+readonly PASS_ENV="TZ CI PR_TITLE PR_BODY PR_AUTHOR BASE_SHA HEAD_SHA COVERAGE_DIR COVERAGE_THRESHOLD COVERAGE_BASE_FILE COVERAGE_PR_FILE
   GO_COVERAGE_IGNORE_REGEX CARGO_COVERAGE_FEATURES CARGO_COVERAGE_IGNORE_REGEX
-  ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN ${KEELCORE_DEV_ENV:-}"
+  ${KEELCORE_DEV_ENV:-}"
 
 function main() {
   local mode='ro' name='dev'
@@ -184,7 +182,7 @@ function run_in() {
     done < <(output_dirs "${here}")
   fi
   [ -t 1 ] && args+=(-t)
-  for name in ${PASS_ENV}; do
+  for name in ${PASS_ENV} $(compgen -e | grep -E '^(GITHUB|RUNNER|ACTIONS)_' || true); do
     [ -n "${!name:-}" ] && args+=(-e "${name}=${!name}")
   done
   # GitHub Actions file commands: the event payload (read) and the output / summary files (append).
