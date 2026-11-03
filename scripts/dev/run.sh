@@ -175,6 +175,8 @@ function run_in() {
   rel="${rel#"${here}"}"
   local -a args=(run --rm -i -v "${src}:/work:${mode}" -w "/work${rel}")
   args+=(-e "KEELCORE_DEV_REPO=$(dev_repo_name "${here}")")
+  # Apple container caps a container at 1 GB unless told otherwise (docker does not cap).
+  [ "$(runtime)" = 'container' ] && args+=(-m "${KEELCORE_DEV_MEMORY:-4g}")
   local out
   if [ "${mode}" = 'ro' ]; then
     while IFS= read -r out; do

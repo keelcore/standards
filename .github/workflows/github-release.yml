@@ -50,6 +50,8 @@ jobs:
           fetch-tags: true
 
       - run: make release-assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: make release-github
         env:

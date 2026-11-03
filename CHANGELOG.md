@@ -12,6 +12,19 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+### Added
+
+- The GitHub Release carries each artifact's provenance as its registry published it: npm's attestations
+  (`*.npm-attestations.json`), PyPI's provenance (`*.pypi-provenance.json`), GitHub's build attestations by digest
+  (`*.github-attestations.json`) and the Go checksum database record (`*.zip.sumdb.txt`), each signed and in
+  `SHA256SUMS`
+- Build-environment SBOMs list the pinned tools syft cannot identify (shellcheck, a static binary; bats, a script
+  install), from the tag's installers (`sbom.sh --tools`)
+
+### Changed
+
+- `scripts/dev/run.sh` gives an Apple container 4 GB (`KEELCORE_DEV_MEMORY`); its default is 1 GB
+
 ## [0.10.6] - 2026-11-03
 
 ### Fixed

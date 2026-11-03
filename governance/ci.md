@@ -343,7 +343,10 @@ Projects extend discovery, holds, verification targets and appliers through `scr
   modules compiled into it). A package archive is cataloged by its own ecosystem's metadata only — files it merely
   carries (another tool's lockfile) are not its dependencies. A source-tree SBOM is not a release SBOM.
 - The build environment has SBOMs of its own: one per digest-pinned tool image the release was built and tested in
-  (`containers/*/image.ref`), listing the OS packages and tools it holds.
+  (`containers/*/image.ref`), listing the OS packages and tools it holds, including the pinned tools a cataloger
+  cannot identify (from the image's installers).
+- Each artifact's provenance is attached as its registry published it (npm attestations, PyPI provenance, GitHub
+  build attestations, the Go checksum database record).
 - Both are attached to the GitHub Release, covered by `SHA256SUMS`, and signed (`make release-assets`).
 
 ### Artifact Integrity Between Jobs

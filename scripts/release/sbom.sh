@@ -6,6 +6,9 @@
 #
 # Usage: scripts/release/sbom.sh --out-dir DIR --name NAME --version VERSION [--license SPDX] TARGET [TARGET ...]
 #   --license  the license of the release's own package, recorded when its metadata has none
+#   --tools TSV  (image targets) tools the image installs that syft cannot identify (a static
+#              binary, a script install): rows of name, version, purl, download URL; each one not
+#              already cataloged is added as a package the image CONTAINS
 #   TARGET   a package archive (.tgz, .tar.gz, .whl, .zip: unpacked, then scanned),
 #            a binary or other file (scanned as a file), or an image by digest
 #            (REPO@sha256:...: scanned from the registry — the build environment)
@@ -24,7 +27,7 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
-declare OUT_DIR='' NAME='' VERSION='' LICENSE=''
+declare OUT_DIR='' NAME='' VERSION='' LICENSE='' TOOLS=''
 declare -a TARGETS=()
 
 function main() {
@@ -51,6 +54,7 @@ function parse_args() {
       --name) NAME="${2:-}"; shift 2 ;;
       --version) VERSION="${2:-}"; shift 2 ;;
       --license) LICENSE="${2:-}"; shift 2 ;;
+      --tools) TOOLS="${2:-}"; shift 2 ;;
       -*) usage ;;
       *) TARGETS+=("${1}"); shift ;;
     esac
@@ -100,6 +104,7 @@ function sbom_for() {
   syft "${args[@]}"
   [ -z "${tmp}" ] || rm -rf "${tmp}"
   complete_self "${out}"
+  [ -z "${TOOLS}" ] || [[ "${target}" != *@sha256:* ]] || add_tools "${out}" "${TOOLS}"
   log "✅ ${out} ($(jq '.packages | length' "${out}") packages)"
 }
 
@@ -144,6 +149,27 @@ function complete_self() {
         .licenseDeclared = $lic
       else . end)' "${sbom}" > "${sbom}.tmp"
   mv "${sbom}.tmp" "${sbom}"
+}
+
+# add_tools SBOM TSV: every tool row (name, version, purl, URL) whose name no cataloged package
+# carries becomes a package the document root CONTAINS.
+function add_tools() {
+  local -r sbom="${1}" tsv="${2}"
+  jq --rawfile rows "${tsv}" '
+    ([.packages[].name | ascii_downcase]) as $known
+    | ([.packages[] | select(.SPDXID | startswith("SPDXRef-DocumentRoot")) | .SPDXID][0]) as $root
+    | ($rows | split("\n") | map(select(length > 0) | split("\t"))
+        | map(select(.[0] as $n | $known | any(contains($n | ascii_downcase)) | not))) as $add
+    | .packages += ($add | map({
+        name: .[0], SPDXID: ("SPDXRef-Package-tool-" + .[0]), versionInfo: .[1], supplier: "NOASSERTION",
+        downloadLocation: .[3], filesAnalyzed: false, licenseConcluded: "NOASSERTION",
+        licenseDeclared: "NOASSERTION", copyrightText: "NOASSERTION",
+        externalRefs: [{referenceCategory: "PACKAGE-MANAGER", referenceType: "purl", referenceLocator: .[2]}],
+        comment: "Installed at image build time by a pinned setup script (version and checksum or commit committed in the repository)"}))
+    | .relationships += ($add | map({spdxElementId: $root, relationshipType: "CONTAINS",
+        relatedSpdxElement: ("SPDXRef-Package-tool-" + .[0])}))' "${sbom}" > "${sbom}.tmp"
+  mv "${sbom}.tmp" "${sbom}"
+  log "   + $(jq -r '[.packages[] | select(.SPDXID | startswith("SPDXRef-Package-tool-")) | .name] | join(", ")' "${sbom}")"
 }
 
 main "$@"

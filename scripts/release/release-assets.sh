@@ -6,15 +6,19 @@
 #   - the npm tarball (package.json), checked against the registry's integrity hash
 #   - the wheel and sdist (pyproject.toml), each checked against PyPI's sha256
 #   - the Go module zip (go.mod), checked against the Go checksum database (go mod download)
+#   - each artifact's provenance, as published: npm's attestations (*.npm-attestations.json),
+#     PyPI's provenance (*.pypi-provenance.json), GitHub's build attestations by digest
+#     (*.github-attestations.json) and the checksum database record (*.zip.sumdb.txt)
 #   - one SBOM per published artifact (scripts/release/sbom.sh): name, version, contents
 #   - one build-environment SBOM per tool image the release was built in (TAG's
-#     containers/*/image.ref, by digest)
+#     containers/*/image.ref, by digest), completed with the pinned tools syft cannot identify
 #   - current_pins.md: every pinned input of TAG (its docs/current_pins.md)
 #   - SHA256SUMS over all of the above, and a keyless cosign bundle per file
 #     (scripts/release/sign.sh)
 #
 # Usage: release-assets.sh TAG DIR   (in the dev image: make release-assets TAG=vX.Y.Z)
-# Env: ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN (keyless signing in GitHub Actions).
+# Env: ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN (keyless signing in GitHub Actions); GITHUB_REPOSITORY
+# (owner/repo: its build attestations); GITHUB_TOKEN (optional: the attestation API's rate limit).
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -46,14 +50,19 @@ function main() {
   [ "${#artifacts[@]}" -gt 0 ] || { log "❌ no published artifacts found for ${tag}"; exit 1; }
   bash scripts/release/sbom.sh --out-dir "${dir}" --name "${name}" --version "${version}" \
     --license "${license}" "${artifacts[@]}"
-  local -a images=()
-  while IFS= read -r f; do
-    [ -n "${f}" ] && images+=("$(git show "${tag}:${f}")")
-  done < <(git ls-tree -r --name-only "${tag}" -- containers | grep -E '/image\.ref$' || true)
-  if [ "${#images[@]}" -gt 0 ]; then
+  for f in "${artifacts[@]}"; do
+    fetch_github_attestations "${f}"
+  done
+  local ref_file image tools
+  while IFS= read -r ref_file; do
+    [ -n "${ref_file}" ] || continue
+    image="$(basename "$(dirname "${ref_file}")")"
+    tools="$(mktemp)"
+    image_tools "${tag}" "${image}" > "${tools}"
     bash scripts/release/sbom.sh --out-dir "${dir}" --name "${name}-build-environment" --version "${version}" \
-      "${images[@]}"
-  fi
+      --tools "${tools}" "$(git show "${tag}:${ref_file}")"
+    rm -f "${tools}"
+  done < <(git ls-tree -r --name-only "${tag}" -- containers | grep -E '/image\.ref$' || true)
   if git cat-file -e "${tag}:docs/current_pins.md" 2> /dev/null; then
     git show "${tag}:docs/current_pins.md" > "${dir}/current_pins.md"
   fi
@@ -142,6 +151,8 @@ function fetch_npm() {
   curl -fsSL "${url}" -o "${file}"
   [ "sha512-$(openssl dgst -sha512 -binary "${file}" | base64 | tr -d '\n')" = "${integrity}" ] \
     || { log "❌ ${file}: integrity mismatch with the npm registry"; exit 1; }
+  # npm's provenance and publish attestations for this version.
+  curl -fsSL "$(jq -r '.dist.attestations.url' <<< "${meta}")" -o "${file}.npm-attestations.json"
   log "✅ npm ${name}@${tag#v}"
   printf '%s\n' "${file}"
 }
@@ -160,6 +171,9 @@ function fetch_pypi() {
     curl -fsSL "${url}" -o "${dir}/${fn}"
     printf '%s  %s\n' "${sha}" "${dir}/${fn}" | sha256sum --check --quiet \
       || { log "❌ ${fn}: sha256 mismatch with PyPI"; exit 1; }
+    # PyPI's provenance (trusted-publisher attestations) for this file.
+    curl -fsSL -H 'Accept: application/vnd.pypi.integrity.v1+json' \
+      "https://pypi.org/integrity/${name}/${tag#v}/${fn}/provenance" -o "${dir}/${fn}.pypi-provenance.json"
     log "✅ PyPI ${fn}"
     printf '%s\n' "${dir}/${fn}"
   done < <(jq -r '.urls[] | [.filename, .url, .digests.sha256] | @tsv' <<< "${meta}")
@@ -182,9 +196,47 @@ function fetch_go_module() {
   done
   [ -n "${zip:-}" ] || { log "❌ Go proxy ${module}@${tag} not found"; exit 1; }
   cp "${zip}" "${dir}/$(basename "${module}")-${tag}.zip"
+  # The checksum database's signed record of this module version.
+  curl -fsSL "https://sum.golang.org/lookup/${module}@${tag}" -o "${dir}/$(basename "${module}")-${tag}.zip.sumdb.txt"
   rm -rf "${tmp}"
   log "✅ Go module ${module}@${tag} (checksum database verified)"
   printf '%s\n' "${dir}/$(basename "${module}")-${tag}.zip"
+}
+
+# fetch_github_attestations FILE: the build attestations GitHub holds for FILE's digest
+# (actions/attest-build-provenance), saved beside it when there are any.
+function fetch_github_attestations() {
+  local -r file="${1}"
+  local digest body
+  digest="$(sha256sum "${file}" | cut -d' ' -f1)"
+  local -a auth=()
+  [ -z "${GITHUB_TOKEN:-}" ] || auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  body="$(curl -fsSL ${auth[@]+"${auth[@]}"} -H 'Accept: application/vnd.github+json' \
+    "https://api.github.com/repos/${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}/attestations/sha256:${digest}" \
+    2> /dev/null || true)"
+  [ -n "${body}" ] && [ "$(jq '.attestations // [] | length' <<< "${body}")" -gt 0 ] || return 0
+  printf '%s\n' "${body}" > "${file}.github-attestations.json"
+  log "✅ GitHub attestations for $(basename "${file}")"
+}
+
+# image_tools TAG IMAGE: name, version, purl and release URL (TSV) of every tool TAG's
+# containers/IMAGE/Containerfile installs with a pinned setup script that downloads a GitHub
+# release or clones a release tag — the rows sbom.sh --tools adds when syft cannot identify them.
+function image_tools() {
+  local -r tag="${1}" image="${2}"
+  local script content version repo tool v
+  while IFS= read -r script; do
+    content="$(tag_file "${tag}" "${script}")"
+    version="$(sed -nE "s/^readonly [A-Z0-9_]+_VERSION='([^']+)'\$/\\1/p" <<< "${content}" | head -1 || true)"
+    repo="$(grep -oE 'github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_-]+(/releases/download|\.git)' <<< "${content}" \
+      | head -1 | cut -d/ -f2-3 | sed 's/\.git$//' || true)"
+    [ -n "${version}" ] && [ -n "${repo}" ] || continue
+    tool="$(basename "${script}" .sh)"
+    tool="${tool#setup-}"
+    v="v${version#v}"
+    printf '%s\t%s\t%s\t%s\n' "${tool}" "${version#v}" "pkg:github/${repo}@${v}" "https://github.com/${repo}/releases/tag/${v}"
+  done < <(tag_file "${tag}" "containers/${image}/Containerfile" \
+    | grep -oE 'scripts/ci/setup-[a-z0-9-]+\.sh' | sort -u)
 }
 
 main "${@:-}"

@@ -72,8 +72,10 @@ function release_notes() {
   printf 'cosign verify-blob --bundle FILE.bundle FILE \\\n'
   printf '  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\\n'
   printf '  --certificate-identity-regexp '"'"'^https://github.com/%s/'"'"'\n```\n' "${GITHUB_REPOSITORY}"
-  printf '\nEach `*.spdx.json` is the SBOM of the artifact it is named after; `*-dev.spdx.json` and\n'
-  printf 'the other image SBOMs describe the pinned tool images the release was built in.\n'
+  printf '\nEach `*.spdx.json` is the SBOM of the artifact it is named after; the image SBOMs\n'
+  printf '(`standards-dev.spdx.json`, ...) describe the pinned tool images the release was built in.\n'
+  printf 'Provenance as each registry published it: `*.npm-attestations.json`, `*.pypi-provenance.json`,\n'
+  printf '`*.github-attestations.json` (GitHub build attestations) and `*.zip.sumdb.txt` (Go checksum database).\n'
 }
 
 # changelog_section TAG VERSION: TAG's CHANGELOG.md section for VERSION, else its [Unreleased].
