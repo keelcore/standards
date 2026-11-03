@@ -260,8 +260,10 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
 - **Build time only:** packages and tools are installed when the image is built; nothing is installed or updated
   when a target runs.
 - **Run:** each tool target runs `scripts/dev/run.sh`, which starts the image with the repository mounted
-  read-only and `target/` (outputs) writable. Targets whose job is editing tracked files (`format`,
-  `coverage-baseline-init`, a publish step that stamps a version) mount it writable explicitly (`--writable`).
+  read-only and its output directories writable (`containers/writable`, one per line; default `target/`). A
+  submodule is mounted as a standalone snapshot under `/tmp` (a clone with its current files), never through its
+  superproject. Targets whose job is editing tracked files (`format`, `coverage-baseline-init`, a publish step that
+  stamps a version) mount it writable explicitly (`--writable`); in a snapshot their edits are copied back.
   `make dev-shell` opens a shell in the image.
 - **Identity:** an image is identified by its build context (the Containerfile, every file it copies, and its base
   image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per architecture, joined into

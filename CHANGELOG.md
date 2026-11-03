@@ -15,8 +15,9 @@ Corrections, clarifications, metadata: patch bump.
 ### Added
 
 - Tool images (`governance/ci.md` v1.5.0 "Tool Images"): every tool target runs in an immutable image, locally
-  (Apple `container`) and in CI (docker), with the repository mounted read-only and `target/` writable
-  (`scripts/dev/run.sh`; `--writable` for `format`, `coverage-baseline-init` and `release-npm`). `containers/dev`
+  (Apple `container`) and in CI (docker), with the repository mounted read-only and its output directories writable
+  (`containers/writable`; default `target/`), a submodule as a standalone /tmp snapshot (`scripts/dev/run.sh`;
+  `--writable` for `format`, `coverage-baseline-init` and `release-npm`). `containers/dev`
   bakes in Go 1.27.3, Node 22.23.3, npm 11.21.0 (lockfile), shellcheck, bats, markdownlint, staticcheck, gitleaks,
   syft and cosign; `containers/pypi` carries CPython 3.12.15 and the hash-locked build tooling. Hosts install no
   tools: workflows drop every `setup-*` step and `actions/setup-go|node|python`, and the macOS Homebrew installs are

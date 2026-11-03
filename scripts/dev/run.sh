@@ -8,9 +8,12 @@
 #
 # Images: containers/NAME/Containerfile (default NAME: dev).
 #
-# Mounts: the repository read-only, except target/ (outputs: builds, coverage,
-# reports), which is writable. --writable mounts the whole repository writable,
-# for the targets whose job is editing tracked files (format, coverage baseline).
+# Mounts: the repository read-only, except its output directories (builds, coverage,
+# reports), which are writable: those listed in containers/writable, one per line, else
+# target/. --writable mounts the whole repository writable, for the targets whose job is
+# editing tracked files (format, coverage baseline). A submodule (its git directory lives in
+# the superproject) is mounted as a standalone snapshot under /tmp: a clone holding its
+# current files; a writable run's edits are copied back.
 #
 # Image: the digest-pinned reference in containers/NAME/image.ref when it was
 # built from the current build context (the files the Containerfile COPYs);
@@ -109,20 +112,71 @@ function build_image() {
   "$(runtime)" "${args[@]}" "${dir}" >&2
 }
 
-# run_in IMAGE MODE COMMAND...: COMMAND in IMAGE, the outermost repository mounted at /work
-# (MODE ro or rw; a submodule's git directory lives in its superproject) with this
-# repository's target/ writable, working directory the same relative path as here.
+# output_dirs ROOT: the writable output directories (repository-relative): the lines of
+# containers/writable (comments and blanks skipped), else target.
+function output_dirs() {
+  local -r file="${1}/containers/writable"
+  if [ -f "${file}" ]; then
+    grep -vE '^[[:space:]]*(#|$)' "${file}"
+  else
+    printf 'target\n'
+  fi
+}
+
+# snapshot DIR: a standalone copy of submodule DIR under /tmp — a clone (its own .git, so
+# git works without the superproject) holding DIR's current files, tracked and untracked.
+function snapshot() {
+  local -r dir="${1}"
+  local -r dest="/tmp/keelcore-dev-snapshot/$(dev_repo_name "${dir}")"
+  if [ -d "${dest}/.git" ]; then
+    git -C "${dest}" fetch --quiet "${dir}" HEAD
+    git -C "${dest}" reset --quiet --hard FETCH_HEAD
+    git -C "${dest}" clean --quiet -fdx
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    git clone --quiet --no-hardlinks "${dir}" "${dest}"
+  fi
+  (cd "${dir}" && git ls-files -d -z) | (cd "${dest}" && xargs -0 rm -f --)
+  (cd "${dir}" && git ls-files -co --exclude-standard -z | while IFS= read -r -d '' f; do
+      [ -e "${f}" ] && printf '%s\0' "${f}"
+    done | tar --null -T - -cf -) | tar -xf - -C "${dest}"
+  printf '%s' "${dest}"
+}
+
+# sync_back SNAPSHOT DIR: copy every file a writable run changed in SNAPSHOT back to DIR.
+function sync_back() {
+  local -r snap="${1}" dir="${2}"
+  local f
+  (cd "${snap}" && git ls-files -co --exclude-standard -z) | while IFS= read -r -d '' f; do
+    cmp -s "${snap}/${f}" "${dir}/${f}" && continue
+    mkdir -p "$(dirname "${dir}/${f}")"
+    cp -p "${snap}/${f}" "${dir}/${f}"
+    log "✍️  ${f}"
+  done
+}
+
+# run_in IMAGE MODE COMMAND...: COMMAND in IMAGE with this repository mounted at /work (MODE ro
+# or rw) and its output directories writable, working directory the same relative path as here.
+# A submodule (its git directory lives in the superproject) is mounted as a standalone snapshot
+# (/tmp); a writable run's edits are copied back.
 function run_in() {
   local -r image="${1}" mode="${2}"
   shift 2
-  local outer here rel name
+  local here src name
   here="$(git rev-parse --show-toplevel)"
-  outer="$(git rev-parse --show-superproject-working-tree)"
-  outer="${outer:-${here}}"
-  rel="${PWD#"${outer}"}"
-  mkdir -p "${here}/target"
-  local -a args=(run --rm -i -v "${outer}:/work:${mode}" -w "/work${rel}")
-  [ "${mode}" = 'ro' ] && args+=(-v "${here}/target:/work${here#"${outer}"}/target")
+  src="${here}"
+  if [ -n "$(git rev-parse --show-superproject-working-tree)" ]; then
+    src="$(snapshot "${here}")"
+  fi
+  local -a args=(run --rm -i -v "${src}:/work:${mode}" -w "/work${PWD#"${here}"}")
+  local out
+  if [ "${mode}" = 'ro' ]; then
+    while IFS= read -r out; do
+      mkdir -p "${here}/${out}" "${src}/${out}"
+      args+=(-v "${here}/${out}:/work/${out}")
+    done < <(output_dirs "${here}")
+  fi
   [ -t 1 ] && args+=(-t)
   for name in ${PASS_ENV}; do
     [ -n "${!name:-}" ] && args+=(-e "${name}=${!name}")
@@ -138,6 +192,12 @@ function run_in() {
     [ "${name}" = 'GITHUB_EVENT_PATH' ] && fmode='ro'
     args+=(-v "$(dirname "${file}"):$(dirname "${file}"):${fmode}")
   done
+  if [ "${src}" != "${here}" ] && [ "${mode}" = 'rw' ]; then
+    local rc=0
+    "$(runtime)" "${args[@]}" "${image}" "$@" || rc=$?
+    sync_back "${src}" "${here}"
+    return "${rc}"
+  fi
   exec "$(runtime)" "${args[@]}" "${image}" "$@"
 }
 

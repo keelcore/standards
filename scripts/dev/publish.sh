@@ -129,7 +129,10 @@ function write_ref() {
   local -r repository="$(dev_repository . "${name}")"
   local -r host="${repository%%/*}" path="${repository#*/}"
   local token digest
-  token="$(curl -fsSL "https://${host}/token?scope=repository:${path}:pull" | jq -r '.token')"
+  # Anonymous for a public package; GITHUB_TOKEN (read:packages) for a private one.
+  local -a auth=()
+  [ -z "${GITHUB_TOKEN:-}" ] || auth=(-u "token:${GITHUB_TOKEN}")
+  token="$(curl -fsSL "${auth[@]}" "https://${host}/token?scope=repository:${path}:pull" | jq -r '.token')"
   digest="$(curl -fsSI -H "Authorization: Bearer ${token}" \
     -H 'Accept: application/vnd.oci.image.index.v1+json' \
     -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
