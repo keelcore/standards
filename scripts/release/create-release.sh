@@ -225,7 +225,8 @@ function check_clean_tree() {
 }
 
 # check_pins DRY_RUN: discover every pin; stale pins block the release unless
-# --allow-stale-pins gave a reason (a dry run only warns).
+# --allow-stale-pins gave a reason (a dry run only warns). A tool-image pin (devimage) never
+# blocks: run.sh builds an unpinned build context locally.
 function check_pins() {
   local -r dry_run="${1}"
   local -r driver="$(dirname "${BASH_SOURCE[0]}")/update-pins.sh"
@@ -238,7 +239,7 @@ function check_pins() {
     exit 1
   fi
   PINS_SUMMARY="$(printf '%s\n' "${report}" | sed -n 's/^update-pins (discovery) — //p' | head -1)"
-  PINS_STALE="$(awk -F'\t' -v OFS='\t' '$6 == "stale" { print $1, $2, $4, $7, $NF }' "${PINS_TSV}")"
+  PINS_STALE="$(awk -F'\t' -v OFS='\t' '$6 == "stale" && $1 != "devimage" { print $1, $2, $4, $7, $NF }' "${PINS_TSV}")"
   if [ -z "${PINS_STALE}" ]; then
     log "✅ Pins: ${PINS_SUMMARY}"
     return 0

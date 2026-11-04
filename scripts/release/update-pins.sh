@@ -37,7 +37,7 @@
 #              pyproject build-system requirement
 #   npmlock    exact dependencies of a package.json beside its package-lock.json
 #   runner     workflow `runs-on:` / matrix `os:` image labels (newer images report-only)
-#   devimage   containers/NAME/image.ref: the pinned build context vs the tree's (stale until the
+#   devimage   containers/NAME/image.ref: the pinned build context vs the tree's (a hold until the
 #              new context is published; apply pins it by digest)
 #   unpinned   inputs that float: @latest, apk/apt packages without a version,
 #              Homebrew installs, FROM / image: references without a digest,
@@ -404,8 +404,8 @@ function discover_node() {
 }
 
 # Tool images (containers/NAME/image.ref, scripts/lib/dev-image.sh): the pinned build context
-# against the tree's. A changed context (a tool pin bumped in a Containerfile, a new base) makes
-# the pin stale until the image is published (dev-image.yml, after the commit) and pinned.
+# against the tree's. A changed context (a tool pin bumped in a Containerfile, a new base) is a
+# hold until the image is published (dev-image.yml, after the commit), then stale until pinned.
 function discover_devimages() {
   [ -f scripts/lib/dev-image.sh ] || return 0
   local cf name ref pinned tree
@@ -1034,8 +1034,9 @@ function runner_version() {
   sed -E 's/^[a-z]+-([0-9]+(\.[0-9]+)?).*/\1/' <<< "${1}"
 }
 
-# resolve_devimage NAME PINNED TREE: current when the tree's build context is the pinned one; else
-# stale toward the tree's context, which apply pins once it is published.
+# resolve_devimage NAME PINNED TREE: current when the tree's build context is the pinned one; stale
+# toward the tree's context once it is published (apply pins it by digest); until then a hold:
+# run.sh builds that context locally.
 function resolve_devimage() {
   local -r name="${1}" pinned="${2}" tree="${3}"
   if [ "${pinned}" = "${tree}" ]; then
@@ -1043,7 +1044,7 @@ function resolve_devimage() {
   elif image_digest "$(devimage_repository "${name}"):${tree}" > /dev/null; then
     printf 'stale\t%s\t-\tpublished; apply pins it by digest\n' "${tree}"
   else
-    printf 'stale\t%s\t-\tnot published yet (dev-image.yml publishes it after the commit)\n' "${tree}"
+    printf 'hold\t%s\t-\tnot published yet; run.sh builds it locally\n' "${tree}"
   fi
 }
 

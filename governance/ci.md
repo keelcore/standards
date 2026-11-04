@@ -335,8 +335,9 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
 
 In a consumer, a pin located in a canonical file (byte-identical to its `.standards` copy) is held by `.standards`:
 the `.standards` release carries it, and the consumer never gates on or applies it. A tool image's pin
-(`containers/NAME/image.ref`, kind `devimage`) is stale while the tree's build context differs from the pinned one;
-apply pins the new context by digest once `dev-image.yml` has published it.
+(`containers/NAME/image.ref`, kind `devimage`) is held while the tree's build context is unpublished: `run.sh`
+builds that context locally. Once `dev-image.yml` has published it, the pin is stale and apply pins it by digest. A
+tool-image pin never blocks the release gate.
 
 Projects extend discovery, holds, verification targets and appliers through `scripts/release/update-pins.local.sh`.
 

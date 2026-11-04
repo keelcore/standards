@@ -20,6 +20,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- A tool-image pin (`devimage`) never blocks `make create-release`: an unpublished build context is a hold
+  (`run.sh` builds it locally); once published it is stale and `make update-pins APPLY=1` pins it
 - `make install-hooks` sets `core.hooksPath scripts/hooks`: one setting serves a clone, every worktree and a
   submodule checkout
 - `make create-release` tags the approved `HEAD` and pushes the tag, and nothing else: no release commit, no

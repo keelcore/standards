@@ -162,7 +162,8 @@ preconditions and stale pins as warnings. CI picks up the pushed tag and runs th
 
 A pin is stale when an eligible newer release exists (`governance/ci.md` "Pin Refresh": no prereleases, 14-day
 cooldown, majors report-only) and was not adopted. `create-release` lists every stale pin with the consequence of
-staying on it, and refuses to tag.
+staying on it, and refuses to tag. A tool-image pin (`containers/NAME/image.ref`) never blocks: `run.sh` builds an
+unpublished build context locally, and `make update-pins APPLY=1` pins it once it is published.
 
 - **Fix:** `make update-pins`, then `make update-pins APPLY=1`; review, commit and push the refreshed pins.
 - **Override:** `make create-release ALLOW_STALE_PINS="<reason>"` (`--allow-stale-pins "<reason>"`). A non-empty reason

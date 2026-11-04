@@ -483,6 +483,46 @@ stale_pin() {
   [ "$(tag_count)" -eq 1 ]
 }
 
+# devimage_pin PUBLISHED: commit a tool image whose image.ref pins another build context, with
+# offline registry metadata (UPDATE_PINS_FIXTURES); PUBLISHED=1 also publishes the tree's context.
+devimage_pin() {
+  local -r fix="${T}/pin-fixtures" lib='source scripts/lib/dev-image.sh'
+  mkdir -p "${fix}" scripts/lib containers/dev
+  cp "${STANDARDS}/scripts/lib/dev-image.sh" scripts/lib/dev-image.sh
+  printf 'FROM scratch\n' > containers/dev/Containerfile
+  local repo tree
+  repo="$(bash -c "${lib}; dev_repository . dev")"
+  printf '%s:ctx-0000000000000000@sha256:%064d\n' "${repo}" 0 > containers/dev/image.ref
+  git add scripts/lib containers
+  commit_and_push containers/dev/image.ref 'tool image'
+  tree="ctx-$(bash -c "${lib}; dev_context_hash . dev")"
+  printf 'sha256:%064d' 0 > "${fix}/$(printf 'digest:%s:ctx-0000000000000000' "${repo}" | tr -c 'A-Za-z0-9._-' '_')"
+  [ "${1}" = '1' ] && printf 'sha256:%064d' 1 > "${fix}/$(printf 'digest:%s:%s' "${repo}" "${tree}" | tr -c 'A-Za-z0-9._-' '_')"
+  export UPDATE_PINS_FIXTURES="${fix}" UPDATE_PINS_NOW=2000000000
+}
+
+@test "pins: an unpublished tool-image context is a hold and does not block the release" {
+  ready_at v1.2.3
+  devimage_pin 0
+  run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  remote_has_tag v1.2.4
+  run git tag -l --format='%(contents:body)' v1.2.4
+  [[ "${output}" == *'1 hold'* ]] || false
+  [[ "${output}" != *'Pins-Override'* ]] || false
+}
+
+@test "pins: a published, unpinned tool-image context is stale and does not block the release" {
+  ready_at v1.2.3
+  devimage_pin 1
+  run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  remote_has_tag v1.2.4
+  run git tag -l --format='%(contents:body)' v1.2.4
+  [[ "${output}" == *'1 stale'* ]] || false
+  [[ "${output}" != *'Pins-Override'* ]] || false
+}
+
 @test "pins: with no stale pins the tag records the pin summary and no override" {
   ready_at v1.2.3
   run bash "${DRIVER}"
