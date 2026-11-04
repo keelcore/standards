@@ -320,8 +320,9 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
    report's `SOURCE` column says which side proposed it.
 4. **Verification:** each stale pin is applied alone in a throwaway git worktree of the staged tree (HEAD plus the
    index, submodules at their staged commits plus their uncommitted changes, so pins verify against what the next
-   commit holds), exercised by the make targets mapped to its kind, and rolled back; a failing pin never stops the others. Then every passing pin is applied together for
-   one combined run (lint, audit, the full unit and integration set). Go modules (`go get`, `go mod tidy`,
+   commit holds), exercised by the make targets mapped to its kind, and rolled back; a failing pin never stops the
+   others. Then every passing pin is applied together for one combined run (lint, audit, the full unit and integration
+   set). Go modules (`go get`, `go mod tidy`,
    `go mod vendor`) verify against that full set. Kinds the host cannot exercise are verified by the `update-pins`
    workflow on Linux.
    An interrupted run stops every verification it started and removes every worktree it created.
