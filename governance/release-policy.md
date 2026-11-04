@@ -1,6 +1,6 @@
 # Release Policy
 
-**Maturity:** Required **Version:** 1.3.0 **Last Reviewed:** 2026-11-03
+**Maturity:** Required **Version:** 1.4.0 **Last Reviewed:** 2026-11-04
 
 This document covers how a project that follows the keelcore standards tags and releases a version. The authoritative
 policy lives in [`ci.md`](ci.md) under **Release Tagging**. This document is the developer-facing how-to that
@@ -143,13 +143,16 @@ make create-release
 The script will:
 
 1. Verify you are on `main`, your branch's configured upstream is in sync, and the working tree is clean.
-2. Check pins (`update-pins.sh --discover-only`): any stale pin blocks the release (see Stale Pins below).
-3. Run the project's hook and compute the next version.
-4. Print the summary (the hook's findings, bump level, proposed tag subject).
-5. Prompt for `y/N` approval.
-6. On approval: when `CHANGELOG.md` has `[Unreleased]` entries, move them under `## [X.Y.Z] - <date>` in a signed
-   release commit; create a signed annotated tag on it, and push the release commit and the tag atomically to the
-   upstream remote (without a CHANGELOG cut, only the tag is pushed).
+2. Pin the tool images: each `containers/NAME/image.ref` whose build context changed is pinned to the published
+   `ctx-<hash>` by digest (registry metadata only); a context not published yet leaves it unchanged.
+3. Check pins (`update-pins.sh --discover-only`): any stale pin blocks the release (see Stale Pins below).
+4. Run the project's hook and compute the next version.
+5. Print the summary (the hook's findings, bump level, proposed tag subject).
+6. Prompt for `y/N` approval.
+7. On approval: when `CHANGELOG.md` has `[Unreleased]` entries or a tool image was pinned, make a signed release
+   commit (the entries moved under `## [X.Y.Z] - <date>`, the new `image.ref` pins); create a signed annotated tag on
+   it, and push the release commit and the tag atomically to the upstream remote (with neither, only the tag is
+   pushed). A dry run, a declined prompt or a blocked release leaves `image.ref` as it was.
 
 A dry run prints the version and the full tag message without prompting, tagging or pushing, and reports failed
 preconditions and stale pins as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).

@@ -287,8 +287,9 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
   builder running at another size is restarted at that size.
 - **Identity:** an image is identified by its build context (the Containerfile, every file it copies, and its base
   image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per architecture, joined into
-  a multi-arch index and signed keyless. `make dev-image-ref` pins the published image by digest in
-  `containers/NAME/image.ref`; until a context is published and pinned, `run.sh` builds that context locally.
+  a multi-arch index and signed keyless. `make create-release` pins each published image by digest in
+  `containers/NAME/image.ref` in the release commit (`make dev-image-ref` does the same by hand); until a context is
+  published and pinned, `run.sh` builds that context locally.
 - **Project hook:** after each mode, `publish.sh` runs `scripts/dev/publish.local.sh MODE` when the repository holds
   it (`push`, `merge`, `ref`, `local`), e.g. to check the published packages after `make dev-image-publish`.
 - **Workflows** run the same `make` targets: no `setup-*` steps and no `actions/setup-<language>` actions in jobs

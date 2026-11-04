@@ -26,6 +26,8 @@ Corrections, clarifications, metadata: patch bump.
   `scripts/release/release-assets.local.sh TAG DIR`, and attaches the repository's `LICENSE` to every release
   (`RELEASE_LICENSE` names the SPDX id when no package manifest does)
 - `governance/devsecops.md` § Immutable Tool Images
+- `make create-release` pins each published tool image (`containers/NAME/image.ref`) by digest in the signed release
+  commit, so no separate `make dev-image-ref` commit is needed
 
 ### Changed
 

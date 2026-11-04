@@ -524,3 +524,48 @@ stale_pin() {
   [ "$(git rev-parse HEAD)" = "${head}" ]
   [ "$(git rev-parse 'v1.2.4^{commit}')" = "${head}" ]
 }
+
+# ---------------------------------------------------------------------------
+# Tool-image pins: create-release pins each published tool image in the release commit
+# ---------------------------------------------------------------------------
+
+# tool_image_repo NEW: a repo with containers/dev/image.ref and a publish.sh whose `ref` mode
+# writes NEW there (exit 1 when NEW is "unpublished").
+tool_image_repo() {
+  mkdir -p containers/dev scripts/dev
+  printf 'ghcr.io/acme/x-dev:ctx-aaaa@sha256:%s\n' "$(printf '1%.0s' {1..64})" > containers/dev/image.ref
+  printf '#!/usr/bin/env bash\n[ "${1}" = ref ] || exit 2\n[ "%s" != unpublished ] || { echo "❌ ctx-bbbb is not published yet"; exit 1; }\nprintf "%%s\\n" "%s" > containers/dev/image.ref\n' \
+    "${1}" "${1}" > scripts/dev/publish.sh
+  git add --all && git commit --quiet -m 'tool image' && git push --quiet
+}
+
+@test "tool images: a published new context is pinned in the signed release commit the tag points at" {
+  local new
+  new="ghcr.io/acme/x-dev:ctx-bbbb@sha256:$(printf '2%.0s' {1..64})"
+  tag_and_push v0.1.0
+  tool_image_repo "${new}"
+  run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  [ "$(git log -1 --format=%s v0.1.1)" = 'chore(release): v0.1.1' ]
+  [ "$(git show v0.1.1:containers/dev/image.ref)" = "${new}" ]
+  git verify-commit "$(git rev-parse v0.1.1^{commit})"
+  [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "$(git rev-parse v0.1.1^{commit})" ]
+  [ -z "$(git status --porcelain)" ]
+}
+
+@test "tool images: a dry run or an unpublished context leaves image.ref as it was" {
+  tag_and_push v0.1.0
+  local before
+  tool_image_repo "ghcr.io/acme/x-dev:ctx-bbbb@sha256:$(printf '2%.0s' {1..64})"
+  before="$(cat containers/dev/image.ref)"
+  run bash "${DRIVER}" --dry-run
+  [ "${status}" -eq 0 ]
+  [ "$(cat containers/dev/image.ref)" = "${before}" ]
+  [ -z "$(git status --porcelain)" ]
+  printf '#!/usr/bin/env bash\necho "❌ ctx-bbbb is not published yet"; exit 1\n' > scripts/dev/publish.sh
+  git commit --quiet -am 'unpublished' && git push --quiet
+  run bash "${DRIVER}" --dry-run
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *'Tool images not pinned: ❌ ctx-bbbb is not published yet'* ]] || false
+  [ "$(cat containers/dev/image.ref)" = "${before}" ]
+}
