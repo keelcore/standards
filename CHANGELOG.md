@@ -12,6 +12,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+## [0.10.9] - 2026-11-04
+
 ### Added
 
 - `scripts/dev/publish.sh` runs the project hook `scripts/dev/publish.local.sh MODE` after each mode, when the
