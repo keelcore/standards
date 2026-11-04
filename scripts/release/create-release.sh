@@ -62,10 +62,6 @@ PINS_TSV="$(mktemp "${TMPDIR:-/tmp}/create_release_pins.XXXXXX")"
 # Set by check_pins: the discovery summary, the stale pins, the override reason.
 PINS_SUMMARY=''
 PINS_STALE=''
-# The release commit cut_changelog made (empty: the tag points at the approved HEAD).
-CUT_COMMIT=''
-# Set by pin_tool_images when it rewrote containers/*/image.ref (they go into the release commit).
-TOOL_PINS_WRITTEN=''
 PINS_OVERRIDE=''
 
 function main() {
@@ -78,7 +74,6 @@ function main() {
   PINS_OVERRIDE="$(parse_allow_stale_pins "${@:-}")"
   ensure_repo_root
   check_preconditions "${dry_run}"
-  pin_tool_images
   check_pins "${dry_run}"
   run_release "${force}" "${dry_run}"
 }
@@ -90,31 +85,6 @@ function log() {
 
 function cleanup() {
   rm -f "${FINDINGS_FILE}" "${PINS_TSV}"
-  # Tool-image pins written for a release that was not committed (dry run, cancelled, blocked) are undone.
-  if [ -n "${TOOL_PINS_WRITTEN}" ] && [ -z "${CUT_COMMIT}" ]; then
-    git checkout -- containers/*/image.ref 2> /dev/null || true
-  fi
-}
-
-# pin_tool_images: each tool image whose build context changed since its image.ref is pinned to
-# the published ctx-<hash> by digest (scripts/dev/publish.sh ref: registry metadata only, no
-# build), for the release commit. A context not published yet leaves every image.ref as it was,
-# and the pin gate reports it.
-function pin_tool_images() {
-  compgen -G 'containers/*/image.ref' > /dev/null || return 0
-  [ -f scripts/dev/publish.sh ] || return 0
-  local out
-  if ! out="$(bash scripts/dev/publish.sh ref 2>&1)"; then
-    git checkout -- containers/*/image.ref 2> /dev/null || true
-    log "ℹ️  Tool images not pinned: $(printf '%s\n' "${out}" | grep -m1 '❌' || true)"
-    return 0
-  fi
-  git diff --quiet -- containers/*/image.ref && return 0
-  TOOL_PINS_WRITTEN=1
-  local ref
-  for ref in $(git diff --name-only -- containers/*/image.ref); do
-    log "🧰 ${ref}: $(cat "${ref}")"
-  done
 }
 
 # Accepts any order of: (nothing), --dry-run, --force vX.Y.Z,
@@ -611,7 +581,6 @@ function tag_or_preview() {
     return 0
   fi
   prompt_approval "${version}"
-  cut_changelog "${version}"
   create_tag "${version}" "${msg}"
   audit_override "${version}"
   push_tag "${version}"
@@ -628,28 +597,6 @@ function prompt_approval() {
   fi
 }
 
-# cut_changelog VERSION: when CHANGELOG.md has [Unreleased] entries, move them under
-# "## [VERSION] - <date>" (UTC), leave [Unreleased] empty, and commit that as the release
-# commit (signed, signed-off) that the tag points at; CUT_COMMIT records it for push_tag.
-function cut_changelog() {
-  local -r version="${1}"
-  local entries=0
-  if [ -f CHANGELOG.md ]; then
-    entries="$(awk '/^## \[Unreleased\]/ { p = 1; next } /^## / { if (p) exit } p' CHANGELOG.md | grep -cE '^- ' || true)"
-  fi
-  [ "${entries}" -gt 0 ] || [ -n "${TOOL_PINS_WRITTEN}" ] || return 0
-  if [ "${entries}" -gt 0 ]; then
-    VERSION="${version}" DATE="$(date -u +%Y-%m-%d)" perl -0pi -e \
-      's/^## \[Unreleased\]\n/## [Unreleased]\n\n## [$ENV{VERSION}] - $ENV{DATE}\n/m' CHANGELOG.md
-    git add CHANGELOG.md
-  fi
-  [ -z "${TOOL_PINS_WRITTEN}" ] || git add containers/*/image.ref
-  git commit -S -s -m "chore(release): v${version}" > /dev/null
-  CUT_COMMIT="$(git rev-parse HEAD)"
-  [ "${entries}" -eq 0 ] || log "📝 CHANGELOG [Unreleased] → [${version}] (commit ${CUT_COMMIT:0:7})"
-  [ -z "${TOOL_PINS_WRITTEN}" ] || log "🧰 Tool-image pins in the release commit ${CUT_COMMIT:0:7}"
-}
-
 function create_tag() {
   local -r version="${1}" msg="${2}"
   log "🔏 Creating signed annotated tag v${version}"
@@ -662,12 +609,7 @@ function push_tag() {
   local remote
   remote="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' | cut -d/ -f1)"
   log "🚀 Pushing v${version} to ${remote}"
-  if [ -n "${CUT_COMMIT}" ]; then
-    # The release commit and its tag land together or not at all.
-    git push --atomic "${remote}" "HEAD:$(git rev-parse --abbrev-ref HEAD)" "v${version}"
-  else
-    git push "${remote}" "v${version}"
-  fi
+  git push "${remote}" "v${version}"
   log "✅ Pushed v${version} to ${remote}"
 }
 

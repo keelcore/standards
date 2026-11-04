@@ -64,6 +64,7 @@ export TZ := UTC
 .PHONY: check-governance-metadata
 .PHONY: check-rfc-metadata
 .PHONY: check-clean-tree
+.PHONY: check-pins-doc
 .PHONY: check-legal-drift
 .PHONY: setup-bats
 .PHONY: setup-cosign
@@ -170,6 +171,11 @@ check-rfc-metadata:
 check-clean-tree:
 	@echo "🧹 Checking the working tree is clean..."
 	bash scripts/ci/check-clean-tree.sh
+
+## The pins docs/current_pins.md lists match the pins in the tree (local, no network; also a pre-commit check)
+check-pins-doc:
+	@echo "📌 Checking docs/current_pins.md against the pins in the tree..."
+	bash scripts/dev/run.sh bash scripts/release/update-pins.sh --check-pins-doc docs/current_pins.md
 
 check-legal-drift:
 	@echo "⚖️  Checking legal file drift..."

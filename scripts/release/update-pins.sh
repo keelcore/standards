@@ -16,6 +16,10 @@
 #   --tsv FILE       also write the resolved pins (TSV) to FILE
 #   --report FILE    also write the human-readable report to FILE
 #   --pins-md FILE   also write every pin as a Markdown table to FILE (docs/current_pins.md)
+#                    (--apply rewrites docs/current_pins.md after writing the pins, when it exists)
+#   --check-pins-doc FILE
+#                    local only (no network): the Pinned column of FILE matches every pin
+#                    discovered in the tree; exit 1 listing each difference (the pre-commit check)
 # Exit status: 1 when a pin or the combined run failed, else 0.
 #
 # Pin kinds:
@@ -94,6 +98,7 @@ MODE='verify'
 APPLY=''
 TSV_OUT=''
 PINS_MD=''
+CHECK_DOC=''
 REPORT_OUT=''
 PLATFORM=''
 WT=''
@@ -110,6 +115,11 @@ function main() {
   cd "${ROOT}"
   NOW="${UPDATE_PINS_NOW:-$(date -u +%s)}"
   PLATFORM="${UPDATE_PINS_PLATFORM:-$(uname -s)}"
+  if [ "${MODE}" = 'check-doc' ]; then
+    load_hook
+    check_pins_doc "${CHECK_DOC}"
+    return
+  fi
   cache_github_token
   if [ -n "${REPORT_OUT}" ]; then
     mkdir -p "$(dirname "${REPORT_OUT}")"
@@ -123,7 +133,31 @@ function main() {
   [ -z "${TSV_OUT}" ] || write_tsv "${resolved}" > "${TSV_OUT}"
   [ -z "${PINS_MD}" ] || write_pins_md "${resolved}" > "${PINS_MD}"
   [ "${MODE}" = 'discover' ] && return 0
-  verify_all "${resolved}"
+  local rc=0
+  verify_all "${resolved}" || rc=$?
+  # The pins table follows the pins it describes: rewritten from the tree --apply just wrote.
+  if [ -n "${APPLY}" ] && [ -f docs/current_pins.md ]; then
+    bash "${BASH_SOURCE[0]}" --discover-only --pins-md docs/current_pins.md > /dev/null
+    log '📝 docs/current_pins.md rewritten'
+  fi
+  return "${rc}"
+}
+
+# check_pins_doc FILE: every pin discovered in the tree (kind, name, pinned value) against the
+# Kind / Pin / Pinned columns of FILE; no network. Exit 1 listing each difference.
+function check_pins_doc() {
+  local -r doc="${1}"
+  [ -f "${doc}" ] || { log "❌ ${doc} not found (make pins-doc)"; exit 1; }
+  local want have diff
+  want="$(group "$(discover)" | awk -F'\t' -v OFS='\t' '{ print $1, $2, $4 }' | sort -u)"
+  have="$(awk -F' \\| ' '/^\| [a-z]+ \| `/ { k = $1; sub(/^\| /, "", k); n = $2; p = $3; gsub(/`/, "", n); gsub(/`/, "", p); print k "\t" n "\t" p }' "${doc}" | sort -u)"
+  diff="$(diff <(printf '%s\n' "${have}") <(printf '%s\n' "${want}") | grep -E '^[<>] ' || true)"
+  if [ -n "${diff}" ]; then
+    log "❌ ${doc} does not match the pins in the tree (make pins-doc, then commit it with the pins):"
+    printf '%s\n' "${diff}" | sed -e "s|^< |  only in ${doc}: |" -e 's|^> |  only in the tree: |' >&5
+    exit 1
+  fi
+  log "✅ ${doc} matches the pins in the tree"
 }
 
 # group RECORDS: one line per distinct pin (kind, name, current, source):
@@ -161,6 +195,11 @@ function validate_args() {
       --pins-md)
         [ -n "${2:-}" ] || { log '❌ Error: --pins-md needs a file'; exit 1; }
         PINS_MD="${2}"
+        shift ;;
+      --check-pins-doc)
+        [ -n "${2:-}" ] || { log '❌ Error: --check-pins-doc needs a file'; exit 1; }
+        CHECK_DOC="${2}"
+        MODE='check-doc'
         shift ;;
       *)
         log "❌ Error: Unexpected argument: ${1}"

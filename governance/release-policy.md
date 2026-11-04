@@ -124,8 +124,9 @@ unchanged.
 
 - **keel** — the hook diffs the config field set of `pkg/config/schema.yaml` at the previous tag against `HEAD`:
   removed fields → major; added fields → minor; no change → patch. See keel's `docs/release-policy.md`.
-- **keelcore/standards** — the hook reads `CHANGELOG.md` `## [Unreleased]`: any `### Removed` entry → major; else any
-  `### Added` or `### Changed` entry → minor; else patch. An empty `[Unreleased]` fails.
+- **keelcore/standards** — the hook reads the `CHANGELOG.md` `## [Unreleased]` entries added since the previous tag:
+  any `### Removed` entry → major; else any `### Added` or `### Changed` entry → minor; else patch. No new entries
+  fails.
 
 ---
 
@@ -143,16 +144,14 @@ make create-release
 The script will:
 
 1. Verify you are on `main`, your branch's configured upstream is in sync, and the working tree is clean.
-2. Pin the tool images: each `containers/NAME/image.ref` whose build context changed is pinned to the published
-   `ctx-<hash>` by digest (registry metadata only); a context not published yet leaves it unchanged.
-3. Check pins (`update-pins.sh --discover-only`): any stale pin blocks the release (see Stale Pins below).
-4. Run the project's hook and compute the next version.
-5. Print the summary (the hook's findings, bump level, proposed tag subject).
-6. Prompt for `y/N` approval.
-7. On approval: when `CHANGELOG.md` has `[Unreleased]` entries or a tool image was pinned, make a signed release
-   commit (the entries moved under `## [X.Y.Z] - <date>`, the new `image.ref` pins); create a signed annotated tag on
-   it, and push the release commit and the tag atomically to the upstream remote (with neither, only the tag is
-   pushed). A dry run, a declined prompt or a blocked release leaves `image.ref` as it was.
+2. Check pins (`update-pins.sh --discover-only`): any stale pin blocks the release (see Stale Pins below).
+3. Run the project's hook and compute the next version.
+4. Print the summary (the hook's findings, bump level, proposed tag subject).
+5. Prompt for `y/N` approval.
+6. On approval: create a signed annotated tag on the approved `HEAD` and push it; the tag is the release's only
+   change to the repository. Pins and `docs/current_pins.md` are updated and committed before the release (`make
+   update-pins APPLY=1`, checked by the pre-commit hook), and the release notes take the `CHANGELOG.md`
+   `[Unreleased]` entries added since the previous tag.
 
 A dry run prints the version and the full tag message without prompting, tagging or pushing, and reports failed
 preconditions and stale pins as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).

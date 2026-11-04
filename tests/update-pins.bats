@@ -459,3 +459,28 @@ dependabot() {
   grep -qF '| action | `actions/checkout` | `v4.2.2` | stale | `v4.4.0` | `.github/workflows/ci.yml:4` |' current_pins.md
   grep -qF '| unpinned | `apk:curl` |' current_pins.md
 }
+
+@test "--check-pins-doc: a table matching the tree passes; a changed pin fails and is named" {
+  mkdir -p docs
+  bash scripts/release/update-pins.sh --discover-only --pins-md docs/current_pins.md > /dev/null
+  run bash scripts/release/update-pins.sh --check-pins-doc docs/current_pins.md
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *'matches the pins in the tree'* ]] || false
+  sed -i.bak "s/FOO_VERSION='1.2.0'/FOO_VERSION='1.2.1'/" scripts/ci/setup-foo.sh && rm -f scripts/ci/setup-foo.sh.bak
+  run bash scripts/release/update-pins.sh --check-pins-doc docs/current_pins.md
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'only in docs/current_pins.md: tool'*'FOO'*'1.2.0'* ]] || false
+  [[ "${output}" == *'only in the tree: tool'*'FOO'*'1.2.1'* ]] || false
+}
+
+@test "verify --apply: docs/current_pins.md is rewritten with the pins it wrote" {
+  checkout_fixture
+  mkdir -p docs
+  bash scripts/release/update-pins.sh --discover-only --pins-md docs/current_pins.md > /dev/null
+  grep -qF '| action | `actions/checkout` | `v4.2.2` |' docs/current_pins.md
+  commit
+  verify --apply
+  grep -qF '| action | `actions/checkout` | `v4.4.0` |' docs/current_pins.md
+  run bash scripts/release/update-pins.sh --check-pins-doc docs/current_pins.md
+  [ "${status}" -eq 0 ]
+}

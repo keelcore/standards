@@ -287,8 +287,8 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
   builder running at another size is restarted at that size.
 - **Identity:** an image is identified by its build context (the Containerfile, every file it copies, and its base
   image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per architecture, joined into
-  a multi-arch index and signed keyless. `make create-release` pins each published image by digest in
-  `containers/NAME/image.ref` in the release commit (`make dev-image-ref` does the same by hand); until a context is
+  a multi-arch index and signed keyless. `make update-pins APPLY=1` (or `make dev-image-ref`) pins the published
+  image by digest in `containers/NAME/image.ref`, committed with the change that needs it; until a context is
   published and pinned, `run.sh` builds that context locally.
 - **Project hook:** after each mode, `publish.sh` runs `scripts/dev/publish.local.sh MODE` when the repository holds
   it (`push`, `merge`, `ref`, `local`), e.g. to check the published packages after `make dev-image-publish`.
@@ -327,8 +327,10 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
    `go mod vendor`) verify against that full set. Kinds the host cannot exercise are verified by the `update-pins`
    workflow on Linux.
    An interrupted run stops every verification it started and removes every worktree it created.
-5. **Apply:** `make update-pins APPLY=1` writes the passing pins to the working tree only after the combined run
-   passes, for human review and staging. The default run is dry: the working tree is never touched.
+5. **Apply:** `make update-pins APPLY=1` writes the passing pins, and rewrites `docs/current_pins.md` from them, to
+   the working tree only after the combined run passes, for human review and staging. The pre-commit hook checks that
+   `docs/current_pins.md` lists exactly the pins in the tree (`make check-pins-doc`, no network), so a commit carries
+   its pins and their table together. The default run is dry: the working tree is never touched.
 6. **Release gate:** `make create-release` refuses while any pin is stale (see `release-policy.md`).
 
 In a consumer, a pin located in a canonical file (byte-identical to its `.standards` copy) is held by `.standards`:
@@ -365,10 +367,9 @@ Projects extend discovery, holds, verification targets and appliers through `scr
 - Signatures and certificates are uploaded alongside binaries.
 - The release's last step verifies every asset: `SHA256SUMS`, and each cosign bundle against the release workflow's
   identity (`make release-verify-blobs`).
-- The GitHub Release notes carry the signed tag message, the CHANGELOG section for the version (`create-release`
-  moves `[Unreleased]` into it in the release commit the tag points at), and the pins table (`docs/current_pins.md`).
-  The notes are always composed this way, for every project, with verify instructions and the provenance kinds the
-  release carries; never generated from pull requests.
+- The GitHub Release notes carry the signed tag message, the version's CHANGELOG entries (its `## [X.Y.Z]` section,
+  else the `[Unreleased]` entries added since the previous tag), the pins table at the tag (`docs/current_pins.md`,
+  committed with the pins), verify instructions and the provenance kinds the release carries, for every project.
 - A project adds its own artifacts (binaries, charts) through `scripts/release/release-assets.local.sh TAG DIR`,
   which places them in DIR and prints their paths: they get SBOMs, checksums and signatures like the registry
   artifacts. The repository's `LICENSE` is attached to every release.

@@ -12,6 +12,19 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+### Added
+
+- `update-pins --check-pins-doc FILE` (`make check-pins-doc`, also a pre-commit check): `docs/current_pins.md` lists
+  exactly the pins in the tree; local, no network
+
+### Changed
+
+- `make create-release` tags the approved `HEAD` and pushes the tag, and nothing else: no release commit, no
+  CHANGELOG cut, no `image.ref` pinning. Pins and `docs/current_pins.md` are committed before the release
+- `make update-pins APPLY=1` rewrites `docs/current_pins.md` from the pins it wrote
+- The release notes and the bump level take the `CHANGELOG.md` `[Unreleased]` entries added since the previous tag
+- The release notes name the tool-image SBOMs by file (`<repository>-<image>.spdx.json`)
+
 ## [0.10.9] - 2026-11-04
 
 ### Added

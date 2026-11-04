@@ -6,10 +6,10 @@
 #
 # Usage: create-release.local.sh <previous-tag>
 #
-# Applies the bump policy stated in CHANGELOG.md to its "## [Unreleased]"
-# section: any "### Removed" entry -> major; else any "### Added" or
-# "### Changed" entry -> minor; else patch. Fails when [Unreleased] has no
-# entries (nothing to release).
+# Applies the bump policy stated in CHANGELOG.md to the "## [Unreleased]" entries added since
+# <previous-tag> (entries the previous tag's CHANGELOG.md already had are not new): any
+# "### Removed" entry -> major; else any "### Added" or "### Changed" entry -> minor; else patch.
+# Fails when there are none (nothing to release).
 #
 # stdout is the hook contract: line 1 the bump level, line 2 the tag subject.
 # Findings and errors go to stderr (the driver shows them and records them in
@@ -34,7 +34,7 @@ function main() {
   exec 5>&2
   validate_args "${@:-}"
   local section
-  section="$(unreleased_section)"
+  section="$(unreleased_section | new_since "${1}")"
   require_entries "${section}"
   report_counts "${1}" "${section}"
   printf '%s\n' "$(bump_for "${section}")"
@@ -62,10 +62,24 @@ function unreleased_section() {
   awk '/^## \[Unreleased\]/ { p = 1; next } /^## / { if (p) exit } p' "${CHANGELOG}"
 }
 
+# new_since TAG: the [Unreleased] section on stdin, keeping only the entries TAG's CHANGELOG.md does not
+# have (an entry is its "- " line and the indented lines after it), under their "### " headings.
+function new_since() {
+  local -r prev="$(mktemp)"
+  git show "${1}:${CHANGELOG}" > "${prev}" 2> /dev/null || true
+  awk '
+    FILENAME == ARGV[1] { seen[$0] = 1; next }
+    /^### / { head = $0; next }
+    /^- / { keep = !($0 in seen); if (keep && !(head in shown)) { print ""; print head; print ""; shown[head] = 1 } }
+    /^- / || /^  / { if (keep) print }
+  ' "${prev}" -
+  rm -f "${prev}"
+}
+
 function require_entries() {
   local -r section="${1}"
   if ! printf '%s\n' "${section}" | grep -q '^- '; then
-    log "${CHANGELOG} [Unreleased] has no entries; nothing to release"
+    log "${CHANGELOG} [Unreleased] has no entries since the previous tag; nothing to release"
     exit 1
   fi
 }

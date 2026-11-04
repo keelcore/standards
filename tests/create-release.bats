@@ -406,12 +406,11 @@ changelog() {
 
 @test "CHANGELOG hook drives the driver end to end" {
   install_hook "${STD_HOOK}"
+  tag_and_push v0.9.8
   changelog '### Added\n\n- a\n\n### Removed\n\n- b\n'
   git add CHANGELOG.md
   git commit --quiet -m 'changelog'
   git push --quiet
-  tag_and_push v0.9.8
-  commit_and_push CHANGES 'change after tag'
   run bash "${DRIVER}"
   [ "${status}" -eq 0 ]
   [ "$(git tag -l --format='%(contents:subject)' v0.10.0)" = 'minor: CHANGELOG: 1 removed, 1 added (pre-1.0 demotion)' ]
@@ -498,24 +497,6 @@ stale_pin() {
 # CHANGELOG cut: the release commit the tag points at
 # ---------------------------------------------------------------------------
 
-@test "CHANGELOG [Unreleased] entries move to the release section in a signed commit the tag points at" {
-  ready_at v1.2.3
-  printf '# Changelog\n\n## [Unreleased]\n\n### Added\n\n- a widget\n\n## [1.2.3] - 2026-01-01\n\n- old\n' > CHANGELOG.md
-  git add CHANGELOG.md
-  git commit --quiet -m 'changelog'
-  git push --quiet
-  HOOK_STDOUT='minor\nadded a widget\n' run bash "${DRIVER}"
-  [ "${status}" -eq 0 ]
-  grep -qx '## \[Unreleased\]' CHANGELOG.md
-  grep -qE '^## \[1\.3\.0\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$' CHANGELOG.md
-  [ -z "$(awk '/^## \[Unreleased\]/ { p = 1; next } /^## / { exit } p' CHANGELOG.md | tr -d '[:space:]')" ]
-  [ "$(git log -1 --format=%s)" = 'chore(release): v1.3.0' ]
-  git verify-commit HEAD
-  [ "$(git rev-parse 'v1.3.0^{commit}')" = "$(git rev-parse HEAD)" ]
-  [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "$(git rev-parse HEAD)" ]
-  remote_has_tag v1.3.0
-}
-
 @test "no [Unreleased] entries: no release commit; the tag points at the approved HEAD" {
   ready_at v1.2.3
   local -r head="$(git rev-parse HEAD)"
@@ -525,47 +506,30 @@ stale_pin() {
   [ "$(git rev-parse 'v1.2.4^{commit}')" = "${head}" ]
 }
 
-# ---------------------------------------------------------------------------
-# Tool-image pins: create-release pins each published tool image in the release commit
-# ---------------------------------------------------------------------------
 
-# tool_image_repo NEW: a repo with containers/dev/image.ref and a publish.sh whose `ref` mode
-# writes NEW there (exit 1 when NEW is "unpublished").
-tool_image_repo() {
-  mkdir -p containers/dev scripts/dev
-  printf 'ghcr.io/acme/x-dev:ctx-aaaa@sha256:%s\n' "$(printf '1%.0s' {1..64})" > containers/dev/image.ref
-  printf '#!/usr/bin/env bash\n[ "${1}" = ref ] || exit 2\n[ "%s" != unpublished ] || { echo "❌ ctx-bbbb is not published yet"; exit 1; }\nprintf "%%s\\n" "%s" > containers/dev/image.ref\n' \
-    "${1}" "${1}" > scripts/dev/publish.sh
-  git add --all && git commit --quiet -m 'tool image' && git push --quiet
+@test "CHANGELOG hook: entries the previous tag already had do not count" {
+  changelog '### Added\n\n- shipped in v0.1.0\n'
+  git add CHANGELOG.md && git commit --quiet -m 'changelog' && git push --quiet
+  tag_and_push v0.1.0
+  changelog '### Added\n\n- shipped in v0.1.0\n\n### Fixed\n\n- new fix\n'
+  run --separate-stderr bash "${STD_HOOK}" v0.1.0
+  [ "${status}" -eq 0 ]
+  [ "${output}" = $'patch\nCHANGELOG: 1 fixed' ]
 }
 
-@test "tool images: a published new context is pinned in the signed release commit the tag points at" {
-  local new
-  new="ghcr.io/acme/x-dev:ctx-bbbb@sha256:$(printf '2%.0s' {1..64})"
-  tag_and_push v0.1.0
-  tool_image_repo "${new}"
-  run bash "${DRIVER}"
+@test "the release changes nothing in the repository: the tag points at the approved HEAD" {
+  install_hook "${FIXTURE_HOOK}"
+  tag_and_push v1.2.3
+  printf '# Changelog\n\n## [Unreleased]\n\n### Added\n\n- a\n' > CHANGELOG.md
+  git add CHANGELOG.md && git commit --quiet -m 'entries' && git push --quiet
+  local head before
+  head="$(git rev-parse HEAD)"
+  before="$(cat CHANGELOG.md)"
+  HOOK_STDOUT='minor\nsub\n' run bash "${DRIVER}"
   [ "${status}" -eq 0 ]
-  [ "$(git log -1 --format=%s v0.1.1)" = 'chore(release): v0.1.1' ]
-  [ "$(git show v0.1.1:containers/dev/image.ref)" = "${new}" ]
-  git verify-commit "$(git rev-parse v0.1.1^{commit})"
-  [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "$(git rev-parse v0.1.1^{commit})" ]
+  [ "$(git rev-parse HEAD)" = "${head}" ]
+  [ "$(git rev-parse 'v1.3.0^{commit}')" = "${head}" ]
+  [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "${head}" ]
+  [ "$(cat CHANGELOG.md)" = "${before}" ]
   [ -z "$(git status --porcelain)" ]
-}
-
-@test "tool images: a dry run or an unpublished context leaves image.ref as it was" {
-  tag_and_push v0.1.0
-  local before
-  tool_image_repo "ghcr.io/acme/x-dev:ctx-bbbb@sha256:$(printf '2%.0s' {1..64})"
-  before="$(cat containers/dev/image.ref)"
-  run bash "${DRIVER}" --dry-run
-  [ "${status}" -eq 0 ]
-  [ "$(cat containers/dev/image.ref)" = "${before}" ]
-  [ -z "$(git status --porcelain)" ]
-  printf '#!/usr/bin/env bash\necho "❌ ctx-bbbb is not published yet"; exit 1\n' > scripts/dev/publish.sh
-  git commit --quiet -am 'unpublished' && git push --quiet
-  run bash "${DRIVER}" --dry-run
-  [ "${status}" -eq 0 ]
-  [[ "${output}" == *'Tool images not pinned: ❌ ctx-bbbb is not published yet'* ]] || false
-  [ "$(cat containers/dev/image.ref)" = "${before}" ]
 }
