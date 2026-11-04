@@ -63,6 +63,7 @@ export TZ := UTC
 .PHONY: check-adr-metadata
 .PHONY: check-governance-metadata
 .PHONY: check-rfc-metadata
+.PHONY: check-clean-tree
 .PHONY: check-legal-drift
 .PHONY: setup-bats
 .PHONY: setup-cosign
@@ -164,6 +165,11 @@ check-governance-metadata:
 check-rfc-metadata:
 	@echo "🔍 Checking RFC metadata..."
 	bash scripts/dev/run.sh bash scripts/check/rfc-metadata.sh
+
+## Last step of every CI job that runs tool targets: the job left the working tree untouched
+check-clean-tree:
+	@echo "🧹 Checking the working tree is clean..."
+	bash scripts/ci/check-clean-tree.sh
 
 check-legal-drift:
 	@echo "⚖️  Checking legal file drift..."

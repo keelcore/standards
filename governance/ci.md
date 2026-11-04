@@ -2,7 +2,7 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
-**Maturity:** Required **Version:** 1.6.0 **Last Reviewed:** 2026-11-03
+**Maturity:** Required **Version:** 1.7.0 **Last Reviewed:** 2026-11-04
 
 ## Core Principle
 
@@ -111,10 +111,15 @@ CI alike. Names are fixed; projects may not rename or skip them. Language-specif
 ## CI Auditor
 
 - Every project MUST include `scripts/ci/audit-make-targets.sh`.
-- The auditor enforces the three invariants:
+- The auditor enforces six invariants:
   1. All workflow `run:` steps are `make <target>`.
   2. All `scripts/**/*.sh` files (except `scripts/lib/`) have a Makefile target.
   3. All universal canonical targets exist in the Makefile.
+  4. Each target has at most one active recipe line, invoking one `scripts/**/*.sh`.
+  5. Every script a recipe invokes exists.
+  6. No runtime tool installs in workflows (`actions/setup-*`, `make setup-*`). A job that genuinely runs on the
+     host (a native macOS/Windows runner; a step that drives docker or a cluster on the runner) is listed in
+     `.runtime-install-exceptions` at the repository root as `<workflow file>:<job id>` followed by its reason.
 - `make audit` invokes the auditor.
 - The auditor MUST be a required CI step (add to the workflow as `run: make audit`).
 - The auditor MUST be wired into the pre-commit hook, gated on changes to `.github/workflows/`, `scripts/`, or
@@ -258,19 +263,37 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
   `scripts/ci/setup-<tool>.sh`, which verifies a committed checksum, commit SHA, lockfile integrity or the Go
   checksum database. A consumer's dev image builds `FROM` the `.standards` dev image (`ARG BASE_DEV_IMAGE`).
 - **Build time only:** packages and tools are installed when the image is built; nothing is installed or updated
-  when a target runs.
+  when a target runs. The Containerfile sets `ARG KEELCORE_IMAGE_BUILD=1` (build-time only); outside that build a
+  `setup-<tool>.sh` checks the baked tool and version and fails, never installs. One `COPY` + `RUN` per tool: a
+  changed setup script rebuilds only its tool's layer and those after it. Tools are release binaries verified
+  against a committed SHA-256 wherever the project publishes one (`go install` only for tools that publish none).
 - **Run:** each tool target runs `scripts/dev/run.sh`, which starts the image with the repository mounted
   read-only and its output directories writable (`containers/writable`, one per line; default `target/`). A
   submodule is mounted as a standalone snapshot under `/tmp` (a clone with its current files), never through its
   superproject. Targets whose job is editing tracked files (`format`, `coverage-baseline-init`, a publish step that
   stamps a version) mount it writable explicitly (`--writable`); in a snapshot their edits are copied back.
   `make dev-shell` opens a shell in the image.
+- **Git hooks:** inside a hook (`GIT_INDEX_FILE` set), the tool-image scripts drop the hook's git environment
+  before running git in other repositories (the `.standards` submodule, snapshots) and never build an image: a
+  commit that changes a build context is checked with the pinned image. A TTY is requested only when stdin and
+  stdout are both terminals (git runs hooks with stdin from `/dev/null`).
+- **Environment:** `run.sh` passes variables by name (`-e NAME`), so no value, token or other, appears in the
+  runtime's argument list.
+- **Registry credentials:** in CI, one login per job into a per-job `DOCKER_CONFIG` (under `$RUNNER_TEMP`), mounted
+  read-only into the tool container, which never logs in itself. On a developer machine, `make dev-image-publish`
+  logs Apple `container` in once, only when it holds no credential for the registry, and never logs out: one
+  credential read per `container system start`.
+- **Builder size:** Apple `container` builds use `KEELCORE_BUILD_CPUS` (4) and `KEELCORE_BUILD_MEMORY` (8g), and a
+  builder running at another size is restarted at that size.
 - **Identity:** an image is identified by its build context (the Containerfile, every file it copies, and its base
   image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per architecture, joined into
   a multi-arch index and signed keyless. `make dev-image-ref` pins the published image by digest in
   `containers/NAME/image.ref`; until a context is published and pinned, `run.sh` builds that context locally.
+- **Project hook:** after each mode, `publish.sh` runs `scripts/dev/publish.local.sh MODE` when the repository holds
+  it (`push`, `merge`, `ref`, `local`), e.g. to check the published packages after `make dev-image-publish`.
 - **Workflows** run the same `make` targets: no `setup-*` steps and no `actions/setup-<language>` actions in jobs
-  that run tool targets.
+  that run tool targets. Each such job ends with `make check-clean-tree`: the job left the working tree
+  exactly as checked out.
 
 ## Pin Refresh
 
@@ -295,14 +318,21 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
    minor of a 0.x release — is report-only: adopted only when it works as a drop-in, by a deliberate change.
 3. **Dependabot union:** open Dependabot PRs and alerts join the candidate set; the newer candidate wins, and the
    report's `SOURCE` column says which side proposed it.
-4. **Verification:** each stale pin is applied alone in a throwaway git worktree, exercised by the make targets mapped
-   to its kind, and rolled back; a failing pin never stops the others. Then every passing pin is applied together for
+4. **Verification:** each stale pin is applied alone in a throwaway git worktree of the staged tree (HEAD plus the
+   index, submodules at their staged commits plus their uncommitted changes, so pins verify against what the next
+   commit holds), exercised by the make targets mapped to its kind, and rolled back; a failing pin never stops the others. Then every passing pin is applied together for
    one combined run (lint, audit, the full unit and integration set). Go modules (`go get`, `go mod tidy`,
    `go mod vendor`) verify against that full set. Kinds the host cannot exercise are verified by the `update-pins`
    workflow on Linux.
+   An interrupted run stops every verification it started and removes every worktree it created.
 5. **Apply:** `make update-pins APPLY=1` writes the passing pins to the working tree only after the combined run
    passes, for human review and staging. The default run is dry: the working tree is never touched.
 6. **Release gate:** `make create-release` refuses while any pin is stale (see `release-policy.md`).
+
+In a consumer, a pin located in a canonical file (byte-identical to its `.standards` copy) is held by `.standards`:
+the `.standards` release carries it, and the consumer never gates on or applies it. A tool image's pin
+(`containers/NAME/image.ref`, kind `devimage`) is stale while the tree's build context differs from the pinned one;
+apply pins the new context by digest once `dev-image.yml` has published it.
 
 Projects extend discovery, holds, verification targets and appliers through `scripts/release/update-pins.local.sh`.
 
@@ -335,6 +365,11 @@ Projects extend discovery, holds, verification targets and appliers through `scr
   identity (`make release-verify-blobs`).
 - The GitHub Release notes carry the signed tag message, the CHANGELOG section for the version (`create-release`
   moves `[Unreleased]` into it in the release commit the tag points at), and the pins table (`docs/current_pins.md`).
+  The notes are always composed this way, for every project, with verify instructions and the provenance kinds the
+  release carries; never generated from pull requests.
+- A project adds its own artifacts (binaries, charts) through `scripts/release/release-assets.local.sh TAG DIR`,
+  which places them in DIR and prints their paths: they get SBOMs, checksums and signatures like the registry
+  artifacts. The repository's `LICENSE` is attached to every release.
 
 ### SBOM
 

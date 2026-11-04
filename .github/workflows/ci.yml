@@ -29,6 +29,7 @@ jobs:
         with:
           persist-credentials: false
       - run: make audit
+      - run: make check-clean-tree
 
   pr-policy:
     name: policy / pr
@@ -46,6 +47,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 2
       - run: make ci-pr-policy
+      - run: make check-clean-tree
 
   check-governance:
     name: check / governance metadata
@@ -58,6 +60,7 @@ jobs:
       - run: make check-adr-metadata
       - run: make check-governance-metadata
       - run: make check-rfc-metadata
+      - run: make check-clean-tree
 
   lint-markdown:
     name: lint / markdown
@@ -70,6 +73,7 @@ jobs:
 
       - run: make lint-newlines
       - run: make lint-markdown
+      - run: make check-clean-tree
 
   lint-bash:
     name: lint / bash
@@ -80,6 +84,7 @@ jobs:
         with:
           persist-credentials: false
       - run: make lint-bash
+      - run: make check-clean-tree
 
   integration-test:
     name: test / bats
@@ -90,6 +95,7 @@ jobs:
         with:
           persist-credentials: false
       - run: make integration-test
+      - run: make check-clean-tree
 
   verify-go:
     name: verify / go module
@@ -102,4 +108,5 @@ jobs:
 
       - run: make verify-go
       - run: make lint-go
+      - run: make check-clean-tree
 

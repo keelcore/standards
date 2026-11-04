@@ -3,7 +3,7 @@
 These rules govern repository controls, release integrity, security scanning, and supply-chain metadata for every
 project that follows the keelcore standards. They are non-negotiable unless explicitly superseded by a signed ADR.
 
-**Maturity:** Required **Version:** 1.0.0 **Last Reviewed:** 2026-10-31
+**Maturity:** Required **Version:** 1.1.0 **Last Reviewed:** 2026-11-04
 
 Baselines: OpenSSF Scorecard, OpenSSF OSPS Baseline, SLSA v1.0 build track, NIST SSDF (SP 800-218), Kubernetes Pod
 Security Standards (restricted). Each rule carries a severity — **H** high, **M** medium, **L** low — which orders
@@ -63,6 +63,20 @@ verification, and invoked through a Makefile target per [`ci.md`](ci.md).
 1. **(H)** Every `FROM` that is not `scratch` or a locally built stage is pinned by digest (`image:tag@sha256:…`).
 2. **(H)** Dependabot (or Renovate) covers every ecosystem in the repository: language modules, GitHub Actions, container
    base images, and git submodules.
+
+## Immutable Tool Images
+
+1. **(H)** Every tool a target runs comes from a tool image built once, published, and pinned by digest
+   (`containers/NAME/image.ref`); nothing is installed or updated when a target runs, on a developer machine or in
+   CI (`governance/ci.md` § Tool Images; audit Rule 6 rejects `actions/setup-*` and `make setup-*` in workflows
+   outside listed host jobs).
+2. **(H)** Each tool in an image is a release binary verified against a committed SHA-256, or, where the project
+   publishes no binary, a build from a pinned version verified by its checksum database or commit SHA.
+3. **(H)** The build environment is part of the release: each tool image the release was built in has its own SBOM
+   attached to the release, and the image is signed by the workflow that publishes it.
+4. **(M)** A CI job that runs tool targets leaves the working tree exactly as checked out (`make check-clean-tree`).
+5. **(M)** Registry credentials are written once per CI job, to a per-job location, and are never written by a tool
+   container.
 
 ## Deployment Artifacts
 

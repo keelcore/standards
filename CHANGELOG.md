@@ -12,6 +12,46 @@ Corrections, clarifications, metadata: patch bump.
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/dev/publish.sh` runs the project hook `scripts/dev/publish.local.sh MODE` after each mode, when the
+  repository holds it
+- `make check-clean-tree` (`scripts/ci/check-clean-tree.sh`): the last step of every CI job that runs tool targets;
+  the job must leave the working tree exactly as checked out
+- Audit Rule 6: no runtime tool installs in workflows (`actions/setup-*`, `make setup-*`); host jobs are listed in
+  `.runtime-install-exceptions` with their reason
+- `update-pins` pin kind `devimage`: `containers/NAME/image.ref` is stale while the tree's build context differs from
+  the pinned one; apply pins the published context by digest
+- `release-assets.sh` takes a project's own artifacts (binaries, charts) from the hook
+  `scripts/release/release-assets.local.sh TAG DIR`, and attaches the repository's `LICENSE` to every release
+  (`RELEASE_LICENSE` names the SPDX id when no package manifest does)
+- `governance/devsecops.md` § Immutable Tool Images
+
+### Changed
+
+- In a consumer, a pin located in a canonical file (byte-identical to its `.standards` copy) is held by
+  `.standards`: it never blocks the consumer's release gate and is never applied there
+- `update-pins` verifies each pin in a worktree of the staged tree (HEAD plus the index; submodules at their staged
+  commits plus uncommitted changes), and an interrupted run stops every verification it started and removes every
+  worktree it created
+- `scripts/dev/run.sh` snapshots of worktrees and submodules: each submodule is a standalone snapshot of its own,
+  staged deletions are removed, and the snapshot's index matches its files
+- Inside a git hook, the tool-image scripts drop git's hook environment (`GIT_INDEX_FILE`, `GIT_DIR`, ...) before
+  running git in other repositories, and never build an image (a changed build context is checked with the pinned
+  image); a TTY is requested only when stdin and stdout are both terminals
+- `run.sh` passes environment variables by name (`-e NAME`): no value appears in the runtime's argument list
+- Registry credentials: in CI one login per job into a per-job `DOCKER_CONFIG`, mounted read-only into the tool
+  container (`sign-image.sh` no longer logs in itself); `publish.sh local` logs Apple `container` in only when it
+  holds no credential and never logs out
+- Apple `container` builds are sized by `KEELCORE_BUILD_CPUS` (4) and `KEELCORE_BUILD_MEMORY` (8g); a builder
+  running at another size is restarted at that size
+- Tool images: one `COPY` + `RUN` per tool; setup scripts install only while the image is built
+  (`KEELCORE_IMAGE_BUILD`) and otherwise check the baked tool; staticcheck is the checksum-verified release binary
+  (2026.2.2, module v0.8.2) instead of `go install`
+- `dev-image.yml` checks out submodules (a consumer's Makefile includes `.standards`)
+- Release notes describe the provenance files the release actually carries; build-environment SBOMs are named
+  generically
+
 ## [0.10.8] - 2026-11-03
 
 ### Changed

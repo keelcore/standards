@@ -32,20 +32,27 @@ ENV GOTOOLCHAIN=local \
     KEELCORE_DEV_IMAGE=1
 
 COPY scripts/lib/markdownlint.sh /opt/keelcore/scripts/lib/
-COPY scripts/ci/setup-bats.sh scripts/ci/setup-cosign.sh scripts/ci/setup-gitleaks.sh scripts/ci/setup-markdownlint.sh \
-     scripts/ci/setup-shellcheck.sh scripts/ci/setup-staticcheck.sh scripts/ci/setup-syft.sh \
-     /opt/keelcore/scripts/ci/
 COPY scripts/ci/markdownlint/ /opt/keelcore/scripts/ci/markdownlint/
 
 WORKDIR /opt/keelcore
-RUN bash scripts/ci/setup-shellcheck.sh \
- && bash scripts/ci/setup-bats.sh \
- && bash scripts/ci/setup-markdownlint.sh \
- && bash scripts/ci/setup-staticcheck.sh \
- && bash scripts/ci/setup-gitleaks.sh \
- && bash scripts/ci/setup-syft.sh \
- && bash scripts/ci/setup-cosign.sh \
- && go clean -modcache -cache
+# The setup scripts install only while the image is built (build-time only: an ARG never reaches
+# the image); anywhere else they check the baked tool. One COPY + RUN per tool: a changed script
+# rebuilds only its tool's layer and those after it.
+ARG KEELCORE_IMAGE_BUILD=1
+COPY scripts/ci/setup-shellcheck.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-shellcheck.sh
+COPY scripts/ci/setup-bats.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-bats.sh
+COPY scripts/ci/setup-markdownlint.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-markdownlint.sh
+COPY scripts/ci/setup-staticcheck.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-staticcheck.sh
+COPY scripts/ci/setup-gitleaks.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-gitleaks.sh
+COPY scripts/ci/setup-syft.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-syft.sh
+COPY scripts/ci/setup-cosign.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-cosign.sh
 
 # The repository is mounted from the host (another owner); git trusts it.
 RUN git config --system safe.directory '*'

@@ -51,6 +51,7 @@ function install_cosign() {
     log '❌ cosign installs in the dev image (Linux); run the signing targets through make'
     exit 1
   fi
+  require_image_build
   local arch sha binary tmp
   case "$(uname -m)" in
     x86_64) arch='amd64'; sha="${COSIGN_SHA256_AMD64}" ;;
@@ -65,6 +66,15 @@ function install_cosign() {
   as_root install -m 0755 "${tmp}/${binary}" "${COSIGN_INSTALL_PATH}"
   rm -rf "${tmp}"
   log "✅ cosign ${COSIGN_VERSION} installed at ${COSIGN_INSTALL_PATH}"
+}
+
+# require_image_build: tools are installed only while the tool image is built
+# (containers/*/Containerfile sets KEELCORE_IMAGE_BUILD); anywhere else the tool is already in the
+# image, and a missing or different version is an error, never an install.
+function require_image_build() {
+  [ -n "${KEELCORE_IMAGE_BUILD:-}" ] && return 0
+  log "❌ cosign ${COSIGN_VERSION} is not in this tool image; tools install only when the image is built"
+  exit 1
 }
 
 main "${@:-}"

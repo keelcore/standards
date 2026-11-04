@@ -33,6 +33,8 @@
 #              pyproject build-system requirement
 #   npmlock    exact dependencies of a package.json beside its package-lock.json
 #   runner     workflow `runs-on:` / matrix `os:` image labels (newer images report-only)
+#   devimage   containers/NAME/image.ref: the pinned build context vs the tree's (stale until the
+#              new context is published; apply pins it by digest)
 #   unpinned   inputs that float: @latest, apk/apt packages without a version,
 #              Homebrew installs, FROM / image: references without a digest,
 #              `*-latest` runners, npx and pip installs without a version or
@@ -205,6 +207,7 @@ function discover_generic() {
   discover_python
   discover_pypi
   discover_npmlock
+  discover_devimages
   discover_unpinned
 }
 
@@ -359,6 +362,46 @@ function discover_node() {
     [ -n "${f}" ] || continue
     record node node "${f}:1" "$(tr -d '[:space:]' < "${f}")" 'nodejs'
   done < <(files_of '.nvmrc' '*/.nvmrc')
+}
+
+# Tool images (containers/NAME/image.ref, scripts/lib/dev-image.sh): the pinned build context
+# against the tree's. A changed context (a tool pin bumped in a Containerfile, a new base) makes
+# the pin stale until the image is published (dev-image.yml, after the commit) and pinned.
+function discover_devimages() {
+  [ -f scripts/lib/dev-image.sh ] || return 0
+  local cf name ref pinned tree
+  for cf in containers/*/Containerfile; do
+    [ -f "${cf}" ] || continue
+    name="$(basename "$(dirname "${cf}")")"
+    ref="containers/${name}/image.ref"
+    [ -s "${ref}" ] || continue
+    pinned="$(sed -nE 's/.*:(ctx-[0-9a-f]+)@sha256:.*/\1/p' "${ref}" | head -1)"
+    tree="ctx-$(devimage_context "${name}")" || continue
+    record devimage "${name}" "${ref}:1" "${pinned:-none}" "${tree}"
+  done
+}
+
+# devimage_context NAME: the tree's build-context hash for containers/NAME (its .standards base as
+# pinned there, for an image that builds on it).
+function devimage_context() {
+  (
+    # shellcheck source=../lib/dev-image.sh
+    source scripts/lib/dev-image.sh
+    local base=''
+    if dev_has_base . "${1}"; then
+      base="$(dev_pinned_ref .standards dev "$(dev_context_hash .standards dev)")" || base=''
+    fi
+    dev_context_hash . "${1}" "${base}"
+  )
+}
+
+# devimage_repository NAME: where containers/NAME is published.
+function devimage_repository() {
+  (
+    # shellcheck source=../lib/dev-image.sh
+    source scripts/lib/dev-image.sh
+    dev_repository . "${1}"
+  )
 }
 
 # Workflow runner labels (`runs-on:` or a matrix `os:`) that name an exact image.
@@ -892,6 +935,8 @@ function resolve() {
       resolve_runner "${current}" ;;
     image)
       resolve_image "${name}" "${current}" ;;
+    devimage)
+      resolve_devimage "${name}" "${current}" "${source}" ;;
     unpinned)
       printf 'unpinned\t-\t-\t%s\n' "${source}" ;;
     *)
@@ -950,6 +995,19 @@ function runner_version() {
   sed -E 's/^[a-z]+-([0-9]+(\.[0-9]+)?).*/\1/' <<< "${1}"
 }
 
+# resolve_devimage NAME PINNED TREE: current when the tree's build context is the pinned one; else
+# stale toward the tree's context, which apply pins once it is published.
+function resolve_devimage() {
+  local -r name="${1}" pinned="${2}" tree="${3}"
+  if [ "${pinned}" = "${tree}" ]; then
+    printf 'current\t-\t-\t\n'
+  elif image_digest "$(devimage_repository "${name}"):${tree}" > /dev/null; then
+    printf 'stale\t%s\t-\tpublished; apply pins it by digest\n' "${tree}"
+  else
+    printf 'stale\t%s\t-\tnot published yet (dev-image.yml publishes it after the commit)\n' "${tree}"
+  fi
+}
+
 function resolve_image() {
   local -r ref="${1}" current="${2}"
   local digest
@@ -961,6 +1019,24 @@ function resolve_image() {
   else
     printf 'stale\t%s\t-\ttag %s now points at a new digest\n' "${digest}" "${ref##*:}"
   fi
+}
+
+# canonical_owner LOCS: in a consumer, a pin located in a canonical file (byte-identical to its
+# .standards copy) is .standards' to refresh: its release carries it, and the consumer never
+# gates on or applies it. Prints the hold reason when any of LOCS (file:line,...) is canonical.
+function canonical_owner() {
+  [ -d .standards ] || return 1
+  local loc file
+  local -a all=()
+  IFS=',' read -r -a all <<< "${1}"
+  for loc in "${all[@]}"; do
+    file="${loc%%:*}"
+    if [ -f ".standards/${file}" ] && cmp -s "${file}" ".standards/${file}"; then
+      printf 'held by .standards (canonical %s)' "${file}"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # held NAME: the hold reason for NAME, if a hook hold rule matches.
@@ -1088,7 +1164,7 @@ function resolve_all() {
 function resolve_row() {
   local kind name loc current source locs status cand age note reason
   IFS=$'\t' read -r kind name loc current source locs <<< "${1}"
-  if reason="$(held "${name}")"; then
+  if reason="$(held "${name}")" || reason="$(canonical_owner "${locs:-${loc}}")"; then
     status='hold'
     cand='-'
     age='-'
@@ -1211,7 +1287,7 @@ function verify_all() {
   fi
 }
 
-# setup_worktree: a detached worktree of HEAD with its submodules checked out
+# setup_worktree: a detached worktree of the staged tree with its submodules checked out
 # from the local clones (no network), plus a private tool bin and npm prefix so
 # verification never replaces a tool the developer has installed.
 function setup_worktree() {
@@ -1220,16 +1296,46 @@ function setup_worktree() {
   mkdir -p "${LOGDIR}"
   LOGDIR="$(cd "${LOGDIR}" && pwd)"
   trap cleanup_worktree EXIT
+  trap interrupted INT TERM HUP
   log "🧪 verifying in ${WT} (logs: ${LOGDIR})"
 }
 
-# add_worktree: WT, a detached worktree of HEAD with its submodules, and TOOLS beside it.
+# interrupted: stop everything this run started — every verification process below this one
+# (make, run.sh, the tool containers' clients) — then remove every worktree it created, so an
+# interrupted run leaves nothing running and nothing checked out.
+function interrupted() {
+  trap - INT TERM HUP
+  log '⛔ interrupted: stopping verifications and removing their worktrees'
+  kill_tree "$$"
+  local wt
+  while IFS= read -r wt; do
+    git -C "${ROOT}" worktree remove --force "${wt}" > /dev/null 2>&1 || true
+    rm -rf "${wt}.tools"
+  done < <(git -C "${ROOT}" worktree list --porcelain \
+    | awk '$1 == "worktree" && $2 ~ /\/update-pins\.[A-Za-z0-9]+$/ { print $2 }')
+  git -C "${ROOT}" worktree prune
+  exit 130
+}
+
+# kill_tree PID: TERM every descendant of PID, deepest first (PID itself is left running).
+function kill_tree() {
+  local child
+  for child in $(pgrep -P "${1}" 2> /dev/null || true); do
+    kill_tree "${child}"
+    kill -TERM "${child}" 2> /dev/null || true
+  done
+}
+
+# add_worktree: WT, a detached worktree of the staged tree — HEAD plus the index, so
+# verification sees what the next commit holds — with its submodules at their staged commits
+# plus their uncommitted changes to tracked files, and TOOLS beside it.
 function add_worktree() {
   WT="$(mktemp -d "${TMPDIR:-/tmp}/update-pins.XXXXXX")"
   TOOLS="${WT}.tools"
   mkdir -p "${TOOLS}/bin" "${TOOLS}/npm"
   rmdir "${WT}"
   git worktree add --quiet --detach "${WT}" HEAD
+  git -C "${ROOT}" diff --cached --binary --no-color | git -C "${WT}" apply --index --allow-empty --whitespace=nowarn
   local key path name
   while read -r key path; do
     [ -n "${key}" ] || continue
@@ -1237,6 +1343,7 @@ function add_worktree() {
     name="${name%.path}"
     git -C "${WT}" -c protocol.file.allow=always -c "submodule.${name}.url=${ROOT}/${path}" \
       submodule update --init --quiet -- "${path}"
+    git -C "${ROOT}/${path}" diff HEAD --binary --no-color | git -C "${WT}/${path}" apply --allow-empty --whitespace=nowarn
   done < <(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)
 }
 
@@ -1341,6 +1448,8 @@ function verify_targets() {
       if has_target lint-workflows; then printf 'lint-workflows'; else printf 'audit'; fi ;;
     gomod)
       printf 'test' ;;
+    devimage)
+      printf 'audit' ;;
     gotool | npm)
       if [ -n "${setup}" ]; then printf '%s' "${setup}"; else printf 'verify-on-ci'; fi ;;
     # Tool installs run in the tool image (Linux) on every host.
@@ -1409,6 +1518,7 @@ function apply_pin() {
   case "${kind}" in
     action) apply_action "${root}" "${name}" "${current}" "${cand}" "${source#github:}" ;;
     image) replace_all "${root}" "${name}@${current}" "${name}@${cand}" ;;
+    devimage) (cd "${root}" && bash scripts/dev/publish.sh ref) ;;
     tool) replace_at "${root}" "${locs}" "${current}" "${new}" && refresh_checksums "${root}" "${locs}" "${source#github:}" "${current}" "${cand}" \
       && refresh_commits "${root}" "${locs}" "${source#github:}" "${cand}" ;;
     gotool | toolchain | npm | python | runner) replace_at "${root}" "${locs}" "${current}" "${new}" ;;

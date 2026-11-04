@@ -155,6 +155,18 @@ EOF
   [[ "$(row 'ubuntu:24.04')" == *'hold'*'base image chosen by the platform team'* ]] || false
 }
 
+@test "consumer: a pin in a canonical file is held by .standards; an edited copy is the consumer's own" {
+  mkdir -p .standards/scripts/ci
+  cp -p scripts/ci/setup-foo.sh .standards/scripts/ci/setup-foo.sh
+  commit
+  pins
+  [[ "$(row 'FOO')" == *'hold'*'held by .standards (canonical scripts/ci/setup-foo.sh)'* ]] || false
+  printf '# local edit\n' >> scripts/ci/setup-foo.sh
+  commit
+  pins
+  [[ "$(row 'FOO')" == *'v1.3.0'*'cooldown'* ]] || false
+}
+
 @test "summary counts every status; the working tree is untouched" {
   local before
   before="$(git status --porcelain; git diff --cached)"
@@ -196,6 +208,25 @@ checkout_fixture() {
   [[ "$(result 'go')" == *'verify-on-ci'* ]] || false
   [[ "${output}" == *'combined: pass'* ]] || false
   [[ "${output}" == *'Consequences of staying on a stale pin:'* ]] || false
+}
+
+@test "verify: an interrupted run stops its verifications and removes every worktree" {
+  checkout_fixture
+  # The action's verification target outlives the interrupt unless the driver stops it.
+  perl -0pi -e 's/lint-workflows:\n\t\@true\n/lint-workflows:\n\t\@sleep 37.5\n/' Makefile
+  commit
+  bash scripts/release/update-pins.sh > "${BATS_TEST_TMPDIR}/run.log" 2>&1 &
+  local pid="${!}" i
+  for (( i = 0; i < 100; i++ )); do
+    pgrep -f 'sleep 37.5' > /dev/null && break
+    sleep 0.2
+  done
+  pgrep -f 'sleep 37.5' > /dev/null
+  kill -TERM "${pid}"
+  wait "${pid}" || true
+  ! pgrep -f 'sleep 37.5' > /dev/null
+  [ "$(git worktree list | wc -l | tr -d ' ')" -eq 1 ]
+  grep -q 'interrupted' "${BATS_TEST_TMPDIR}/run.log"
 }
 
 @test "verify: the working tree is untouched and the worktree is removed" {
