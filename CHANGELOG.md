@@ -16,9 +16,12 @@ Corrections, clarifications, metadata: patch bump.
 
 - `update-pins --check-pins-doc FILE` (`make check-pins-doc`, also a pre-commit check): `docs/current_pins.md` lists
   exactly the pins in the tree; local, no network
+- Versioned git hooks in `scripts/hooks/` (canonical, synced); `scripts/hooks/pre-commit` runs `scripts/git_precommit.sh`
 
 ### Changed
 
+- `make install-hooks` sets `core.hooksPath scripts/hooks`: one setting serves a clone, every worktree and a
+  submodule checkout
 - `make create-release` tags the approved `HEAD` and pushes the tag, and nothing else: no release commit, no
   CHANGELOG cut, no `image.ref` pinning. Pins and `docs/current_pins.md` are committed before the release
 - `make update-pins APPLY=1` rewrites `docs/current_pins.md` from the pins it wrote

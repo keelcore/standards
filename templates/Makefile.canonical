@@ -258,7 +258,7 @@ setup-syft:
 	@echo "🔧 Installing syft..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-syft.sh
 
-## Pre-commit hook installation (symlinks scripts/git_precommit.sh into .git/hooks)
+## Git hook installation (core.hooksPath scripts/hooks: one setting for clones, worktrees and submodules)
 
 install-hooks:
 	@echo "🪝 Installing git pre-commit hook..."

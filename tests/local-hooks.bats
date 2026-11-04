@@ -26,7 +26,7 @@ copy_canonical_scripts() {
   while IFS= read -r f; do
     mkdir -p "$(dirname "${f}")"
     cp -p "${STANDARDS}/${f}" "${f}"
-  done < <(cd "${STANDARDS}" && find scripts -name '*.sh' ! -name '*.local.sh' -type f)
+  done < <(cd "${STANDARDS}" && find scripts -type f \( -path 'scripts/hooks/*' -o -name '*.sh' ! -name '*.local.sh' \))
 }
 
 consumer_hook() {

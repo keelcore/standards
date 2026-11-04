@@ -169,7 +169,7 @@ from the standards repo to verify compliance.
 | `scripts/ci/secret-scan.sh`        | `make ci-secret-scan`    | Secret scanning on every PR and default-branch push.               | keelcore/standards |
 | `scripts/ci/dco-check.sh`          | `make ci-dco`            | DCO Signed-off-by trailer verification.                            | keelcore/standards |
 | `scripts/ci/setup-bats.sh`         | `make setup-bats`        | Install bats-core (test harness) idempotently across darwin/linux. | keelcore/standards |
-| `scripts/install-hooks.sh`         | `make install-hooks`     | Symlink `scripts/git_precommit.sh` into `.git/hooks/pre-commit`.   | keelcore/standards |
+| `scripts/install-hooks.sh`         | `make install-hooks`     | Point `core.hooksPath` at the versioned `scripts/hooks/`.          | keelcore/standards |
 | `scripts/lint/newlines.sh`         | `make lint-newlines`     | Trailing newline enforcement for `.md`, `.sh`, `.go` files.        | keelcore/standards |
 | `scripts/test/coverage.sh`         | `make coverage`          | Coverage report: total %, uncovered statements, total lines.       | keelcore/standards |
 | `scripts/test/coverage-delta.sh`   | `make ci-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold).          | keelcore/standards |
