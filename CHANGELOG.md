@@ -20,6 +20,10 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- `scripts/dev/run.sh` uses the published `ctx-<hash>` image of the tree's build context when `image.ref` pins another
+  one, and builds locally only when that context is unpublished (`dev_published_ref` in `scripts/lib/dev-image.sh`)
+- `dev-image.yml` is a reusable workflow, no longer triggered by a push: `ci.yml` calls it first on every push to
+  `main`, and every tool job `needs:` it, so each build context is published once and pulled everywhere else
 - A tool-image pin (`devimage`) never blocks `make create-release`: an unpublished build context is a hold
   (`run.sh` builds it locally); once published it is stale and `make update-pins APPLY=1` pins it
 - `make install-hooks` sets `core.hooksPath scripts/hooks`: one setting serves a clone, every worktree and a

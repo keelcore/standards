@@ -287,9 +287,14 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
   builder running at another size is restarted at that size.
 - **Identity:** an image is identified by its build context (the Containerfile, every file it copies, and its base
   image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per architecture, joined into
-  a multi-arch index and signed keyless. `make update-pins APPLY=1` (or `make dev-image-ref`) pins the published
-  image by digest in `containers/NAME/image.ref`, committed with the change that needs it; until a context is
-  published and pinned, `run.sh` builds that context locally.
+  a multi-arch index and signed keyless. `run.sh` uses, in order: the image `containers/NAME/image.ref` pins by
+  digest when it matches the tree's context; the published `ctx-<hash>` of that context; a local build of it. Each
+  context is therefore built once on a developer machine (before its commit) and published once by CI; every other
+  machine pulls it. `make update-pins APPLY=1` (or `make dev-image-ref`) pins a published context by digest.
+- **Publish once per context:** `dev-image.yml` is a reusable workflow. The project's `ci.yml` calls it as its first
+  job on every push to `main` (`publish.sh` skips a context GHCR already holds), and every job that runs tool
+  targets `needs:` it, so those jobs pull the one image. Pull requests do not publish; their jobs pull a published
+  context or build it in the runner.
 - **Project hook:** after each mode, `publish.sh` runs `scripts/dev/publish.local.sh MODE` when the repository holds
   it (`push`, `merge`, `ref`, `local`), e.g. to check the published packages after `make dev-image-publish`.
 - **Workflows** run the same `make` targets: no `setup-*` steps and no `actions/setup-<language>` actions in jobs

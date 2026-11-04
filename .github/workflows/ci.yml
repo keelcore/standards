@@ -20,10 +20,23 @@ env:
   TZ: UTC
 
 jobs:
+  # The tool image for this tree's build context, published once (skipped when it is
+  # already in GHCR); every tool job below pulls it instead of building it. Pull requests
+  # do not publish: their tool jobs pull a published context or build it in the runner.
+  dev-image:
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/dev-image.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
   audit:
     name: audit / makefile
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    needs: dev-image
+    if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
@@ -35,7 +48,8 @@ jobs:
     name: policy / pr
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    if: github.event_name == 'pull_request'
+    needs: dev-image
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.dev-image.result != 'failure' }}
     env:
       GITHUB_HEAD_REF: ${{ github.head_ref }}
       PR_TITLE: ${{ github.event.pull_request.title }}
@@ -53,6 +67,8 @@ jobs:
     name: check / governance metadata
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    needs: dev-image
+    if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
@@ -66,6 +82,8 @@ jobs:
     name: lint / markdown
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    needs: dev-image
+    if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
@@ -79,6 +97,8 @@ jobs:
     name: lint / bash
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    needs: dev-image
+    if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
@@ -90,6 +110,8 @@ jobs:
     name: test / bats
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    needs: dev-image
+    if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
@@ -101,6 +123,8 @@ jobs:
     name: verify / go module
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    needs: dev-image
+    if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
