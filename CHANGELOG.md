@@ -31,6 +31,7 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- Pins: cosign 3.1.4 (tool image), setuptools 84.2.1 (PyPI build)
 - In a consumer, a pin located in a canonical file (byte-identical to its `.standards` copy) is held by
   `.standards`: it never blocks the consumer's release gate and is never applied there
 - `update-pins` verifies each pin in a worktree of the staged tree (HEAD plus the index; submodules at their staged
