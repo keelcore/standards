@@ -49,6 +49,7 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- The PyPI publish job waits for the packages only; it no longer hangs on the publish action's attestation files.
 - Each publish job waits until its registry serves everything of the version (`make release-wait-published`), so the
   release job reads metadata after the upload has finished.
 - `release-assets.sh` waits for npm's tarball and attestations, as it does for the version, and names whichever never
