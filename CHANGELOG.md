@@ -49,6 +49,10 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- Each publish job waits until its registry serves everything of the version (`make release-wait-published`), so the
+  release job reads metadata after the upload has finished.
+- `release-assets.sh` waits for npm's tarball and attestations, as it does for the version, and names whichever never
+  appears; a release no longer fails with only "no published artifacts found" while they propagate.
 - `run.sh` `sync_back` passes over submodule entries, so a writable run from a worktree of a repo with submodules no
   longer fails after copying its edits back.
 

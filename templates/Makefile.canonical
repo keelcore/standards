@@ -80,6 +80,7 @@ export TZ := UTC
 .PHONY: install-hooks
 .PHONY: release-go
 .PHONY: release-npm
+.PHONY: release-wait-published
 .PHONY: release-pypi
 .PHONY: release-sbom
 .PHONY: release-sign
@@ -324,6 +325,11 @@ release-go:
 release-npm:
 	@echo "🚀 Publishing npm package..."
 	bash scripts/dev/run.sh --writable bash scripts/release/npm-publish.sh
+
+## release-wait-published ARGS=npm|pypi|go: wait until the registry serves all of the version just published
+release-wait-published:
+	@echo "⏳ Waiting for the registry to finish publishing..."
+	bash scripts/dev/run.sh bash scripts/release/wait-published.sh $(ARGS)
 
 release-pypi:
 	@echo "🚀 Publishing PyPI package..."
