@@ -72,7 +72,9 @@ function wait_pypi() {
   local -r tag="${1}"
   local name meta path fn
   name="$(sed -nE 's/^name = "([^"]+)"$/\1/p' pyproject.toml | head -1)"
-  for path in target/dist/*; do
+  # The packages only: the publish action leaves its attestation files beside them.
+  for path in target/dist/*.whl target/dist/*.tar.gz; do
+    [ -f "${path}" ] || continue
     fn="$(basename "${path}")"
     until meta="$(wait_for "https://pypi.org/pypi/${name}/${tag#v}/json")" \
       && jq -e --arg fn "${fn}" 'any(.urls[]; .filename == $fn)' <<< "${meta}" > /dev/null; do

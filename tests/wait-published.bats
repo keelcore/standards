@@ -41,6 +41,8 @@ STUB
   printf 'module example.com/p\n\ngo 1.22\n' > go.mod
   : > target/dist/p-1.2.3.tar.gz
   : > target/dist/p-1.2.3-py3-none-any.whl
+  : > target/dist/p-1.2.3.tar.gz.publish.attestation
+  : > target/dist/p-1.2.3-py3-none-any.whl.publish.attestation
 }
 
 calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
@@ -83,6 +85,12 @@ calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
   [ "$(calls_to 'https://f/p-1.2.3.tar.gz')" -eq 1 ]
   [ "$(calls_to 'integrity/acme-p/1.2.3/p-1.2.3.tar.gz/provenance')" -eq 1 ]
   [ "$(calls_to 'integrity/acme-p/1.2.3/p-1.2.3-py3-none-any.whl/provenance')" -eq 1 ]
+}
+
+@test "pypi: the publish action's attestation files are not packages, and are not waited for" {
+  run timeout 20 bash scripts/release/wait-published.sh pypi
+  [ "${status}" -eq 0 ]
+  [ "$(calls_to 'publish.attestation')" -eq 0 ]
 }
 
 @test "go: waits for the module zip and the checksum database record" {
