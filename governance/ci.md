@@ -131,6 +131,10 @@ The source-of-truth copies of all canonical scripts live in the `keelcore/standa
 Downstream repos MUST keep their copies byte-identical to the standards versions. Any change to a canonical script must
 be made first in `keelcore/standards` and then propagated to all downstream repos.
 
+`.github/workflows/scorecard.yml` and `.github/workflows/codeql.yml` follow the same rule. They are copies, since
+Scorecard refuses to publish from a reusable workflow. A repository lists one in `.canonical-exclude` to leave it out, and
+its README carries the Scorecard badge: `https://api.securityscorecards.dev/projects/github.com/OWNER/REPO/badge`.
+
 To verify that a downstream repo's canonical scripts match the standards source of truth, run:
 
 ```bash

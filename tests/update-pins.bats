@@ -205,7 +205,7 @@ checkout_fixture() {
   [ "${status}" -eq 1 ]
   [[ "$(result 'actions/checkout')" == *'pass'*'make lint-workflows'* ]] || false
   [[ "$(result 'example.com/bar/cmd/bar')" == *'fail'*'make setup-bar'* ]] || false
-  [[ "$(result 'go')" == *'verify-on-ci'* ]] || false
+  [[ "$(result 'go')" == *'make test'* ]] || false
   [[ "${output}" == *'combined: pass'* ]] || false
   [[ "${output}" == *'Consequences of staying on a stale pin:'* ]] || false
 }
@@ -243,7 +243,7 @@ checkout_fixture() {
   verify --apply
   grep -q "actions/checkout@${SHA_CHECKOUT_NEW}  # v4.4.0" .github/workflows/ci.yml
   grep -q "TOOL_VERSION='v1.0.0'" scripts/ci/setup-bar.sh
-  grep -q 'toolchain go1.27.3' go.mod
+  grep -q 'toolchain go1.27.5' go.mod
 }
 
 @test "verify --apply: a failing combined run writes nothing" {

@@ -422,6 +422,12 @@ changelog() {
 # audit-logged (tag trailers + <git-dir>/release-audit.log)
 # ---------------------------------------------------------------------------
 
+# pins_doc: generate docs/current_pins.md, the record the release gate reads.
+pins_doc() {
+  mkdir -p docs
+  bash "$(dirname "${DRIVER}")/update-pins.sh" --discover-only --pins-md docs/current_pins.md > /dev/null 5>&1
+}
+
 # stale_pin: commit a workflow pinning actions/checkout at v4.2.2, with offline
 # release metadata (UPDATE_PINS_FIXTURES) making v4.4.0 the eligible candidate.
 stale_pin() {
@@ -434,8 +440,11 @@ stale_pin() {
       {tag_name: "v4.2.2", draft: false, prerelease: false, published_at: $old},
       {tag_name: "v4.4.0", draft: false, prerelease: false, published_at: $new}]' \
     > "${fix}/$(printf '%s' 'https://api.github.com/repos/actions/checkout/releases?per_page=100' | tr -c 'A-Za-z0-9._-' '_')"
-  commit_and_push .github/workflows/ci.yml 'pin checkout'
   export UPDATE_PINS_FIXTURES="${fix}" UPDATE_PINS_NOW="${now}"
+  git add .github
+  pins_doc
+  git add docs
+  commit_and_push .github/workflows/ci.yml 'pin checkout'
 }
 
 @test "pins: a stale pin blocks the release and nothing is tagged" {
@@ -499,6 +508,9 @@ devimage_pin() {
   printf 'sha256:%064d' 0 > "${fix}/$(printf 'digest:%s:ctx-0000000000000000' "${repo}" | tr -c 'A-Za-z0-9._-' '_')"
   [ "${1}" = '1' ] && printf 'sha256:%064d' 1 > "${fix}/$(printf 'digest:%s:%s' "${repo}" "${tree}" | tr -c 'A-Za-z0-9._-' '_')"
   export UPDATE_PINS_FIXTURES="${fix}" UPDATE_PINS_NOW=2000000000
+  pins_doc
+  git add docs
+  commit_and_push docs/current_pins.md 'pins'
 }
 
 @test "pins: an unpublished tool-image context is a hold and does not block the release" {
@@ -521,6 +533,58 @@ devimage_pin() {
   run git tag -l --format='%(contents:body)' v1.2.4
   [[ "${output}" == *'1 stale'* ]] || false
   [[ "${output}" != *'Pins-Override'* ]] || false
+}
+
+@test "pins: the gate reads the committed record and queries no registry" {
+  ready_at v1.2.3
+  stale_pin
+  unset UPDATE_PINS_FIXTURES
+  local -r bin="${T}/no-network"
+  mkdir -p "${bin}"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "%s/network-calls"\nexit 7\n' "${T}" > "${bin}/curl"
+  chmod +x "${bin}/curl"
+  PATH="${bin}:${PATH}" run bash "${DRIVER}"
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'Release blocked by stale pins'* ]] || false
+  [ ! -e "${T}/network-calls" ]
+}
+
+# TOCTOU: a pin that was current when checked and committed still releases, whatever upstream
+# published since; the next update-pins run reports it.
+@test "pins: a release published after the check does not block a commit that was current" {
+  ready_at v1.2.3
+  stale_pin
+  sed -i.bak -E 's/^(\| action \| [^|]+\| [^|]+\| )stale( \| )[^|]+/\1current\2- /' docs/current_pins.md
+  rm -f docs/current_pins.md.bak
+  git add docs
+  commit_and_push docs/current_pins.md 'pins checked'
+  run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  remote_has_tag v1.2.4
+}
+
+@test "pins: a record out of step with the tree blocks the release" {
+  ready_at v1.2.3
+  stale_pin
+  sed -i.bak 's/# v4.2.2/# v4.2.1/' .github/workflows/ci.yml
+  rm -f .github/workflows/ci.yml.bak
+  git add .github
+  commit_and_push .github/workflows/ci.yml 'moved the pin'
+  run bash "${DRIVER}"
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'does not match the pins in the tree'* ]] || false
+  ! remote_has_tag v1.2.4
+}
+
+@test "pins: pins with no record block the release" {
+  ready_at v1.2.3
+  stale_pin
+  git rm --quiet docs/current_pins.md
+  git commit --quiet -m 'no record'
+  git push --quiet
+  run bash "${DRIVER}"
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'make pins-doc'* ]] || false
 }
 
 @test "pins: with no stale pins the tag records the pin summary and no override" {

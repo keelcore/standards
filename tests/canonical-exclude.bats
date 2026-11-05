@@ -32,6 +32,8 @@ copy_canonical_scripts() {
     mkdir -p "$(dirname "${f}")"
     cp -p "${STANDARDS}/${f}" "${f}"
   done < <(cd "${STANDARDS}" && find scripts -type f \( -path 'scripts/hooks/*' -o -name '*.sh' ! -name '*.local.sh' \))
+  mkdir -p .github/workflows
+  cp -p "${STANDARDS}/.github/workflows/scorecard.yml" "${STANDARDS}/.github/workflows/codeql.yml" .github/workflows/
 }
 
 @test "verify-canonical skips an excluded script the consumer does not carry" {

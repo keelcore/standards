@@ -14,11 +14,24 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- `.github/workflows/scorecard.yml` and `codeql.yml` are canonical: consumers carry them byte-identical, checked by
+  `make verify-canonical` and synced by `make governance-refresh`. CodeQL analyzes the languages the repository holds
+  (`make codeql-languages`; `config/codeql.local.txt` replaces the detection).
+- `make lint-vuln` and `make setup-govulncheck`: govulncheck in every repo-owned Go module, from the tool image.
+- `scripts/lib/parallel.sh`: `run_parallel` runs a function over many items at once, waits for them all, and prints each
+  job's log whole.
 - `update-pins --check-pins-doc FILE` (`make check-pins-doc`, also a pre-commit check): `docs/current_pins.md` lists
   exactly the pins in the tree; local, no network
 - Versioned git hooks in `scripts/hooks/` (canonical, synced); `scripts/hooks/pre-commit` runs `scripts/git_precommit.sh`
 
 ### Changed
+
+- `make create-release` decides on the pin status committed in `docs/current_pins.md` (`update-pins --from-pins-doc`),
+  with no network query, so an upstream change after the commit cannot block a commit that was current. A tree with
+  pins and no such document, or a document out of step with the tree, blocks the release (`make pins-doc`).
+- `sign.sh` signs its artifacts concurrently; `SHA256SUMS` is signed last.
+- `update-pins` verifies every pin locally: an image pin, and any kind without a specific target, by the project's
+  combined targets; the Go toolchain by `test` in the tool image on every host; only runner labels stay on CI.
 
 - `scripts/dev/run.sh` uses the published `ctx-<hash>` image of the tree's build context when `image.ref` pins another
   one, and builds locally only when that context is unpublished (`dev_published_ref` in `scripts/lib/dev-image.sh`)
@@ -33,6 +46,11 @@ Corrections, clarifications, metadata: patch bump.
 - `make update-pins APPLY=1` rewrites `docs/current_pins.md` from the pins it wrote
 - The release notes and the bump level take the `CHANGELOG.md` `[Unreleased]` entries added since the previous tag
 - The release notes name the tool-image SBOMs by file (`<repository>-<image>.spdx.json`)
+
+### Fixed
+
+- `run.sh` `sync_back` passes over submodule entries, so a writable run from a worktree of a repo with submodules no
+  longer fails after copying its edits back.
 
 ## [0.10.9] - 2026-11-04
 

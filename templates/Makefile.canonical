@@ -73,6 +73,9 @@ export TZ := UTC
 .PHONY: setup-shellcheck
 .PHONY: setup-staticcheck
 .PHONY: setup-syft
+.PHONY: setup-govulncheck
+.PHONY: lint-vuln
+.PHONY: codeql-languages
 .PHONY: verify-canonical
 .PHONY: install-hooks
 .PHONY: release-go
@@ -257,6 +260,21 @@ setup-staticcheck:
 setup-syft:
 	@echo "🔧 Installing syft..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-syft.sh
+
+setup-govulncheck:
+	@echo "🔧 Installing govulncheck..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-govulncheck.sh
+
+## Dependency vulnerability gate: reachable vulnerabilities in every repo-owned Go module
+lint-vuln:
+	@echo "🔍 Running govulncheck..."
+	bash scripts/dev/run.sh bash scripts/lint/vuln.sh
+
+## The CodeQL languages the repository holds, as a workflow output (codeql.yml). Runs on the host:
+## the output file lives on the runner.
+codeql-languages:
+	@echo "🔍 Detecting CodeQL languages..."
+	bash scripts/ci/codeql-languages.sh
 
 ## Git hook installation (core.hooksPath scripts/hooks: one setting for clones, worktrees and submodules)
 

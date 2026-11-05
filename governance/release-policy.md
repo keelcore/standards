@@ -144,7 +144,8 @@ make create-release
 The script will:
 
 1. Verify you are on `main`, your branch's configured upstream is in sync, and the working tree is clean.
-2. Check pins (`update-pins.sh --discover-only`): any stale pin blocks the release (see Stale Pins below).
+2. Check pins (`update-pins.sh --from-pins-doc docs/current_pins.md`): the status committed there decides, with no
+   network query, and any stale pin blocks the release (see Stale Pins below).
 3. Run the project's hook and compute the next version.
 4. Print the summary (the hook's findings, bump level, proposed tag subject).
 5. Prompt for `y/N` approval.
@@ -161,8 +162,10 @@ preconditions and stale pins as warnings. CI picks up the pushed tag and runs th
 ## Stale Pins
 
 A pin is stale when an eligible newer release exists (`governance/ci.md` "Pin Refresh": no prereleases, 14-day
-cooldown, majors report-only) and was not adopted. `create-release` lists every stale pin with the consequence of
-staying on it, and refuses to tag. A tool-image pin (`containers/NAME/image.ref`) never blocks: `run.sh` builds an
+cooldown, majors report-only) and was not adopted. `create-release` reads the status recorded in
+`docs/current_pins.md` by the last `make update-pins APPLY=1` or `make pins-doc`, lists every stale pin with the
+consequence of staying on it, and refuses to tag. Upstream releases after that commit reach the next
+`make update-pins` run, never the tag. A tool-image pin (`containers/NAME/image.ref`) never blocks: `run.sh` builds an
 unpublished build context locally, and `make update-pins APPLY=1` pins it once it is published.
 
 - **Fix:** `make update-pins`, then `make update-pins APPLY=1`; review, commit and push the refreshed pins.
