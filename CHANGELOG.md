@@ -49,6 +49,7 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `sign.sh` gives each concurrent signature its own cosign cache; they collided writing the shared TUF metadata.
 - The PyPI publish job waits for the packages only; it no longer hangs on the publish action's attestation files.
 - Each publish job waits until its registry serves everything of the version (`make release-wait-published`), so the
   release job reads metadata after the upload has finished.

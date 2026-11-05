@@ -140,6 +140,7 @@ stub_cosign() {
 #!/usr/bin/env bash
 source "${WORK}/bin/stub-lib"
 record "cosign $*"
+printf '%s\n' "${HOME}" >> "${STATE}/homes"
 maybe_fail "cosign $*"
 [ -z "${SIGN_BARRIER:-}" ] || [[ "${*: -1}" == *SHA256SUMS ]] || barrier "${*: -1}" "${SIGN_BARRIER}"
 bundle=''
@@ -158,6 +159,15 @@ COSIGN
   export SIGN_BARRIER=6
   run bash scripts/release/sign.sh --sums-dir dist dist/keel-*
   [ "${status}" -eq 0 ]
+}
+
+@test "sign.sh: concurrent signatures never share cosign's cache directory" {
+  stub_cosign
+  run bash scripts/release/sign.sh --sums-dir dist dist/keel-*
+  [ "${status}" -eq 0 ]
+  # Six concurrent signatures, each alone; SHA256SUMS signs afterwards, by itself, in the real HOME.
+  [ "$(sort -u "${STATE}/homes" | wc -l)" -eq 7 ]
+  [ "$(grep -cx "${HOME}" "${STATE}/homes")" -eq 1 ]
 }
 
 @test "sign.sh: SHA256SUMS covers every artifact and is signed last" {
