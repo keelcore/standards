@@ -27,6 +27,7 @@ setup() {
   stub_tools
   : > "${STATE}/calls"
   export PATH="${WORK}/bin:${PATH}"
+  unset GITHUB_REPOSITORY # the workflow context would win over the fixture's config
   export GITHUB_TOKEN=token GITHUB_ACTOR=actor GH_TOKEN=token
   export GITHUB_OUTPUT="${STATE}/output"
   export BARRIER_TIMEOUT=30
