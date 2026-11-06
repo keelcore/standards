@@ -58,6 +58,7 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `tests/release-images.bats` passes on CI: the tests use their own repository, not the workflow's `GITHUB_REPOSITORY`.
 - `make update-pins` lists its report by status, what needs action first; an unpublished tool image no longer prints a
   curl error; the Helm pin resolves.
 - `sign.sh` gives each concurrent signature its own cosign cache; they collided writing the shared TUF metadata.
