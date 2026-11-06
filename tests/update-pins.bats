@@ -175,6 +175,23 @@ EOF
   [ "$(git status --porcelain; git diff --cached)" = "${before}" ]
 }
 
+@test "the report is sorted by status: what needs action first" {
+  pins
+  local -r order='stale unresolved unpinned major hold cooldown current'
+  local got want s
+  got="$(grep -E '^[a-z]+ +[^ ]+ ' <<< "${output}" | cut -c93-102 | tr -d ' ' | uniq)"
+  want=''
+  for s in ${order}; do
+    grep -qx "${s}" <<< "${got}" && want+="${s}"$'\n'
+  done
+  [ "${got}"$'\n' = "${want}" ] || { printf 'got:\n%s\nwant:\n%s\n' "${got}" "${want}"; false; }
+  [ "$(wc -l <<< "${got}")" -gt 2 ]
+}
+
+@test "setup-helm.sh names its upstream, so update-pins can resolve the pin" {
+  grep -q 'github.com/helm/helm/releases/download' "${STANDARDS}/scripts/ci/setup-helm.sh"
+}
+
 @test "a failed lookup is unresolved, never current" {
   rm "${FIX}/$(printf '%s' 'https://api.github.com/repos/acme/foo/releases?per_page=100' | tr -c 'A-Za-z0-9._-' '_')"
   rm "${FIX}/$(printf '%s' 'https://proxy.golang.org/example.com/lib/@v/list' | tr -c 'A-Za-z0-9._-' '_')"

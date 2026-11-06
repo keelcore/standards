@@ -58,6 +58,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `make update-pins` lists its report by status, what needs action first; an unpublished tool image no longer prints a
+  curl error; the Helm pin resolves.
 - `sign.sh` gives each concurrent signature its own cosign cache; they collided writing the shared TUF metadata.
 - The PyPI publish job waits for the packages only; it no longer hangs on the publish action's attestation files.
 - Each publish job waits until its registry serves everything of the version (`make release-wait-published`), so the

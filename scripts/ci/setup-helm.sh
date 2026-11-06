@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # setup-helm.sh
-# Install the pinned Helm.
+# Install the pinned Helm. Upstream: https://github.com/helm/helm/releases/download (the binaries come
+# from get.helm.sh, which that release page names).
 # Linux: the release tarball from get.helm.sh, verified against the committed
 # SHA-256 for the runner's architecture (same version and sums as the toolbox
 # Containerfile; update-pins.local.sh keeps both in step).
