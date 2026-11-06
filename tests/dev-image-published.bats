@@ -52,6 +52,69 @@ published() {
   [ "${status}" -ne 0 ]
 }
 
+# resolve_with PIN: dev_resolve_ref for context abc of a directory whose image.ref holds PIN.
+resolve_with() {
+  mkdir -p "${WORK}/x/containers/dev"
+  printf '%s\n' "${1}" > "${WORK}/x/containers/dev/image.ref"
+  run bash -c "
+    PATH='${WORK}/bin':\"\${PATH}\"
+    source '${STANDARDS}/scripts/lib/dev-image.sh'
+    dev_repository() { printf ghcr.io/keelcore/x-dev; }
+    dev_resolve_ref '${WORK}/x' dev abc"
+}
+
+@test "dev_resolve_ref: a matching pin wins, without asking the registry" {
+  printf '#!/usr/bin/env bash\nexit 7\n' > "${WORK}/bin/curl"
+  chmod +x "${WORK}/bin/curl"
+  resolve_with "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}"
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}" ]
+}
+
+@test "dev_resolve_ref: a stale pin resolves to the published image of the context" {
+  fake_registry 1
+  resolve_with "ghcr.io/keelcore/x-dev:ctx-old@${DIGEST}"
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}" ]
+}
+
+@test "dev_resolve_ref: a stale pin and an unpublished context is not found" {
+  fake_registry 0
+  resolve_with "ghcr.io/keelcore/x-dev:ctx-old@${DIGEST}"
+  [ "${status}" -ne 0 ]
+  [ -z "${output}" ]
+}
+
+# standards_ref_with PUBLISHED: publish.sh's standards_ref, with .standards pinning another context.
+standards_ref_with() {
+  fake_registry "${1}"
+  sed -n '/^function standards_ref()/,/^}/p' "${STANDARDS}/scripts/dev/publish.sh" > "${WORK}/standards_ref.sh"
+  mkdir -p "${WORK}/s/.standards/containers/dev"
+  printf 'ghcr.io/keelcore/x-dev:ctx-old@%s\n' "${DIGEST}" > "${WORK}/s/.standards/containers/dev/image.ref"
+  run bash -c "
+    PATH='${WORK}/bin':\"\${PATH}\"
+    cd '${WORK}/s'
+    log() { printf '%s\n' \"\${1}\" >&2; }
+    source '${STANDARDS}/scripts/lib/dev-image.sh'
+    dev_repository() { printf ghcr.io/keelcore/x-dev; }
+    dev_context_hash() { printf abc; }
+    source '${WORK}/standards_ref.sh'
+    standards_ref"
+}
+
+@test "publish.sh: a stale .standards pin builds on the published image of its context" {
+  standards_ref_with 1
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}" ]
+}
+
+@test "publish.sh: an unpublished .standards context stops the publish, and says so" {
+  standards_ref_with 0
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'ctx-abc'* ]]
+  [[ "${output}" == *'not published'* ]]
+}
+
 # dev_image_with PUBLISHED: run.sh's dev_image for a context image.ref does not pin,
 # with the registry answering PUBLISHED; prints the reference and whether it built.
 dev_image_with() {
@@ -68,6 +131,7 @@ dev_image_with() {
     dev_repository() { printf 'ghcr.io/keelcore/x-dev'; }
     dev_repo_name() { printf x; }
     dev_published_ref() { [ '${1}' = 1 ] && printf 'ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}'; }
+    dev_resolve_ref() { dev_pinned_ref "\$1" "\$2" "\$3" || dev_published_ref x abc; }
     build_image() { printf 'BUILT ' >&2; }
     source '${WORK}/dev_image.sh'
     mkdir -p '${WORK}/repo/containers/x'

@@ -58,6 +58,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `publish.sh` builds on the published `.standards` tool image when `image.ref` pins another context, as `run.sh` does:
+  both use `dev_resolve_ref`, so a consumer's image no longer waits for a pin and a second release.
 - `tests/release-images.bats` passes on CI: the tests use their own repository, not the workflow's `GITHUB_REPOSITORY`.
 - `make update-pins` lists its report by status, what needs action first; an unpublished tool image no longer prints a
   curl error; the Helm pin resolves.
