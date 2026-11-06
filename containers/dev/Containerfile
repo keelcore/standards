@@ -55,6 +55,24 @@ COPY scripts/ci/setup-cosign.sh /opt/keelcore/scripts/ci/
 RUN bash scripts/ci/setup-cosign.sh
 COPY scripts/ci/setup-govulncheck.sh /opt/keelcore/scripts/ci/
 RUN bash scripts/ci/setup-govulncheck.sh && go clean -modcache -cache
+COPY scripts/ci/setup-gotestsum.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-gotestsum.sh
+COPY scripts/ci/setup-actionlint.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-actionlint.sh
+COPY scripts/ci/setup-helm.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-helm.sh
+COPY scripts/ci/setup-kubeconform.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-kubeconform.sh
+COPY scripts/ci/setup-zizmor.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-zizmor.sh
+COPY scripts/ci/setup-kubescape.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-kubescape.sh
+COPY scripts/ci/setup-gosec.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-gosec.sh
+COPY scripts/ci/setup-go-licenses.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-go-licenses.sh && go clean -modcache -cache
+COPY scripts/ci/setup-grype.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-grype.sh
 
 # The repository is mounted from the host (another owner); git trusts it.
 RUN git config --system safe.directory '*'

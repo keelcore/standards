@@ -1,0 +1,2 @@
+# Globs, relative to dist/, of the files a release ships and checksums.
+*

@@ -1,0 +1,7 @@
+# Dependency update proposals. Add one entry per ecosystem the repository uses (gomod, npm, docker).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

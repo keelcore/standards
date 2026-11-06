@@ -1,0 +1,2 @@
+# The oldest Kubernetes version whose API schema a chart must satisfy.
+1.28.0

@@ -14,6 +14,15 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- Canonical image release, chart push, upload and self-verification: `make release-images`, `release-helm-push`,
+  `release-upload`, `release-verify`, `release-metadata`, `release-ghcr-login`, driven by `config/release-images.local.txt`,
+  `release-dockerfile.local.txt` and the workflow's repository; grype in the tool image.
+- Canonical, each doing nothing without its trait: `make lint-workflows` (now in `make lint`), `lint-gosec`, `lint-licenses`,
+  `lint-helm`, `lint-helm-validate`, `lint-helm-policy`, `lint-vex`, `test-unit`, `test-fuzz`, `coverage-profile`,
+  `release-vex`, `release-checksums`, `dist-chmod`, `native-build`, `native-run`, `native-integrity`, with their tools in
+  the tool image.
+- `config/` holds tool defaults; a repository adjusts them in `config/<name>.local.txt` (`scripts/lib/tool-config.sh`).
+- `templates/SECURITY.md`, `CODEOWNERS` and `dependabot.yml`; `make audit` requires all three (Rule 7).
 - `.github/workflows/scorecard.yml` and `codeql.yml` are canonical: consumers carry them byte-identical, checked by
   `make verify-canonical` and synced by `make governance-refresh`. CodeQL analyzes the languages the repository holds
   (`make codeql-languages`; `config/codeql.local.txt` replaces the detection).

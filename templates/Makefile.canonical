@@ -74,6 +74,39 @@ export TZ := UTC
 .PHONY: setup-staticcheck
 .PHONY: setup-syft
 .PHONY: setup-govulncheck
+.PHONY: setup-actionlint
+.PHONY: setup-zizmor
+.PHONY: setup-gosec
+.PHONY: setup-go-licenses
+.PHONY: setup-gotestsum
+.PHONY: setup-helm
+.PHONY: setup-kubeconform
+.PHONY: setup-kubescape
+.PHONY: lint-workflows
+.PHONY: lint-gosec
+.PHONY: lint-licenses
+.PHONY: lint-helm
+.PHONY: lint-helm-validate
+.PHONY: lint-helm-policy
+.PHONY: lint-vex
+.PHONY: test-unit
+.PHONY: test-fuzz
+.PHONY: coverage-profile
+.PHONY: release-vex
+.PHONY: setup-grype
+.PHONY: release-metadata
+.PHONY: release-images
+.PHONY: release-helm-push
+.PHONY: release-ghcr-login
+.PHONY: release-cosign
+.PHONY: release-upload
+.PHONY: release-verify
+.PHONY: release-checksums
+.PHONY: release-checksums-verify
+.PHONY: dist-chmod
+.PHONY: native-build
+.PHONY: native-run
+.PHONY: native-integrity
 .PHONY: lint-vuln
 .PHONY: codeql-languages
 .PHONY: verify-canonical
@@ -109,7 +142,7 @@ build:
 	@echo "🔨 Running build..."
 	bash scripts/dev/run.sh bash scripts/build.sh
 
-lint: lint-newlines lint-markdown lint-bash lint-go lint-suppressions lint-utc
+lint: lint-newlines lint-markdown lint-bash lint-go lint-suppressions lint-utc lint-workflows
 
 test: unit-test integration-test
 
@@ -429,3 +462,140 @@ bootstrap-standards:
 
 help:
 	bash scripts/help.sh $(MAKEFILE_LIST)
+
+## Workflow, Go and Helm checks, tests and release steps (each does nothing without its trait)
+
+setup-actionlint:
+	@echo "🔧 Installing actionlint..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-actionlint.sh
+
+setup-zizmor:
+	@echo "🔧 Installing zizmor..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-zizmor.sh
+
+setup-gosec:
+	@echo "🔧 Installing gosec..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-gosec.sh
+
+setup-go-licenses:
+	@echo "🔧 Installing go-licenses..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-go-licenses.sh
+
+setup-gotestsum:
+	@echo "🔧 Installing gotestsum..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-gotestsum.sh
+
+setup-helm:
+	@echo "🔧 Installing helm..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-helm.sh
+
+setup-kubeconform:
+	@echo "🔧 Installing kubeconform..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-kubeconform.sh
+
+setup-kubescape:
+	@echo "🔧 Installing kubescape..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-kubescape.sh
+
+lint-workflows:
+	@echo "🔍 Linting workflows (actionlint, zizmor)..."
+	bash scripts/dev/run.sh bash scripts/lint/workflows.sh
+
+lint-gosec:
+	@echo "🔍 Running gosec..."
+	bash scripts/dev/run.sh bash scripts/lint/gosec.sh
+
+lint-licenses:
+	@echo "🔍 Checking dependency licenses..."
+	bash scripts/dev/run.sh bash scripts/lint/licenses.sh
+
+lint-helm:
+	@echo "🔍 Running Helm lint..."
+	bash scripts/dev/run.sh bash scripts/lint/helm.sh
+
+lint-helm-validate:
+	@echo "🔍 Validating Helm templates against the Kubernetes schema..."
+	bash scripts/dev/run.sh bash scripts/lint/helm-validate.sh
+
+lint-helm-policy:
+	@echo "🔍 Scanning chart policy (kubescape)..."
+	bash scripts/dev/run.sh bash scripts/lint/helm-policy.sh
+
+lint-vex:
+	@echo "🔍 Validating the generated OpenVEX document..."
+	bash scripts/dev/run.sh bash scripts/lint/vex.sh
+
+test-unit:
+	@echo "🧪 Running Go unit tests..."
+	bash scripts/dev/run.sh bash scripts/test/ci.sh
+
+test-fuzz:
+	@echo "🧪 Running fuzz targets..."
+	bash scripts/dev/run.sh bash scripts/test/fuzz.sh
+
+coverage-profile:
+	@echo "📊 Generating the Go coverage profile (target/coverage.txt)..."
+	bash scripts/dev/run.sh bash scripts/test/coverage.sh
+
+release-vex:
+	@echo "🧾 Generating OpenVEX (govulncheck)..."
+	bash scripts/dev/run.sh bash scripts/release/vex.sh $(ARGS)
+
+release-checksums:
+	@echo "🔐 Generating SHA256SUMS..."
+	bash scripts/dev/run.sh bash scripts/release/checksums.sh
+
+release-checksums-verify:
+	@echo "🔐 Verifying SHA256SUMS..."
+	bash scripts/dev/run.sh bash scripts/release/checksums.sh --verify
+
+dist-chmod:
+	@echo "🔑 Making dist binaries executable..."
+	DIST_OWNER='$(DIST_OWNER)' KEELCORE_DEV_ENV=DIST_OWNER bash scripts/dev/run.sh bash scripts/build/dist-chmod.sh
+
+native-build:
+	@echo "🔨 Cross-building native test binaries for $(OS)/$(ARCH)..."
+	bash scripts/dev/run.sh bash scripts/test/native-build.sh $(OS) $(ARCH)
+
+native-run:
+	@echo "🧪 Running native test binaries ($(DIR))..."
+	bash scripts/test/native-run.sh $(DIR)
+
+native-integrity:
+	@echo "🧪 Running the integrity suite natively ($(DIR))..."
+	bash scripts/test/native-integrity.sh $(DIR)
+
+# Who owns dist/ after a tool-image step on Linux (root runs the image there): the invoking user.
+DIST_OWNER := $(shell [ "$$(uname -s)" = Linux ] && printf '%s:%s' "$$(id -u)" "$$(id -g)")
+
+setup-grype:
+	@echo "🔧 Installing grype..."
+	bash scripts/dev/run.sh bash scripts/ci/setup-grype.sh
+
+release-metadata:
+	@echo "🧾 Generating release metadata..."
+	TAG='$(TAG)' KEELCORE_DEV_ENV='$(KEELCORE_DEV_ENV) TAG' bash scripts/dev/run.sh bash scripts/release/metadata.sh
+
+release-images:
+	@echo "🐳 Building and pushing container images..."
+	bash scripts/release/docker.sh
+
+release-helm-push:
+	@echo "⎈ Packaging and pushing the Helm chart..."
+	bash scripts/dev/run.sh bash scripts/release/helm-push.sh
+
+release-ghcr-login:
+	@echo "🔑 Logging in to GHCR..."
+	bash scripts/release/ghcr-login.sh
+
+release-cosign:
+	@echo "🔏 cosign (GHCR, dev image) $(ARGS)..."
+	bash scripts/dev/run.sh bash scripts/release/cosign.sh $(ARGS)
+
+release-upload:
+	@echo "🚀 Uploading release artifacts..."
+	RELEASE_TAG=$(TAG) bash scripts/release/upload.sh $(ARGS)
+
+release-verify:
+	@echo "🔍 Verifying the published release..."
+	bash scripts/release/verify-release.sh
