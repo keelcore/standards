@@ -183,3 +183,53 @@ job_block() {
     fi
   done
 }
+
+# ref_repo: a repository at WORK/r with a dev image whose pin matches its context, and a runtime
+# that records every call: "image inspect" succeeds once FOUND exists.
+ref_repo() {
+  mkdir -p "${WORK}/r/containers/dev" "${WORK}/fake"
+  printf 'FROM scratch\n' > "${WORK}/r/containers/dev/Containerfile"
+  for tool in container docker; do
+    printf '#!/usr/bin/env bash\necho "$*" >> "%s/calls"\n[ "${2}" != inspect ] || [ -f "%s/found" ]\n' "${WORK}" "${WORK}" \
+      > "${WORK}/fake/${tool}"
+    chmod +x "${WORK}/fake/${tool}"
+  done
+  cd "${WORK}/r"
+  git init --quiet
+  git add -A
+  local hash
+  hash="$(bash -c "source '${STANDARDS}/scripts/lib/dev-image.sh'; dev_context_hash . dev")"
+  PIN="ghcr.io/keelcore/x-dev:ctx-${hash}@${DIGEST}"
+  printf '%s\n' "${PIN}" > containers/dev/image.ref
+}
+
+@test "run.sh --image-ref: names the image, with nothing fetched or built" {
+  ref_repo
+  PATH="${WORK}/fake:${PATH}" run --separate-stderr bash "${STANDARDS}/scripts/dev/run.sh" --image-ref
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "${PIN}" ]
+  [ ! -e "${WORK}/calls" ]
+}
+
+@test "run.sh --image-ref: an unpublished context names its local tag, unbuilt" {
+  ref_repo
+  printf 'ghcr.io/keelcore/x-dev:ctx-old@%s\n' "${DIGEST}" > containers/dev/image.ref
+  printf '#!/usr/bin/env bash\nexit 22\n' > "${WORK}/fake/curl"
+  chmod +x "${WORK}/fake/curl"
+  PATH="${WORK}/fake:${PATH}" run --separate-stderr bash "${STANDARDS}/scripts/dev/run.sh" --image-ref
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == keelcore-dev-*:ctx-* ]]
+  [ -z "$(grep -E ' build|^build' "${WORK}/calls" 2> /dev/null)" ]
+}
+
+@test "run.sh --fetch-image: pulls an absent image; a present one is left alone" {
+  ref_repo
+  PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -eq 0 ]
+  grep -qxF "image pull ${PIN}" "${WORK}/calls"
+  : > "${WORK}/calls"
+  touch "${WORK}/found"
+  PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -eq 0 ]
+  [ -z "$(grep ' pull ' "${WORK}/calls")" ]
+}

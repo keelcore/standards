@@ -333,7 +333,8 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
 4. **Verification:** each stale pin is applied alone in a throwaway git worktree of the staged tree (HEAD plus the
    index, submodules at their staged commits plus their uncommitted changes, so pins verify against what the next
    commit holds), exercised by the make targets mapped to its kind, and rolled back; a failing pin never stops the
-   others. Then every passing pin is applied together for one combined run (lint, audit, the full unit and integration
+   others. Before any check starts, the images the pins need are made unique and fetched in parallel, so each downloads
+   once. Then every passing pin is applied together for one combined run (lint, audit, the full unit and integration
    set). Go modules (`go get`, `go mod tidy`,
    `go mod vendor`) verify against that full set. Kinds the host cannot exercise are verified by the `update-pins`
    workflow on Linux.

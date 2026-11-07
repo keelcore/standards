@@ -691,3 +691,64 @@ checkout_major() {
   verify --apply
   grep -q "actions/checkout@${SHA_CHECKOUT_NEW}  # v7.0.0" .github/workflows/ci.yml
 }
+
+# fake_run_sh: a run.sh naming the image a pin needs: "shared", or "zed-2" once the ZED pin is applied.
+# Fetches record themselves in FETCHES, and each pin's check records itself there too.
+fake_run_sh() {
+  mkdir -p scripts/dev
+  cat > scripts/dev/run.sh <<'RUN'
+#!/usr/bin/env bash
+image() {
+  if grep -q "ZED_VERSION='2.1" scripts/ci/setup-zed.sh 2> /dev/null; then echo zed-2; else echo shared; fi
+}
+case "${1}" in
+  --image-ref) image ;;
+  --fetch-image)
+    echo "fetch $(image)" >> "${FETCHES}"
+    sleep 1
+    [ ! -f "${FETCHES}.fail" ] ;;
+esac
+RUN
+  export FETCHES="${BATS_TEST_TMPDIR}/fetches"
+  perl -0pi -e 's/lint-workflows:\n\t\@true\n/lint-workflows:\n\t\@echo check >> "\$(FETCHES)"\n/' Makefile
+  commit
+}
+
+@test "images: pins needing one image fetch it once, and every fetch ends before any check starts" {
+  checkout_fixture
+  fake_run_sh
+  verify
+  [ "$(grep -c '^fetch shared$' "${FETCHES}")" -eq 1 ]
+  [ "$(sed -n 1p "${FETCHES}")" = 'fetch shared' ]
+  grep -q '^check$' "${FETCHES}"
+  [[ "${output}" == *'📥'*'1 image'* ]] || false
+  [ "$(git worktree list | wc -l | tr -d ' ')" -eq 1 ]
+}
+
+@test "images: distinct images are each fetched once, before any check" {
+  checkout_fixture
+  zed_pin '2.0.0' 'v2.0.0:400' 'v2.1.0:30'
+  fixture 'https://api.github.com/repos/acme/zed/releases/tags/2.0.0' '{"assets": []}'
+  fixture 'https://api.github.com/repos/acme/zed/releases/tags/v2.1.0' '{"assets": []}'
+  fake_run_sh
+  verify
+  [ "$(grep -c '^fetch shared$' "${FETCHES}")" -eq 1 ]
+  [ "$(grep -c '^fetch zed-2$' "${FETCHES}")" -eq 1 ]
+  [ -z "$(sed -n '1,2p' "${FETCHES}" | grep check)" ]
+}
+
+@test "images: a failed fetch is reported, and the checks still run" {
+  checkout_fixture
+  fake_run_sh
+  touch "${FETCHES}.fail"
+  verify
+  [[ "${output}" == *'❌'*'shared'* ]] || false
+  grep -q '^check$' "${FETCHES}"
+}
+
+@test "images: a repository without run.sh fetches nothing, and verifies as before" {
+  checkout_fixture
+  verify
+  [[ "${output}" != *'📥'* ]] || false
+  [[ "$(result 'actions/checkout')" == *'pass'* ]] || false
+}

@@ -1399,6 +1399,7 @@ function verify_all() {
   local results='' kind name loc current source status cand age note locs origin logf i=0
   local -a queued=()
   start_progress
+  fetch_pin_images "${stale}"
   while IFS=$'\t' read -r -u 3 kind name loc current source status cand age note locs origin; do
     i=$(( i + 1 ))
     logf="${LOGDIR}/$(printf '%02d' "${i}")-${kind}-$(printf '%s' "${name}" | tr -c 'A-Za-z0-9._-' '_').log"
@@ -1500,6 +1501,72 @@ function add_worktree() {
 
 # verify_in_own_worktree RESULT_FILE KIND NAME CURRENT CAND SOURCE LOCS LOG: verify_pin in a
 # worktree of its own (removed afterwards); writes the result row to RESULT_FILE.
+# fetch_pin_images STALE: every image the pins' checks will run in, on this machine before any check
+# starts: each pin names its image from a worktree with the pin applied, the names are made unique,
+# and those are fetched in parallel. A failed fetch is reported; that pin's check then fails or
+# fetches for itself.
+function fetch_pin_images() {
+  [ -f scripts/dev/run.sh ] || return 0
+  local -r jobs="${UPDATE_PINS_JOBS:-4}" dir="${WT}.images"
+  mkdir -p "${dir}"
+  local kind name loc current source status cand age note locs origin i=0
+  while IFS=$'\t' read -r -u 3 kind name loc current source status cand age note locs origin; do
+    i=$(( i + 1 ))
+    while [ "$(jobs -rp | wc -l)" -ge "${jobs}" ]; do sleep 1; done
+    name_pin_image "${dir}/$(printf '%03d' "${i}")" "${kind}" "${name}" "${current}" "${cand}" "${source}" "${locs}" &
+  done 3<<< "${1}"
+  wait
+  local ref wt n=0 unique
+  unique="$(cat "${dir}"/* 2> /dev/null | sort -t $'\t' -k1,1 -u)"
+  if [ -n "${unique}" ]; then
+    log "📥 fetching $(wc -l <<< "${unique}" | tr -d ' ') image(s) for ${i} pin(s)"
+    while IFS=$'\t' read -r -u 3 ref wt; do
+      n=$(( n + 1 ))
+      while [ "$(jobs -rp | wc -l)" -ge "${jobs}" ]; do sleep 1; done
+      fetch_one_image "${ref}" "${wt}" "${LOGDIR}/fetch-$(printf '%02d' "${n}").log" &
+    done 3<<< "${unique}"
+    wait
+  fi
+  while IFS=$'\t' read -r -u 3 ref wt; do
+    [ -z "${wt}" ] || { git -C "${ROOT}" worktree remove --force "${wt}" > /dev/null 2>&1 || true; rm -rf "${wt}.tools"; }
+  done 3< <(cat "${dir}"/* 2> /dev/null)
+  rm -rf "${dir}"
+}
+
+# name_pin_image OUT KIND NAME CURRENT CAND SOURCE LOCS: writes "<image>\t<worktree>" for this pin,
+# keeping the worktree for the fetch: a local build needs its context. A pin with no local check
+# writes nothing.
+function name_pin_image() {
+  local -r out="${1}"
+  shift
+  (
+    add_worktree
+    local ref=''
+    if apply_pin "${WT}" "$@" > /dev/null 2>&1 && [ "$(verify_targets "${1}" "${2}" "${6}")" != 'verify-on-ci' ]; then
+      ref="$(cd "${WT}" && bash scripts/dev/run.sh --image-ref 2> /dev/null)" || ref=''
+    fi
+    if [ -n "${ref}" ]; then
+      printf '%s\t%s\n' "${ref}" "${WT}" > "${out}"
+    else
+      git -C "${ROOT}" worktree remove --force "${WT}" > /dev/null 2>&1 || true
+      rm -rf "${TOOLS}"
+    fi
+  )
+}
+
+# fetch_one_image REF WORKTREE LOG: REF on this machine, reported as it finishes.
+function fetch_one_image() {
+  local -r ref="${1}" wt="${2}" logf="${3}"
+  local -r started="$(date -u +%s)"
+  progress_add "image ${ref}" "${logf}" "${started}"
+  if (cd "${wt}" && bash scripts/dev/run.sh --fetch-image < /dev/null) >> "${logf}" 2>&1; then
+    report_finished "image ${ref}" 'fetched' "${started}"
+  else
+    report_finished "image ${ref}" 'fail' "${started}"
+  fi
+  progress_done "${logf}"
+}
+
 # start_progress: until stop_progress, print every running pin's state on the console, so a long
 # verification is never silent. Each verification's output stays in its own log. Disowned, so the
 # driver's `wait` and job count see only verifications; it ends by itself if the driver is gone.

@@ -5,6 +5,8 @@
 # CI, so the tool versions are the ones baked into the image.
 #
 # Usage: run.sh [--image NAME] [--writable] COMMAND [ARG...]   (from the repository root)
+#        run.sh [--image NAME] --image-ref     print the image reference; nothing fetched or built
+#        run.sh [--image NAME] --fetch-image   put the image on this machine
 #
 # Images: containers/NAME/Containerfile (default NAME: dev).
 #
@@ -49,6 +51,14 @@ function main() {
     case "${1}" in
       --writable) mode='rw'; shift ;;
       --image) name="${2:-}"; shift 2 ;;
+      --image-ref)
+        IMAGE_REF_ONLY=1
+        dev_image . "${name}"
+        printf '\n'
+        return ;;
+      --fetch-image)
+        fetch_image "${name}"
+        return ;;
       *) break ;;
     esac
   done
@@ -104,7 +114,7 @@ function dev_image() {
     log "ℹ️  ${dir}/$(dev_ref_file "${name}") pins another build context; building ctx-${hash} locally"
   fi
   tag="keelcore-${name}-$(dev_repo_name "${dir}"):ctx-${hash}"
-  if ! "$(runtime)" image inspect "${tag}" > /dev/null 2>&1; then
+  if [ -z "${IMAGE_REF_ONLY:-}" ] && ! "$(runtime)" image inspect "${tag}" > /dev/null 2>&1; then
     build_image "${dir}" "${cf}" "${tag}" "${base}" || { log "❌ building ${tag} failed"; exit 1; }
   fi
   printf '%s' "${tag}"
@@ -140,6 +150,13 @@ function build_image() {
   fi
   log "🔨 Building image ${tag}..."
   "$(runtime)" "${args[@]}" "${dir}" >&2
+}
+
+# fetch_image NAME: NAME's image on this machine, built or pulled, ready for runs that follow.
+function fetch_image() {
+  local image
+  image="$(dev_image . "${1}")" || exit 1
+  "$(runtime)" image inspect "${image}" > /dev/null 2>&1 || "$(runtime)" image pull "${image}" >&2
 }
 
 # output_dirs ROOT: the writable output directories (repository-relative): the lines of

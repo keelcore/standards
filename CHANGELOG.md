@@ -48,6 +48,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- `update-pins` fetches each tool image once: pins name the image they need, the names are made unique and fetched in
+  parallel, and the checks start only when every fetch has finished. `run.sh` gains `--image-ref` and `--fetch-image`.
 - GitHub Actions move to a new major like any other update: `update-pins` writes new action and runner image majors past
   the cooldown, for CI to prove. A `0.y.z` update is no longer treated as a major (semver.org: the major is the first
   number).
