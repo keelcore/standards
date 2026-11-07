@@ -52,7 +52,7 @@
 # (GO_PATCH_COOLDOWN_DAYS). A newer major version (the first number: 0.y.z updates stay in major 0)
 # is reported as `major` (report-only); the newest eligible release in the current major is the
 # candidate. GitHub Actions (actions and runner images) move to a new major like any other update:
-# CI proves them, and wait-ci.sh keeps a red commit from being published. --major NAME (repeatable)
+# CI proves them, and wait-for-ci.sh keeps a red commit from being published. --major NAME (repeatable)
 # lets any other named pin move to its newest eligible release of any major.
 #
 # Status: current | stale (eligible candidate exists) | major | cooldown (newer
@@ -119,6 +119,8 @@ TOOLS=''
 
 # shellcheck source=../lib/paths.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/paths.sh"
+# shellcheck source=../lib/progress.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/progress.sh"
 
 function main() {
   exec 5>&1
@@ -1241,7 +1243,7 @@ function resolve_row() {
   [ "${kind}" != 'tool' ] || ! grep -qE '[A-Z0-9_]*SHA256[A-Z0-9_]*=' "${loc%%:*}" 2> /dev/null || CHECKSUM_PIN=1
   ANY_MAJOR=''
   case "${kind}" in
-    # GitHub Actions: CI proves them, and a red commit is never published (wait-ci.sh).
+    # GitHub Actions: CI proves them, and a red commit is never published (wait-for-ci.sh).
     action | runner) ANY_MAJOR=1 ;;
     *) ! named_major "${name}" || ANY_MAJOR=1 ;;
   esac
@@ -1547,13 +1549,11 @@ function progress_done() {
 # print_progress: one line per running verification: elapsed time, the latest image build step, if
 # any, and the latest line of its log.
 function print_progress() {
-  local entry label logf started step latest
+  local entry label logf started
   for entry in "${PROGRESS_DIR}"/*; do
     [ -f "${entry}" ] || continue
     IFS=$'\t' read -r label logf started < "${entry}" || continue
-    step="$(sed -nE 's/^#[0-9]+ \[.* ([0-9]+\/[0-9]+)\].*/\1/p' "${logf}" 2> /dev/null | tail -n 1)"
-    latest="$(awk 'NF { line = $0 } END { print line }' "${logf}" 2> /dev/null | sed -E 's/^#[0-9]+ [0-9.]+ //' | cut -c1-100)"
-    log "⏳ $(elapsed_since "${started}") ${label}: ${step:+step ${step}: }${latest:-starting…}"
+    log "⏳ $(elapsed_since "${started}") ${label}: $(progress_latest "${logf}")"
   done
 }
 
@@ -1566,8 +1566,7 @@ function report_finished() {
 
 # elapsed_since EPOCH: the time since EPOCH, as 12m05s.
 function elapsed_since() {
-  local -r seconds=$(( $(date -u +%s) - ${1} ))
-  printf '%dm%02ds' "$(( seconds / 60 ))" "$(( seconds % 60 ))"
+  elapsed_mmss "$(( $(date -u +%s) - ${1} ))"
 }
 
 function verify_in_own_worktree() {

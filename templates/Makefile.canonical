@@ -6,7 +6,7 @@
 #   - every consumer's top-level Makefile (via .standards/templates/Makefile.canonical)
 #
 # Path resolution: Make's `include` directive does NOT change CWD. Recipe
-# lines like `bash scripts/lint/shellcheck.sh` resolve against the directory
+# lines like `bash scripts/lint/lint-bash.sh` resolve against the directory
 # of the TOP-LEVEL Makefile (the file Make was invoked with), which is the
 # parent repo root in both contexts — so the same recipe runs the right copy
 # of the script in both the standards repo and any consumer.
@@ -152,14 +152,14 @@ test: test-unit test-integration
 
 test-unit: test-unit-go test-unit-local
 
-## The project's own unit tests (scripts/unit-test.local.sh)
+## The project's own unit tests (scripts/test-unit-local.local.sh)
 test-unit-local:
 	@echo "🧪 Running the project's unit tests..."
-	bash scripts/dev/run.sh bash scripts/unit-test.sh
+	bash scripts/dev/run.sh bash scripts/test-unit-local.sh
 
 test-integration:
 	@echo "🧪 Running integration tests..."
-	bash scripts/dev/run.sh bash scripts/integration-test.sh
+	bash scripts/dev/run.sh bash scripts/test-integration.sh
 
 clean:
 	@echo "🧹 Cleaning..."
@@ -169,47 +169,47 @@ clean:
 
 audit:
 	@echo "🔍 Running CI/Makefile audit..."
-	bash scripts/dev/run.sh bash scripts/ci/audit-make-targets.sh
+	bash scripts/dev/run.sh bash scripts/ci/audit.sh
 
 ## Lint targets
 
 lint-newlines:
 	@echo "🔍 Checking trailing newlines..."
-	bash scripts/dev/run.sh bash scripts/lint/newlines.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-newlines.sh
 
 lint-utc:
 	@echo "🕛 Checking timestamps are UTC..."
-	bash scripts/dev/run.sh bash scripts/lint/utc.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-utc.sh
 
 lint-bash:
 	@echo "🔍 Running shellcheck..."
-	bash scripts/dev/run.sh bash scripts/lint/shellcheck.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-bash.sh
 
 lint-markdown:
 	@echo "🔍 Running markdown lint (markdownlint-cli2)..."
-	bash scripts/dev/run.sh bash scripts/lint/markdown.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-markdown.sh
 
 lint-go:
 	@echo "🔍 Running gofmt check + go vet + staticcheck..."
-	bash scripts/dev/run.sh bash scripts/lint/go.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-go.sh
 
 lint-suppressions:
 	@echo "🔍 Checking for lint-suppression directives..."
-	bash scripts/dev/run.sh bash scripts/lint/forbid-lint-suppressions.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-suppressions.sh
 
 ## Check targets
 
 check-adr-metadata:
 	@echo "🔍 Checking ADR metadata..."
-	bash scripts/dev/run.sh bash scripts/check/adr-metadata.sh
+	bash scripts/dev/run.sh bash scripts/check/check-adr-metadata.sh
 
 check-governance-metadata:
 	@echo "🔍 Checking governance metadata..."
-	bash scripts/dev/run.sh bash scripts/check/governance-metadata.sh
+	bash scripts/dev/run.sh bash scripts/check/check-governance-metadata.sh
 
 check-rfc-metadata:
 	@echo "🔍 Checking RFC metadata..."
-	bash scripts/dev/run.sh bash scripts/check/rfc-metadata.sh
+	bash scripts/dev/run.sh bash scripts/check/check-rfc-metadata.sh
 
 ## Last step of every CI job that runs tool targets: the job left the working tree untouched
 check-clean-tree:
@@ -229,23 +229,23 @@ check-legal-drift:
 
 check-pr-policy:
 	@echo "🔍 Running PR policy check..."
-	bash scripts/dev/run.sh bash scripts/ci/pr-policy.sh
+	bash scripts/dev/run.sh bash scripts/ci/check-pr-policy.sh
 
 check-secrets:
 	@echo "🔍 Running secret scan..."
-	bash scripts/dev/run.sh bash scripts/ci/secret-scan.sh
+	bash scripts/dev/run.sh bash scripts/ci/check-secrets.sh
 
 check-dco:
 	@echo "🔍 Running DCO sign-off check..."
-	bash scripts/dev/run.sh bash scripts/ci/dco-check.sh
+	bash scripts/dev/run.sh bash scripts/ci/check-dco.sh
 
 check-coverage-delta:
 	@echo "📊 Checking coverage delta..."
-	bash scripts/dev/run.sh bash scripts/test/coverage-delta.sh
+	bash scripts/dev/run.sh bash scripts/test/check-coverage-delta.sh
 
 check-governance:
-	@echo "🚦 Governance CI gate (governance-refresh --dry-run)..."
-	bash scripts/dev/run.sh bash scripts/ci/governance-gate.sh
+	@echo "🚦 Governance CI gate (refresh-governance --dry-run)..."
+	bash scripts/dev/run.sh bash scripts/ci/check-governance.sh
 
 ## Coverage
 
@@ -253,23 +253,23 @@ test-coverage: test-coverage-go test-coverage-rust merge-coverage
 
 test-coverage-go:
 	@echo "📊 Go coverage..."
-	bash scripts/dev/run.sh bash scripts/test/coverage-go.sh
+	bash scripts/dev/run.sh bash scripts/test/test-coverage-go.sh
 
 test-coverage-rust:
 	@echo "📊 Rust coverage (cargo-llvm-cov)..."
-	bash scripts/dev/run.sh bash scripts/test/coverage-rust.sh
+	bash scripts/dev/run.sh bash scripts/test/test-coverage-rust.sh
 
 merge-coverage:
 	@echo "📊 Coverage aggregate (merge per-language LCOV, bucket by extension)..."
-	bash scripts/dev/run.sh bash scripts/test/coverage-aggregate.sh
+	bash scripts/dev/run.sh bash scripts/test/merge-coverage.sh
 
 check-coverage-regression:
 	@echo "🚦 coverage-no-regression (per-file)..."
-	bash scripts/dev/run.sh bash scripts/test/coverage-no-regression.sh
+	bash scripts/dev/run.sh bash scripts/test/check-coverage-regression.sh
 
 generate-coverage-baseline:
 	@echo "🪴 coverage-baseline-init (capture current LCOV)..."
-	bash scripts/dev/run.sh --writable bash scripts/test/coverage-baseline-init.sh
+	bash scripts/dev/run.sh --writable bash scripts/test/generate-coverage-baseline.sh
 
 ## Setup targets — the tool images run these installers at build time; `make setup-<tool>` runs
 ## one in the dev image (a throwaway install: how update-pins checks a new tool pin).
@@ -314,13 +314,13 @@ setup-govulncheck:
 ## Dependency vulnerability gate: reachable vulnerabilities in every repo-owned Go module
 lint-vuln:
 	@echo "🔍 Running govulncheck..."
-	bash scripts/dev/run.sh bash scripts/lint/vuln.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-vuln.sh
 
 ## The CodeQL languages the repository holds, as a workflow output (codeql.yml). Runs on the host:
 ## the output file lives on the runner.
 detect-codeql-languages:
 	@echo "🔍 Detecting CodeQL languages..."
-	bash scripts/ci/codeql-languages.sh
+	bash scripts/ci/detect-codeql-languages.sh
 
 ## Git hook installation (core.hooksPath scripts/hooks: one setting for clones, worktrees and submodules)
 
@@ -333,7 +333,7 @@ install-hooks:
 
 verify-canonical:
 	@echo "🔍 Verifying canonical scripts are byte-identical (REPO=<path>, default: this repo)…"
-	bash scripts/dev/run.sh bash scripts/ci/verify-canonical-scripts.sh $(REPO)
+	bash scripts/dev/run.sh bash scripts/ci/verify-canonical.sh $(REPO)
 
 ## Utility targets
 
@@ -343,11 +343,11 @@ format:
 
 lint-all:
 	@echo "🔍 Running all linters (full suite)..."
-	bash scripts/dev/run.sh bash scripts/lint.sh
+	bash scripts/dev/run.sh bash scripts/lint-all.sh
 
 run-pre-commit:
 	@echo "🪝 Running pre-commit checks..."
-	bash scripts/git_precommit.sh
+	bash scripts/run-pre-commit.sh
 
 ## Governance reconciliation (downstream consumers; ongoing, not first-time)
 # Syncs canonical scripts from .standards/scripts/ to consumer scripts/ and
@@ -355,7 +355,7 @@ run-pre-commit:
 # .standards/templates/Makefile.canonical into consumer Makefile.
 # `.standards` wins. Idempotent.
 refresh-governance:
-	bash scripts/governance-refresh.sh
+	bash scripts/refresh-governance.sh
 
 ## One-shot migration for consumers whose Makefile predates the include era.
 ## Adds the include directive and removes canonical target blocks. Idempotent.
@@ -365,50 +365,50 @@ migrate-makefile:
 ## Per-language publish targets — scripts shipped byte-identical (Rule A).
 publish-go:
 	@echo "🚀 Publishing Go module..."
-	bash scripts/dev/run.sh bash scripts/release/go-publish.sh
+	bash scripts/dev/run.sh bash scripts/release/publish-go.sh
 
 publish-npm:
 	@echo "🚀 Publishing npm package..."
-	bash scripts/dev/run.sh --writable bash scripts/release/npm-publish.sh
+	bash scripts/dev/run.sh --writable bash scripts/release/publish-npm.sh
 
 ## release-wait-published ARGS=npm|pypi|go: wait until the registry serves all of the version just published
 ## Wait for the GitHub Actions runs on this commit, then fail if any is red.
 wait-for-ci:
 	@echo "⏳ Waiting for CI on this commit..."
-	bash scripts/release/wait-ci.sh
+	bash scripts/release/wait-for-ci.sh
 
 wait-for-publish:
 	@echo "⏳ Waiting for the registry to finish publishing..."
-	bash scripts/dev/run.sh bash scripts/release/wait-published.sh $(ARGS)
+	bash scripts/dev/run.sh bash scripts/release/wait-for-publish.sh $(ARGS)
 
 publish-pypi:
 	@echo "🚀 Publishing PyPI package..."
-	bash scripts/dev/run.sh --image pypi bash scripts/release/pypi-publish.sh
+	bash scripts/dev/run.sh --image pypi bash scripts/release/publish-pypi.sh
 
 ## Release provenance — SBOM (ARGS="--out-dir DIR") and keyless signing (ARGS="<artifact> ...").
 generate-sbom:
 	@echo "🧾 Generating SBOM..."
-	bash scripts/dev/run.sh bash scripts/release/sbom.sh $(ARGS)
+	bash scripts/dev/run.sh bash scripts/release/generate-sbom.sh $(ARGS)
 
 sign-release:
 	@echo "🔏 Signing release artifacts..."
-	bash scripts/dev/run.sh bash scripts/release/sign.sh $(ARGS)
+	bash scripts/dev/run.sh bash scripts/release/sign-release.sh $(ARGS)
 
-## GitHub Release (publish workflow, after the packages are published): release-assets collects
+## GitHub Release (publish workflow, after the packages are published): build-release-assets collects
 ## the published files in target/release with per-artifact SBOMs, build-environment SBOMs of
 ## the pinned tool images, current_pins.md, SHA256SUMS and cosign bundles; release-github
 ## creates the Release with notes and every asset; release-verify-blobs checks them all.
 build-release-assets:
 	@echo "📦 Assembling release assets for $(TAG)..."
-	bash scripts/dev/run.sh bash scripts/release/release-assets.sh $(TAG) target/release
+	bash scripts/dev/run.sh bash scripts/release/build-release-assets.sh $(TAG) target/release
 
 publish-github-release:
 	@echo "🚀 Publishing the GitHub Release for $(TAG)..."
-	bash scripts/dev/run.sh bash scripts/release/github-release.sh $(TAG) target/release
+	bash scripts/dev/run.sh bash scripts/release/publish-github-release.sh $(TAG) target/release
 
 verify-release-blobs:
 	@echo "🔍 Verifying release assets..."
-	bash scripts/dev/run.sh bash scripts/release/verify-blobs.sh target/release
+	bash scripts/dev/run.sh bash scripts/release/verify-release-blobs.sh target/release
 
 ## Release tagging — developer action only (governance/ci.md "Release Tagging").
 ## The bump level comes from the repo's own scripts/release/create-release.local.sh.
@@ -434,7 +434,7 @@ generate-pins-doc:
 	bash scripts/release/update-pins.sh --discover-only --pins-md docs/current_pins.md
 
 ## Tool images (containers/NAME/Containerfile): every tool target above runs in one, with
-## the repository mounted read-only (scripts/dev/run.sh). dev-shell opens a shell in the dev
+## the repository mounted read-only (scripts/dev/run.sh). run-dev-shell opens a shell in the dev
 ## image. The dev-image workflow publishes them: dev-image-push ARCH=amd64|arm64 builds and
 ## pushes natively per architecture, dev-image-merge joins and signs the multi-arch index,
 ## dev-image-sign REF=<repository@digest> signs one. update-dev-image-ref names the image this commit
@@ -454,16 +454,16 @@ merge-dev-image:
 
 sign-dev-image:
 	@echo "🔏 Signing $(REF)..."
-	bash scripts/dev/run.sh bash scripts/dev/sign-image.sh $(REF)
+	bash scripts/dev/run.sh bash scripts/dev/sign-dev-image.sh $(REF)
 
 update-dev-image-ref:
 	@echo "📌 Naming the tool images this commit builds..."
-	bash scripts/dev/write-image-ref.sh
+	bash scripts/dev/update-dev-image-ref.sh
 
 ## Fetch the pinned dev image onto this machine, outside any commit: a commit only uses what is here.
 pull-dev-image:
 	@echo "📥 Pulling the pinned dev image..."
-	bash scripts/dev/pull.sh
+	bash scripts/dev/pull-dev-image.sh
 
 publish-dev-image:
 	@echo "📦 Building, pushing and pinning unpublished tool images (Apple container)..."
@@ -472,7 +472,7 @@ publish-dev-image:
 ## Per-language verify.
 verify-go:
 	@echo "🔍 Verifying Go module..."
-	bash scripts/dev/run.sh bash scripts/verify/go.sh
+	bash scripts/dev/run.sh bash scripts/verify/verify-go.sh
 
 ## Bootstrap entrypoint — consumers can also curl the script one-shot.
 bootstrap-standards:
@@ -521,71 +521,71 @@ setup-kubescape:
 
 lint-workflows:
 	@echo "🔍 Linting workflows (actionlint, zizmor)..."
-	bash scripts/dev/run.sh bash scripts/lint/workflows.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-workflows.sh
 
 lint-gosec:
 	@echo "🔍 Running gosec..."
-	bash scripts/dev/run.sh bash scripts/lint/gosec.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-gosec.sh
 
 lint-licenses:
 	@echo "🔍 Checking dependency licenses..."
-	bash scripts/dev/run.sh bash scripts/lint/licenses.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-licenses.sh
 
 lint-helm:
 	@echo "🔍 Running Helm lint..."
-	bash scripts/dev/run.sh bash scripts/lint/helm.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-helm.sh
 
 lint-helm-validate:
 	@echo "🔍 Validating Helm templates against the Kubernetes schema..."
-	bash scripts/dev/run.sh bash scripts/lint/helm-validate.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-helm-validate.sh
 
 lint-helm-policy:
 	@echo "🔍 Scanning chart policy (kubescape)..."
-	bash scripts/dev/run.sh bash scripts/lint/helm-policy.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-helm-policy.sh
 
 lint-vex:
 	@echo "🔍 Validating the generated OpenVEX document..."
-	bash scripts/dev/run.sh bash scripts/lint/vex.sh
+	bash scripts/dev/run.sh bash scripts/lint/lint-vex.sh
 
 test-unit-go:
 	@echo "🧪 Running Go unit tests..."
-	bash scripts/dev/run.sh bash scripts/test/ci.sh
+	bash scripts/dev/run.sh bash scripts/test/test-unit-go.sh
 
 test-fuzz:
 	@echo "🧪 Running fuzz targets..."
-	bash scripts/dev/run.sh bash scripts/test/fuzz.sh
+	bash scripts/dev/run.sh bash scripts/test/test-fuzz.sh
 
 generate-coverage-profile:
 	@echo "📊 Generating the Go coverage profile (target/coverage.txt)..."
-	bash scripts/dev/run.sh bash scripts/test/coverage.sh
+	bash scripts/dev/run.sh bash scripts/test/generate-coverage-profile.sh
 
 generate-vex:
 	@echo "🧾 Generating OpenVEX (govulncheck)..."
-	bash scripts/dev/run.sh bash scripts/release/vex.sh $(ARGS)
+	bash scripts/dev/run.sh bash scripts/release/generate-vex.sh $(ARGS)
 
 generate-release-checksums:
 	@echo "🔐 Generating SHA256SUMS..."
-	bash scripts/dev/run.sh bash scripts/release/checksums.sh
+	bash scripts/dev/run.sh bash scripts/release/generate-release-checksums.sh
 
 verify-release-checksums:
 	@echo "🔐 Verifying SHA256SUMS..."
-	bash scripts/dev/run.sh bash scripts/release/checksums.sh --verify
+	bash scripts/dev/run.sh bash scripts/release/generate-release-checksums.sh --verify
 
 set-dist-permissions:
 	@echo "🔑 Making dist binaries executable..."
-	DIST_OWNER='$(DIST_OWNER)' KEELCORE_DEV_ENV=DIST_OWNER bash scripts/dev/run.sh bash scripts/build/dist-chmod.sh
+	DIST_OWNER='$(DIST_OWNER)' KEELCORE_DEV_ENV=DIST_OWNER bash scripts/dev/run.sh bash scripts/build/set-dist-permissions.sh
 
 build-native:
 	@echo "🔨 Cross-building native test binaries for $(OS)/$(ARCH)..."
-	bash scripts/dev/run.sh bash scripts/test/native-build.sh $(OS) $(ARCH)
+	bash scripts/dev/run.sh bash scripts/test/build-native.sh $(OS) $(ARCH)
 
 test-native:
 	@echo "🧪 Running native test binaries ($(DIR))..."
-	bash scripts/test/native-run.sh $(DIR)
+	bash scripts/test/test-native.sh $(DIR)
 
 test-native-integrity:
 	@echo "🧪 Running the integrity suite natively ($(DIR))..."
-	bash scripts/test/native-integrity.sh $(DIR)
+	bash scripts/test/test-native-integrity.sh $(DIR)
 
 # Who owns dist/ after a tool-image step on Linux (root runs the image there): the invoking user.
 DIST_OWNER := $(shell [ "$$(uname -s)" = Linux ] && printf '%s:%s' "$$(id -u)" "$$(id -g)")
@@ -596,218 +596,28 @@ setup-grype:
 
 generate-release-metadata:
 	@echo "🧾 Generating release metadata..."
-	TAG='$(TAG)' KEELCORE_DEV_ENV='$(KEELCORE_DEV_ENV) TAG' bash scripts/dev/run.sh bash scripts/release/metadata.sh
+	TAG='$(TAG)' KEELCORE_DEV_ENV='$(KEELCORE_DEV_ENV) TAG' bash scripts/dev/run.sh bash scripts/release/generate-release-metadata.sh
 
 publish-release-images:
 	@echo "🐳 Building and pushing container images..."
-	bash scripts/release/docker.sh
+	bash scripts/release/publish-release-images.sh
 
 push-helm-chart:
 	@echo "⎈ Packaging and pushing the Helm chart..."
-	bash scripts/dev/run.sh bash scripts/release/helm-push.sh
+	bash scripts/dev/run.sh bash scripts/release/push-helm-chart.sh
 
 login-ghcr:
 	@echo "🔑 Logging in to GHCR..."
-	bash scripts/release/ghcr-login.sh
+	bash scripts/release/login-ghcr.sh
 
 run-cosign:
 	@echo "🔏 cosign (GHCR, dev image) $(ARGS)..."
-	bash scripts/dev/run.sh bash scripts/release/cosign.sh $(ARGS)
+	bash scripts/dev/run.sh bash scripts/release/run-cosign.sh $(ARGS)
 
 upload-release:
 	@echo "🚀 Uploading release artifacts..."
-	RELEASE_TAG=$(TAG) bash scripts/release/upload.sh $(ARGS)
+	RELEASE_TAG=$(TAG) bash scripts/release/upload-release.sh $(ARGS)
 
 verify-release:
 	@echo "🔍 Verifying the published release..."
 	bash scripts/release/verify-release.sh
-
-## Renamed targets: each says what replaced it, and fails. Removed in the next major release.
-.PHONY: ci-coverage-delta
-.PHONY: ci-coverage-no-regression
-.PHONY: ci-dco
-.PHONY: ci-governance-gate
-.PHONY: ci-pr-policy
-.PHONY: ci-secret-scan
-.PHONY: codeql-languages
-.PHONY: coverage
-.PHONY: coverage-aggregate
-.PHONY: coverage-baseline-init
-.PHONY: coverage-go
-.PHONY: coverage-profile
-.PHONY: coverage-rust
-.PHONY: dev-image-merge
-.PHONY: dev-image-publish
-.PHONY: dev-image-push
-.PHONY: dev-image-ref
-.PHONY: dev-image-sign
-.PHONY: dev-shell
-.PHONY: dist-chmod
-.PHONY: governance-refresh
-.PHONY: integration-test
-.PHONY: native-build
-.PHONY: native-integrity
-.PHONY: native-run
-.PHONY: pins-doc
-.PHONY: pre-commit
-.PHONY: release-assets
-.PHONY: release-checksums
-.PHONY: release-checksums-verify
-.PHONY: release-cosign
-.PHONY: release-ghcr-login
-.PHONY: release-github
-.PHONY: release-go
-.PHONY: release-helm-push
-.PHONY: release-images
-.PHONY: release-metadata
-.PHONY: release-npm
-.PHONY: release-pypi
-.PHONY: release-sbom
-.PHONY: release-sign
-.PHONY: release-upload
-.PHONY: release-verify
-.PHONY: release-verify-blobs
-.PHONY: release-vex
-.PHONY: release-wait-published
-.PHONY: unit-test
-
-ci-coverage-delta:
-	@bash scripts/ci/renamed-target.sh check-coverage-delta
-
-ci-coverage-no-regression:
-	@bash scripts/ci/renamed-target.sh check-coverage-regression
-
-ci-dco:
-	@bash scripts/ci/renamed-target.sh check-dco
-
-ci-governance-gate:
-	@bash scripts/ci/renamed-target.sh check-governance
-
-ci-pr-policy:
-	@bash scripts/ci/renamed-target.sh check-pr-policy
-
-ci-secret-scan:
-	@bash scripts/ci/renamed-target.sh check-secrets
-
-codeql-languages:
-	@bash scripts/ci/renamed-target.sh detect-codeql-languages
-
-coverage:
-	@bash scripts/ci/renamed-target.sh test-coverage
-
-coverage-aggregate:
-	@bash scripts/ci/renamed-target.sh merge-coverage
-
-coverage-baseline-init:
-	@bash scripts/ci/renamed-target.sh generate-coverage-baseline
-
-coverage-go:
-	@bash scripts/ci/renamed-target.sh test-coverage-go
-
-coverage-profile:
-	@bash scripts/ci/renamed-target.sh generate-coverage-profile
-
-coverage-rust:
-	@bash scripts/ci/renamed-target.sh test-coverage-rust
-
-dev-image-merge:
-	@bash scripts/ci/renamed-target.sh merge-dev-image
-
-dev-image-publish:
-	@bash scripts/ci/renamed-target.sh publish-dev-image
-
-dev-image-push:
-	@bash scripts/ci/renamed-target.sh push-dev-image
-
-dev-image-ref:
-	@bash scripts/ci/renamed-target.sh update-dev-image-ref
-
-dev-image-sign:
-	@bash scripts/ci/renamed-target.sh sign-dev-image
-
-dev-shell:
-	@bash scripts/ci/renamed-target.sh run-dev-shell
-
-dist-chmod:
-	@bash scripts/ci/renamed-target.sh set-dist-permissions
-
-governance-refresh:
-	@bash scripts/ci/renamed-target.sh refresh-governance
-
-integration-test:
-	@bash scripts/ci/renamed-target.sh test-integration
-
-native-build:
-	@bash scripts/ci/renamed-target.sh build-native
-
-native-integrity:
-	@bash scripts/ci/renamed-target.sh test-native-integrity
-
-native-run:
-	@bash scripts/ci/renamed-target.sh test-native
-
-pins-doc:
-	@bash scripts/ci/renamed-target.sh generate-pins-doc
-
-pre-commit:
-	@bash scripts/ci/renamed-target.sh run-pre-commit
-
-release-assets:
-	@bash scripts/ci/renamed-target.sh build-release-assets
-
-release-checksums:
-	@bash scripts/ci/renamed-target.sh generate-release-checksums
-
-release-checksums-verify:
-	@bash scripts/ci/renamed-target.sh verify-release-checksums
-
-release-cosign:
-	@bash scripts/ci/renamed-target.sh run-cosign
-
-release-ghcr-login:
-	@bash scripts/ci/renamed-target.sh login-ghcr
-
-release-github:
-	@bash scripts/ci/renamed-target.sh publish-github-release
-
-release-go:
-	@bash scripts/ci/renamed-target.sh publish-go
-
-release-helm-push:
-	@bash scripts/ci/renamed-target.sh push-helm-chart
-
-release-images:
-	@bash scripts/ci/renamed-target.sh publish-release-images
-
-release-metadata:
-	@bash scripts/ci/renamed-target.sh generate-release-metadata
-
-release-npm:
-	@bash scripts/ci/renamed-target.sh publish-npm
-
-release-pypi:
-	@bash scripts/ci/renamed-target.sh publish-pypi
-
-release-sbom:
-	@bash scripts/ci/renamed-target.sh generate-sbom
-
-release-sign:
-	@bash scripts/ci/renamed-target.sh sign-release
-
-release-upload:
-	@bash scripts/ci/renamed-target.sh upload-release
-
-release-verify:
-	@bash scripts/ci/renamed-target.sh verify-release
-
-release-verify-blobs:
-	@bash scripts/ci/renamed-target.sh verify-release-blobs
-
-release-vex:
-	@bash scripts/ci/renamed-target.sh generate-vex
-
-release-wait-published:
-	@bash scripts/ci/renamed-target.sh wait-for-publish
-
-unit-test:
-	@bash scripts/ci/renamed-target.sh test-unit

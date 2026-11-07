@@ -29,6 +29,7 @@ setup() {
   git init --quiet
   cp -p "${STANDARDS}/scripts/release/update-pins.sh" scripts/release/
   cp -p "${STANDARDS}/scripts/lib/paths.sh" scripts/lib/
+  cp -p "${STANDARDS}/scripts/lib/progress.sh" scripts/lib/
   write_consumer
   write_fixtures
   commit

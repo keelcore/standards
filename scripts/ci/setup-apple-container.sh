@@ -17,7 +17,7 @@ set -o pipefail
 
 readonly CONTAINER_LATEST='https://api.github.com/repos/apple/container/releases/latest'
 readonly CONTAINER_SIGNER='Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)'
-readonly CURL_RETRY=(--retry 5 --retry-delay 10 --retry-all-errors)
+readonly CURL_RETRY=(--retry 5 --retry-delay 10 --retry-all-errors --connect-timeout 30 --speed-limit 1024 --speed-time 60)
 
 WORK_DIR=''
 

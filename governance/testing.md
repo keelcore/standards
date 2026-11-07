@@ -93,7 +93,7 @@ Granularity, baseline, comparison:
   - **Deleted files** (`SF:` present only in baseline): drop out of comparison, but the baseline entry MUST be removed
     in the same change set; otherwise the audit flags a stale baseline.
 - The enforcement target is `make check-coverage-regression`. The implementation lives at
-  `scripts/test/coverage-no-regression.sh` (canonical; shipped). It consumes the LCOV from `make test-coverage` and the
+  `scripts/test/check-coverage-regression.sh` (canonical; shipped). It consumes the LCOV from `make test-coverage` and the
   baseline at `tests/coverage-baseline.lcov`; exits non-zero on any per-file regression OR new-file floor violation.
 
 Two consequences when a regression is detected:

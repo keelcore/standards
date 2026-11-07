@@ -78,13 +78,13 @@ These rules govern all code edits in this project. They are non-negotiable.
 ## Formatting and Linting Automation
 
 1. Format and lint via project scripts, not ad-hoc commands.
-2. Propose `scripts/format.sh` and `scripts/lint.sh` if they do not exist.
+2. Propose `scripts/format.sh` and `scripts/lint-all.sh` if they do not exist.
 3. Do not embed formatter/linter invocations in YAML or Makefiles when a script can be the entry point.
 
 ## Git Hook Integration
 
-1. Pre-commit hook calls a single stable entry point: `scripts/git_precommit.sh`.
-2. `scripts/git_precommit.sh` invokes format + lint scripts; no logic duplicated in the hook itself.
+1. Pre-commit hook calls a single stable entry point: `scripts/run-pre-commit.sh`.
+2. `scripts/run-pre-commit.sh` invokes format + lint scripts; no logic duplicated in the hook itself.
 
 ## Change Justification
 
@@ -145,7 +145,8 @@ These rules govern all code edits in this project. They are non-negotiable.
 1. Every text source file (`.go`, `.sh`, `.md`, `.yml`, `.yaml`, `.toml`, `.json`, `.gitignore`, `.gitattributes`) MUST
    end with a single trailing newline character.
 2. Verify and fix trailing newlines before handing off any file edits.
-3. Adding a new text-format type to the repo requires updating `scripts/lint/newlines.sh` and the pre-commit hook in the
+3. Adding a new text-format type to the repo requires updating `scripts/lint/lint-newlines.sh` and the pre-commit hook
+in the
    same commit.
 
 ## Go Module Version Format
@@ -157,8 +158,8 @@ These rules govern all code edits in this project. They are non-negotiable.
 
 1. Lint errors and warnings SHALL never be suppressed in source code, in any language, current or future. Fix the
    finding at its source, or turn the rule off in the linter's git-versioned configuration (for example gosec's
-   `-exclude` list in `scripts/lint/gosec.sh`), with the reason recorded there.
-2. Rule 1 applies to every language the moment it enters the repository. `scripts/lint/forbid-lint-suppressions.sh`
+   `-exclude` list in `scripts/lint/lint-gosec.sh`), with the reason recorded there.
+2. Rule 1 applies to every language the moment it enters the repository. `scripts/lint/lint-suppressions.sh`
    scans every repo-owned file, whatever its type, for known suppression directives; adopting a linter adds its
    directive syntax to that script's `DIRECTIVES` list.
 

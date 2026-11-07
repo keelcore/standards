@@ -66,7 +66,7 @@ function install_helm_linux() {
   tarball="helm-${HELM_VERSION}-linux-${arch}.tar.gz"
   tmp="$(mktemp -d)"
   log "⚓ Installing helm ${HELM_VERSION} (${arch})..."
-  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors "https://get.helm.sh/${tarball}" -o "${tmp}/${tarball}"
+  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors --connect-timeout 30 --speed-limit 1024 --speed-time 60 "https://get.helm.sh/${tarball}" -o "${tmp}/${tarball}"
   printf '%s  %s/%s\n' "${sha}" "${tmp}" "${tarball}" | sha256sum --check --quiet
   tar -xz -C "${tmp}" -f "${tmp}/${tarball}"
   as_root install -m 0755 "${tmp}/linux-${arch}/helm" "${HELM_INSTALL_PATH}"

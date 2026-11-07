@@ -7,8 +7,11 @@
 # An image is identified by its build context: the Containerfile, every file it
 # COPYs, and — for a Containerfile with `ARG BASE_DEV_IMAGE` — the .standards dev
 # image it builds on. Published images are tagged ctx-<hash>, and containers/NAME/image.ref names the
-# one built from each commit (scripts/dev/write-image-ref.sh):
+# one built from each commit (scripts/dev/update-dev-image-ref.sh):
 #   ghcr.io/keelcore/<repo>-<name>:ctx-<hash>
+
+# shellcheck source=progress.sh
+. "$(dirname "${BASH_SOURCE[0]}")/progress.sh"
 
 # Inside a git hook, git exports the hook's repository layout (GIT_INDEX_FILE=.git/index, and
 # GIT_DIR / GIT_WORK_TREE in some cases) as paths relative to that repository. These scripts run
@@ -38,11 +41,15 @@ function dev_ensure_builder() {
     *[mM]) want_mb="${mem%[mM]}" ;;
     *) want_mb="${mem}" ;;
   esac
-  have="$(container builder status 2> /dev/null | awk 'NR == 2 && $3 == "running" { print $5 " " $6 }')"
+  local -r limit="${KEELCORE_DEV_BUILDER_TIMEOUT:-300}" status="$(mktemp)"
+  DEV_WATCH_OUT="${status}" dev_watch 'checking the image builder' "${limit}" container builder status \
+    || { rm -f "${status}"; exit 1; }
+  have="$(awk 'NR == 2 && $3 == "running" { print $5 " " $6 }' "${status}")"
+  rm -f "${status}"
   [ -n "${have}" ] || return 0
   [ "${have}" = "${cpus} ${want_mb}" ] && return 0
-  container builder stop > /dev/null 2>&1 || true
-  container builder start --cpus "${cpus}" --memory "${mem}" > /dev/null
+  dev_watch 'stopping the image builder' "${limit}" container builder stop || true
+  dev_watch 'starting the image builder' "${limit}" container builder start --cpus "${cpus}" --memory "${mem}" || exit 1
 }
 
 # dev_registry: where images are published (KEELCORE_DEV_REGISTRY overrides).
@@ -176,5 +183,50 @@ function runtime() {
 function pull_image() {
   local -a progress=()
   [ "$(runtime)" != 'container' ] || progress=(--progress plain)
-  "$(runtime)" image pull ${progress[@]+"${progress[@]}"} "${1}"
+  dev_watch "pulling ${1}" "${KEELCORE_DEV_PULL_TIMEOUT:-1800}" \
+    "$(runtime)" image pull ${progress[@]+"${progress[@]}"} "${1}"
+}
+
+# dev_watch LABEL LIMIT COMMAND...: run COMMAND, its output on stderr, with a progress line every
+# KEELCORE_DEV_PROGRESS_SECONDS (default 30): elapsed time, the latest build step and line. Past LIMIT
+# seconds it is stopped and fails, so no build or pull can hang. With DEV_WATCH_OUT set, the output goes
+# to that file instead of stderr.
+function dev_watch() {
+  local -r label="${1}" limit="${2}"
+  shift 2
+  local -r every="${KEELCORE_DEV_PROGRESS_SECONDS:-30}" out="$(mktemp)"
+  "$@" > "${out}" 2>&1 &
+  local -r pid="${!}" started="${SECONDS}"
+  local shown=0 next=$(( SECONDS + every )) rc=0
+  while kill -0 "${pid}" 2> /dev/null; do
+    [ -n "${DEV_WATCH_OUT:-}" ] || shown="$(dev_watch_show "${out}" "${shown}")"
+    if [ $(( SECONDS - started )) -ge "${limit}" ]; then
+      pkill -P "${pid}" 2> /dev/null || true
+      kill "${pid}" 2> /dev/null || true
+      wait "${pid}" 2> /dev/null || true
+      log "❌ ${label}: stopped at its time limit of $(elapsed_mmss "${limit}")"
+      rm -f "${out}"
+      return 124
+    fi
+    if [ "${SECONDS}" -ge "${next}" ]; then
+      log "⏳ $(elapsed_mmss $(( SECONDS - started ))) ${label}: $(progress_latest "${out}")"
+      next=$(( SECONDS + every ))
+    fi
+    sleep 1
+  done
+  wait "${pid}" || rc=$?
+  if [ -n "${DEV_WATCH_OUT:-}" ]; then
+    cp "${out}" "${DEV_WATCH_OUT}"
+  else
+    dev_watch_show "${out}" "${shown}" > /dev/null
+  fi
+  rm -f "${out}"
+  return "${rc}"
+}
+
+# dev_watch_show OUT SHOWN: print OUT's lines after the first SHOWN to stderr; print the new count.
+function dev_watch_show() {
+  local -r total="$(wc -l < "${1}" | tr -d ' ')"
+  [ "${total}" -le "${2}" ] || tail -n "+$(( ${2} + 1 ))" "${1}" | head -n "$(( total - ${2} ))" >&2
+  printf '%s' "${total}"
 }

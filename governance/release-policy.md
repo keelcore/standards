@@ -155,7 +155,7 @@ The script will:
    `[Unreleased]` entries added since the previous tag.
 
 The host never waits for CI. The pushed tag starts its own workflow, whose first job waits for every earlier GitHub
-Actions run on that commit to finish, then fails if any is red (`make wait-for-ci`, `scripts/release/wait-ci.sh`), and
+Actions run on that commit to finish, then fails if any is red (`make wait-for-ci`, `scripts/release/wait-for-ci.sh`), and
 nothing is published.
 
 Every bundle names the dev image that built it, as `containers/dev/image.ref` holds at the tag: the signed tag

@@ -8,7 +8,7 @@ setup() {
   WORK="${BATS_TEST_TMPDIR}/work"
   mkdir -p "${WORK}/bin" "${WORK}/containers/dev" "${WORK}/charts/widget" "${WORK}/scripts/release" "${WORK}/scripts/lib" "${WORK}/config"
   export WORK
-  cp "${STANDARDS}/scripts/release/helm-push.sh" "${WORK}/scripts/release/"
+  cp "${STANDARDS}/scripts/release/push-helm-chart.sh" "${WORK}/scripts/release/"
   cp "${STANDARDS}/scripts/lib/"*.sh "${WORK}/scripts/lib/"
   cd "${WORK}"
   git init --quiet
@@ -23,7 +23,7 @@ case "${1}" in
 esac
 HELM
   printf '#!/usr/bin/env bash\nexit 0\n' > bin/cosign
-  printf '#!/usr/bin/env bash\nexit 0\n' > scripts/release/cosign.sh
+  printf '#!/usr/bin/env bash\nexit 0\n' > scripts/release/run-cosign.sh
   chmod +x bin/helm bin/cosign
   export PATH="${WORK}/bin:${PATH}" GITHUB_TOKEN=token GITHUB_ACTOR=actor
 }
@@ -31,17 +31,17 @@ HELM
 push() {
   printf 'x' > tagged && git add -A && git -c user.name=t -c user.email=t@example.invalid commit --quiet -m x \
     && git -c user.name=t -c user.email=t@example.invalid tag -a v1.2.3 -m v
-  run bash scripts/release/helm-push.sh
+  run bash scripts/release/push-helm-chart.sh
 }
 
-@test "helm-push.sh: the chart carries the dev image name; the tree's Chart.yaml is unchanged" {
+@test "push-helm-chart.sh: the chart carries the dev image name; the tree's Chart.yaml is unchanged" {
   push
   [ "${status}" -eq 0 ]
   grep -qF 'io.keelcore.dev-image: ghcr.io/acme/widget-dev:ctx-abc' packaged.yaml
   [ -z "$(git status --short charts)" ]
 }
 
-@test "helm-push.sh: an existing annotations block is kept and added to" {
+@test "push-helm-chart.sh: an existing annotations block is kept and added to" {
   printf 'annotations:\n  other: value\n' >> charts/widget/Chart.yaml
   push
   [ "${status}" -eq 0 ]
@@ -55,19 +55,19 @@ push() {
   [ "$(grep -c 'containers/dev/image.ref' "${STANDARDS}/pyproject.toml")" -ge 2 ]
 }
 
-@test "checksums.sh: the dev image name ships in dist, covered by the checksums" {
-  cp "${STANDARDS}/scripts/release/checksums.sh" scripts/release/
+@test "generate-release-checksums.sh: the dev image name ships in dist, covered by the checksums" {
+  cp "${STANDARDS}/scripts/release/generate-release-checksums.sh" scripts/release/
   cp "${STANDARDS}/config/release-binaries.txt" config/ 2> /dev/null || true
   mkdir -p dist
   printf 'bin\n' > dist/widget-linux-amd64
-  run bash scripts/release/checksums.sh
+  run bash scripts/release/generate-release-checksums.sh
   [ "${status}" -eq 0 ]
   [ "$(cat dist/dev-image.txt)" = 'ghcr.io/acme/widget-dev:ctx-abc' ]
   grep -q 'dist/dev-image.txt' dist/SHA256SUMS
 }
 
-@test "release-assets.sh: the dev image name at the tag is a release asset" {
-  sed -n '/^function copy_dev_image()/,/^}/p' "${STANDARDS}/scripts/release/release-assets.sh" > copy.sh
+@test "build-release-assets.sh: the dev image name at the tag is a release asset" {
+  sed -n '/^function copy_dev_image()/,/^}/p' "${STANDARDS}/scripts/release/build-release-assets.sh" > copy.sh
   printf 'x' > tagged && git add -A && git -c user.name=t -c user.email=t@example.invalid commit --quiet -m x
   git -c user.name=t -c user.email=t@example.invalid tag -a v1.2.3 -m v
   printf 'ghcr.io/acme/widget-dev:ctx-later\n' > containers/dev/image.ref

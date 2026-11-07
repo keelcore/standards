@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # setup-kubescape.sh
-# Install kubescape for the Helm chart policy scan (scripts/lint/helm-policy.sh).
+# Install kubescape for the Helm chart policy scan (scripts/lint/lint-helm-policy.sh).
 # Linux (built into the dev image): pinned v4.0.16 release asset, SHA256-verified before install.
 # No-op if kubescape is already present.
 #
@@ -68,7 +68,7 @@ function as_root() {
 function install_linux() {
   local tmp
   tmp="$(mktemp -d)"
-  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors "${KUBESCAPE_URL}" -o "${tmp}/${KUBESCAPE_ASSET}"
+  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors --connect-timeout 30 --speed-limit 1024 --speed-time 60 "${KUBESCAPE_URL}" -o "${tmp}/${KUBESCAPE_ASSET}"
   printf '%s  %s/%s\n' "${KUBESCAPE_SHA256}" "${tmp}" "${KUBESCAPE_ASSET}" | sha256sum --check --quiet
   stage_binary "${tmp}"
   as_root install -m 0755 "${tmp}/kubescape.staged" "${KUBESCAPE_INSTALL_PATH}"

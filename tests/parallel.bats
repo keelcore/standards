@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # tests/parallel.bats
-# scripts/lib/parallel.sh and the concurrent sign.sh, in a throwaway tree. A concurrency test uses
+# scripts/lib/parallel.sh and the concurrent sign-release.sh, in a throwaway tree. A concurrency test uses
 # a barrier: every job waits until all of them have started, which only concurrent jobs reach.
 
 setup_file() {
@@ -13,7 +13,7 @@ setup() {
   STATE="${BATS_TEST_TMPDIR}/state"
   export WORK STATE
   mkdir -p "${WORK}/scripts/release" "${WORK}/scripts/lib" "${WORK}/dist" "${WORK}/bin" "${STATE}/started"
-  cp "${REPO_ROOT}/scripts/release/sign.sh" "${WORK}/scripts/release/"
+  cp "${REPO_ROOT}/scripts/release/sign-release.sh" "${WORK}/scripts/release/"
   cp "${REPO_ROOT}/scripts/lib/parallel.sh" "${WORK}/scripts/lib/"
   cat > "${WORK}/bin/stub-lib" <<'LIB'
 record() { printf '%s\n' "$*" >> "${STATE}/calls"; }
@@ -133,7 +133,7 @@ run_parallel outer a b
   [ "${status}" -eq 0 ]
 }
 
-# --- sign.sh -----------------------------------------------------------------------------------
+# --- sign-release.sh -----------------------------------------------------------------------------------
 
 stub_cosign() {
   cat > "${WORK}/bin/cosign" <<'COSIGN'
@@ -154,25 +154,25 @@ COSIGN
   rm -f dist/*.bundle dist/SHA256SUMS
 }
 
-@test "sign.sh: artifacts sign concurrently" {
+@test "sign-release.sh: artifacts sign concurrently" {
   stub_cosign
   export SIGN_BARRIER=6
-  run bash scripts/release/sign.sh --sums-dir dist dist/keel-*
+  run bash scripts/release/sign-release.sh --sums-dir dist dist/keel-*
   [ "${status}" -eq 0 ]
 }
 
-@test "sign.sh: concurrent signatures never share cosign's cache directory" {
+@test "sign-release.sh: concurrent signatures never share cosign's cache directory" {
   stub_cosign
-  run bash scripts/release/sign.sh --sums-dir dist dist/keel-*
+  run bash scripts/release/sign-release.sh --sums-dir dist dist/keel-*
   [ "${status}" -eq 0 ]
   # Six concurrent signatures, each alone; SHA256SUMS signs afterwards, by itself, in the real HOME.
   [ "$(sort -u "${STATE}/homes" | wc -l)" -eq 7 ]
   [ "$(grep -cx "${HOME}" "${STATE}/homes")" -eq 1 ]
 }
 
-@test "sign.sh: SHA256SUMS covers every artifact and is signed last" {
+@test "sign-release.sh: SHA256SUMS covers every artifact and is signed last" {
   stub_cosign
-  run bash scripts/release/sign.sh --sums-dir dist dist/keel-*
+  run bash scripts/release/sign-release.sh --sums-dir dist dist/keel-*
   [ "${status}" -eq 0 ]
   [ "$(wc -l < dist/SHA256SUMS)" -eq 6 ]
   [ -f dist/SHA256SUMS.bundle ]
@@ -180,17 +180,17 @@ COSIGN
   tail -1 "${STATE}/calls" | grep -q 'dist/SHA256SUMS$'
 }
 
-@test "sign.sh: a failed signature fails the step, and SHA256SUMS is not signed" {
+@test "sign-release.sh: a failed signature fails the step, and SHA256SUMS is not signed" {
   stub_cosign
   export FAIL_ON='cosign .*dist/keel-fips-linux-amd64$'
-  run bash scripts/release/sign.sh --sums-dir dist dist/keel-*
+  run bash scripts/release/sign-release.sh --sums-dir dist dist/keel-*
   [ "${status}" -ne 0 ]
   [ ! -f dist/SHA256SUMS.bundle ]
 }
 
-@test "sign.sh: a missing artifact fails before anything is signed" {
+@test "sign-release.sh: a missing artifact fails before anything is signed" {
   stub_cosign
-  run bash scripts/release/sign.sh --sums-dir dist dist/keel-min-linux-amd64 dist/nope
+  run bash scripts/release/sign-release.sh --sums-dir dist dist/keel-min-linux-amd64 dist/nope
   [ "${status}" -ne 0 ]
   [ "$(call_count '^cosign ')" -eq 0 ]
 }

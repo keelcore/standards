@@ -15,12 +15,12 @@ Corrections, clarifications, metadata: patch bump.
 ### Added
 
 - README badges: CI, CodeQL, release, npm, PyPI, license, security policy and SBOM.
-- `make wait-for-ci` (`scripts/release/wait-ci.sh`): waits, with progress, for the GitHub Actions runs on a commit to finish,
-  then fails if any is red. The tag's publish workflow runs it first, so a red commit is never published; the host never
-  waits for CI.
+- `make wait-for-ci` (`scripts/release/wait-for-ci.sh`): waits, with progress, for the GitHub Actions runs on a commit
+  to finish, then fails if any is red. The tag's publish workflow runs it first, so a red commit is never published;
+  the host never waits for CI.
 - `make update-pins MAJOR='NAME ...'` (`--major NAME`): moves a named pin to its newest release of any major past the
   cooldown, with the usual verification.
-- `make pull-dev-image` (`scripts/dev/pull.sh`): fetches the pinned dev image onto this machine.
+- `make pull-dev-image` (`scripts/dev/pull-dev-image.sh`): fetches the pinned dev image onto this machine.
 - `make update-pins` prints progress every 30 seconds while it verifies (`UPDATE_PINS_PROGRESS_SECONDS`): elapsed
   time, pin, image build step and latest log line for each running pin and the combined run, and a result line as each
   pin finishes.
@@ -45,10 +45,22 @@ Corrections, clarifications, metadata: patch bump.
   job's log whole.
 - `update-pins --check-pins-doc FILE` (`make check-pins-doc`, also a pre-commit check): `docs/current_pins.md` lists
   exactly the pins in the tree; local, no network
-- Versioned git hooks in `scripts/hooks/` (canonical, synced); `scripts/hooks/pre-commit` runs `scripts/git_precommit.sh`
+- Versioned git hooks in `scripts/hooks/` (canonical, synced); `scripts/hooks/pre-commit` runs `scripts/run-pre-commit.sh`
 
 ### Changed
 
+- CI lints the workflows (`make lint-workflows`), and `.github/actionlint.yaml` declares the `ubuntu-26.04` runner,
+  which the pinned actionlint does not list yet.
+- No run can hang: image builds, pulls and builder commands print progress every 30 seconds
+  (`KEELCORE_DEV_PROGRESS_SECONDS`) and stop at a time limit (`KEELCORE_DEV_BUILD_TIMEOUT`, default 3600;
+  `KEELCORE_DEV_PULL_TIMEOUT`, 1800; `KEELCORE_DEV_BUILDER_TIMEOUT`, 300). Every download retries and gives up on a
+  stalled connection (`--connect-timeout 30 --speed-limit 1024 --speed-time 60`), and `wait-for-publish.sh` stops at
+  `WAIT_TIMEOUT` (default 1800).
+- **Breaking:** every script is named after its verb-first target (`scripts/ci/check-dco.sh` for `make check-dco`;
+  map in `templates/renamed-scripts.txt`), and audit Rule 9 enforces it. The old target names are removed. In a
+  consumer, run `bash .standards/scripts/refresh-governance.sh` once: it removes the old script copies, renames
+  project hooks to follow (`integration-test.local.sh` becomes `test-integration.local.sh`), and syncs the new ones.
+- `make refresh-governance` moves `.standards` to its latest release tag instead of the tip of `main`.
 - A dev image pin is its build context: `containers/NAME/image.ref` holds `<repository>:ctx-<hash>`, with no digest,
   written by the pre-commit hook from the staged files, so each commit names the image built from it. `update-pins` no
   longer lists tool images, `publish.sh ref` is gone, and `make update-dev-image-ref` writes the name.
@@ -76,7 +88,7 @@ Corrections, clarifications, metadata: patch bump.
 - `make create-release` decides on the pin status committed in `docs/current_pins.md` (`update-pins --from-pins-doc`),
   with no network query, so an upstream change after the commit cannot block a commit that was current. A tree with
   pins and no such document, or a document out of step with the tree, blocks the release (`make pins-doc`).
-- `sign.sh` signs its artifacts concurrently; `SHA256SUMS` is signed last.
+- `sign-release.sh` signs its artifacts concurrently; `SHA256SUMS` is signed last.
 - `update-pins` verifies every pin locally: an image pin, and any kind without a specific target, by the project's
   combined targets; the Go toolchain by `test` in the tool image on every host; only runner labels stay on CI.
 
@@ -98,7 +110,7 @@ Corrections, clarifications, metadata: patch bump.
 
 - `run.sh --fetch-image` and `make pull-dev-image` show Apple `container` pull progress without a terminal, so
   `update-pins` reports it while it fetches.
-- `coverage-go.sh` succeeds and reports 0 files when there is nothing to report: no coverage data, or only ignored
+- `test-coverage-go.sh` succeeds and reports 0 files when there is nothing to report: no coverage data, or only ignored
   files.
 - A commit checks with the image that holds its tree's tools, pinned or built locally. Without one on the machine, the hook
   skips those checks and says so, and CI runs them, so changing a tool never blocks a commit.
@@ -111,11 +123,11 @@ Corrections, clarifications, metadata: patch bump.
 - `tests/release-images.bats` passes on CI: the tests use their own repository, not the workflow's `GITHUB_REPOSITORY`.
 - `make update-pins` lists its report by status, what needs action first; an unpublished tool image no longer prints a
   curl error; the Helm pin resolves.
-- `sign.sh` gives each concurrent signature its own cosign cache; they collided writing the shared TUF metadata.
+- `sign-release.sh` gives each concurrent signature its own cosign cache; they collided writing the shared TUF metadata.
 - The PyPI publish job waits for the packages only; it no longer hangs on the publish action's attestation files.
 - Each publish job waits until its registry serves everything of the version (`make release-wait-published`), so the
   release job reads metadata after the upload has finished.
-- `release-assets.sh` waits for npm's tarball and attestations, as it does for the version, and names whichever never
+- `build-release-assets.sh` waits for npm's tarball and attestations, as it does for the version, and names whichever never
   appears; a release no longer fails with only "no published artifacts found" while they propagate.
 - `run.sh` `sync_back` passes over submodule entries, so a writable run from a worktree of a repo with submodules no
   longer fails after copying its edits back.

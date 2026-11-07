@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # tests/release-assets.bats
-# release-assets.sh fetches what the registries published. A registry serves a new version's
+# build-release-assets.sh fetches what the registries published. A registry serves a new version's
 # parts at different moments, so every fetch of them waits.
 
 setup() {
@@ -39,7 +39,7 @@ if [ -n "${out}" ]; then printf '%s' "${body}" > "${out}"; else printf '%s' "${b
 STUB
   chmod +x "${WORK}/bin/curl"
   export PATH="${WORK}/bin:${PATH}"
-  sed -n '/^function retry_fetch()/,/^}/p;/^function fetch_npm()/,/^}/p' "${STANDARDS}/scripts/release/release-assets.sh" \
+  sed -n '/^function retry_fetch()/,/^}/p;/^function fetch_npm()/,/^}/p' "${STANDARDS}/scripts/release/build-release-assets.sh" \
     > "${WORK}/fn.sh"
 }
 

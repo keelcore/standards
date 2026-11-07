@@ -14,11 +14,12 @@ setup() {
   mkdir -p "${WORK}/containers/dev" "${WORK}/scripts/ci" "${WORK}/scripts/dev" "${WORK}/scripts/lib" "${WORK}/.git-hooks"
   cd "${WORK}"
   git init --quiet
-  cp "${STANDARDS}/scripts/dev/write-image-ref.sh" scripts/dev/
+  cp "${STANDARDS}/scripts/dev/update-dev-image-ref.sh" scripts/dev/
   cp "${STANDARDS}/scripts/lib/dev-image.sh" scripts/lib/
+  cp "${STANDARDS}/scripts/lib/progress.sh" scripts/lib/
   printf 'FROM scratch\nCOPY scripts/ci/setup-x.sh /x\n' > containers/dev/Containerfile
   printf 'one\n' > scripts/ci/setup-x.sh
-  printf '#!/usr/bin/env bash\nexec bash scripts/dev/write-image-ref.sh\n' > .git-hooks/pre-commit
+  printf '#!/usr/bin/env bash\nexec bash scripts/dev/update-dev-image-ref.sh\n' > .git-hooks/pre-commit
   chmod +x .git-hooks/pre-commit
   git config core.hooksPath .git-hooks
   git add -A
@@ -102,5 +103,5 @@ expected_ref() {
 }
 
 @test "make update-dev-image-ref runs the same script" {
-  grep -qxF "$(printf '\tbash scripts/dev/write-image-ref.sh')" "${STANDARDS}/templates/Makefile.canonical"
+  grep -qxF "$(printf '\tbash scripts/dev/update-dev-image-ref.sh')" "${STANDARDS}/templates/Makefile.canonical"
 }

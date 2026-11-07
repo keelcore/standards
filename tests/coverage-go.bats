@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # tests/coverage-go.bats
-# scripts/test/coverage-go.sh with nothing to report: no coverage data, or only ignored files.
+# scripts/test/test-coverage-go.sh with nothing to report: no coverage data, or only ignored files.
 
 setup() {
   REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
@@ -24,19 +24,19 @@ GO
 }
 
 @test "no coverage data: succeeds, reports one count of 0 files" {
-  PROFILE_LINES='' run bash "${REPO_ROOT}/scripts/test/coverage-go.sh"
+  PROFILE_LINES='' run bash "${REPO_ROOT}/scripts/test/test-coverage-go.sh"
   [ "${status}" -eq 0 ]
   [[ "${output}" == *'(0 files)'* ]]
 }
 
 @test "only ignored files: succeeds, reports one count of 0 files" {
-  PROFILE_LINES=$'example.com/x/cmd/x/main.go:1.1,2.2 1 1\n' run bash "${REPO_ROOT}/scripts/test/coverage-go.sh"
+  PROFILE_LINES=$'example.com/x/cmd/x/main.go:1.1,2.2 1 1\n' run bash "${REPO_ROOT}/scripts/test/test-coverage-go.sh"
   [ "${status}" -eq 0 ]
   [[ "${output}" == *'(0 files)'* ]]
 }
 
 @test "a covered file: is counted" {
-  PROFILE_LINES=$'example.com/x/lib.go:1.1,2.2 1 1\n' run bash "${REPO_ROOT}/scripts/test/coverage-go.sh"
+  PROFILE_LINES=$'example.com/x/lib.go:1.1,2.2 1 1\n' run bash "${REPO_ROOT}/scripts/test/test-coverage-go.sh"
   [ "${status}" -eq 0 ]
   [[ "${output}" == *'(1 files)'* ]]
 }

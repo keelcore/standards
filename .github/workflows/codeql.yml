@@ -23,7 +23,7 @@ env:
 jobs:
 
   # ---------------------------------------------------------------------------
-  # The CodeQL languages this repository holds (scripts/ci/codeql-languages.sh).
+  # The CodeQL languages this repository holds (scripts/ci/detect-codeql-languages.sh).
   # ---------------------------------------------------------------------------
   languages:
     name: CodeQL languages

@@ -2,7 +2,7 @@
 # tests/install-hooks.bats
 # make install-hooks: core.hooksPath scripts/hooks resolves from the root of whichever working
 # tree commits, so a clone, a worktree and a submodule checkout each run their own versioned
-# scripts/hooks/pre-commit, which runs that tree's scripts/git_precommit.sh.
+# scripts/hooks/pre-commit, which runs that tree's scripts/run-pre-commit.sh.
 
 bats_require_minimum_version 1.5.0
 
@@ -17,13 +17,13 @@ setup() {
   export HOOK_LOG="${WORK}/hook.log"
 }
 
-# hooked_repo DIR: a repository with the real hook and installer, and a git_precommit.sh that
+# hooked_repo DIR: a repository with the real hook and installer, and a run-pre-commit.sh that
 # records the tree it ran in.
 hooked_repo() {
   mkdir -p "${1}/scripts/hooks"
   cp "${STANDARDS}/scripts/hooks/pre-commit" "${1}/scripts/hooks/pre-commit"
   cp "${STANDARDS}/scripts/install-hooks.sh" "${1}/scripts/install-hooks.sh"
-  printf '#!/usr/bin/env bash\ngit rev-parse --show-toplevel >> "${HOOK_LOG}"\n' > "${1}/scripts/git_precommit.sh"
+  printf '#!/usr/bin/env bash\ngit rev-parse --show-toplevel >> "${HOOK_LOG}"\n' > "${1}/scripts/run-pre-commit.sh"
   (cd "${1}" && git init --quiet && git add --all && git commit --quiet --no-verify -m init)
 }
 

@@ -1,5 +1,5 @@
 # markdownlint-cli2 ignore patterns (gitignore syntax).
-# Used by scripts/lint/markdown.sh; keeps lint scoped to repo-owned content.
+# Used by scripts/lint/lint-markdown.sh; keeps lint scoped to repo-owned content.
 #
 # Created by bootstrap-standards.sh template — extend per project.
 

@@ -21,10 +21,10 @@ include templates/Makefile.canonical
 .PHONY: test-integration-local
 .PHONY: create-release-local
 
-## BATS suites under tests/ — also delegated to by canonical integration-test.sh (`make test-integration`)
+## BATS suites under tests/ — also delegated to by canonical test-integration.sh (`make test-integration`)
 test-integration-local:
 	@echo "🧪 Running standards BATS suites..."
-	bash scripts/integration-test.local.sh
+	bash scripts/test-integration.local.sh
 
 ## CHANGELOG bump hook (PREV_TAG=vX.Y.Z) — also called by canonical create-release.sh (`make create-release`)
 create-release-local:

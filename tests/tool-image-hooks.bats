@@ -71,7 +71,7 @@ audit_fixture() {
   printf 'jobs:\n  lint:\n    steps:\n      - run: make lint\n  k8s:\n    steps:\n      - run: make setup-helm\n  codeql:\n    steps:\n      - uses: actions/setup-go@0000000000000000000000000000000000000000  # v5\n' \
     > "${WORK}/audit/.github/workflows/ci.yml"
   sed -n '/^function check_runtime_installs/,/^}/p; /^function runtime_install_steps/,/^}/p' \
-    "${STANDARDS}/scripts/ci/audit-make-targets.sh" > "${WORK}/rule6.sh"
+    "${STANDARDS}/scripts/ci/audit.sh" > "${WORK}/rule6.sh"
 }
 
 # rule6 DIR: run audit Rule 6 against DIR.

@@ -93,6 +93,19 @@ jobs:
       - run: make lint-markdown
       - run: make check-clean-tree
 
+  lint-workflows:
+    name: lint / workflows
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    needs: dev-image
+    if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - run: make lint-workflows
+
   lint-bash:
     name: lint / bash
     runs-on: ubuntu-26.04

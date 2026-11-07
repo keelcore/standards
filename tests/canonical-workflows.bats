@@ -24,7 +24,7 @@ setup() {
 }
 
 @test "verify-canonical: identical workflows pass" {
-  run bash scripts/ci/verify-canonical-scripts.sh "${CONSUMER}"
+  run bash scripts/ci/verify-canonical.sh "${CONSUMER}"
   [ "${status}" -eq 0 ]
   [[ "${output}" == *'PASS  .github/workflows/scorecard.yml'* ]]
   [[ "${output}" == *'PASS  .github/workflows/codeql.yml'* ]]
@@ -33,7 +33,7 @@ setup() {
 @test "verify-canonical: an edited or missing workflow fails" {
   printf '# edited\n' >> .github/workflows/codeql.yml
   rm .github/workflows/scorecard.yml
-  run bash scripts/ci/verify-canonical-scripts.sh "${CONSUMER}"
+  run bash scripts/ci/verify-canonical.sh "${CONSUMER}"
   [ "${status}" -ne 0 ]
   [[ "${output}" == *'FAIL  .github/workflows/codeql.yml'* ]]
   [[ "${output}" == *'FAIL  .github/workflows/scorecard.yml'* ]]
@@ -42,15 +42,15 @@ setup() {
 @test "verify-canonical: an excluded workflow is skipped" {
   rm .github/workflows/scorecard.yml
   printf '.github/workflows/scorecard.yml\n' > .canonical-exclude
-  run bash scripts/ci/verify-canonical-scripts.sh "${CONSUMER}"
+  run bash scripts/ci/verify-canonical.sh "${CONSUMER}"
   [ "${status}" -eq 0 ]
 }
 
-@test "governance-refresh lists the workflows as canonical" {
+@test "refresh-governance lists the workflows as canonical" {
   run grep -n '.github/workflows/scorecard.yml' "${STANDARDS}/scripts/lib/canonical-files.sh"
   [ "${status}" -eq 0 ]
-  grep -q 'canonical-files.sh' "${STANDARDS}/scripts/governance-refresh.sh"
-  grep -q 'canonical-files.sh' "${STANDARDS}/scripts/ci/verify-canonical-scripts.sh"
+  grep -q 'canonical-files.sh' "${STANDARDS}/scripts/refresh-governance.sh"
+  grep -q 'canonical-files.sh' "${STANDARDS}/scripts/ci/verify-canonical.sh"
 }
 
 # Scorecard verifies its own workflow before publishing results.
@@ -71,7 +71,7 @@ setup() {
   grep -q "if: \${{ needs.languages.outputs.languages != '\[\]' }}" "${wf}"
 }
 
-languages() { GITHUB_OUTPUT="${BATS_TEST_TMPDIR}/out" bash scripts/ci/codeql-languages.sh > /dev/null; cat "${BATS_TEST_TMPDIR}/out"; }
+languages() { GITHUB_OUTPUT="${BATS_TEST_TMPDIR}/out" bash scripts/ci/detect-codeql-languages.sh > /dev/null; cat "${BATS_TEST_TMPDIR}/out"; }
 
 track() {
   local f
@@ -82,14 +82,14 @@ track() {
   done
 }
 
-@test "codeql-languages.sh: no code in a CodeQL language is an empty list" {
+@test "detect-codeql-languages.sh: no code in a CodeQL language is an empty list" {
   git rm --quiet --cached -r . 2> /dev/null || true
   track build.sh README.md
   run languages
   [ "${output}" = 'languages=[]' ]
 }
 
-@test "codeql-languages.sh: detects Go and JavaScript or TypeScript from tracked files" {
+@test "detect-codeql-languages.sh: detects Go and JavaScript or TypeScript from tracked files" {
   track pkg/a.go
   run languages
   [ "${output}" = 'languages=["go"]' ]
@@ -99,13 +99,13 @@ track() {
   [ "${output}" = 'languages=["go","javascript-typescript"]' ]
 }
 
-@test "codeql-languages.sh: vendored code does not count" {
+@test "detect-codeql-languages.sh: vendored code does not count" {
   track vendor/dep/a.go
   run languages
   [ "${output}" = 'languages=[]' ]
 }
 
-@test "codeql-languages.sh: config/codeql.local.txt replaces the detection" {
+@test "detect-codeql-languages.sh: config/codeql.local.txt replaces the detection" {
   track pkg/a.go
   mkdir config
   printf '# ours\nrust\n\ngo\n' > config/codeql.local.txt

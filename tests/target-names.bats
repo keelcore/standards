@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # tests/target-names.bats
-# Make targets are verb-first (<verb>-<object>[-<qualifier>]): audit Rule 8 enforces it, and a renamed
-# canonical target tells its caller the new name and fails.
+# Make targets and scripts are verb-first (<verb>-<object>[-<qualifier>]): audit Rules 8 and 9 enforce
+# it, and the old names are gone.
 
 setup() {
   load helpers-consumer
@@ -12,7 +12,7 @@ setup() {
 }
 
 audit_output() {
-  run bash scripts/ci/audit-make-targets.sh
+  run bash scripts/ci/audit.sh
 }
 
 @test "every canonical target follows the convention" {
@@ -39,26 +39,29 @@ audit_output() {
   [[ "${output}" == *'Rule 8'*'widget'* ]]
 }
 
-@test "a renamed target prints the new name and fails" {
+@test "old target names are gone" {
   run make --no-print-directory -f Makefile release-sign
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *'sign-release'* ]]
-  run make --no-print-directory -f Makefile unit-test
-  [ "${status}" -ne 0 ]
-  [[ "${output}" == *'test-unit'* ]]
+  [[ "${output}" == *'No rule'* ]]
+  [ ! -e "${STANDARDS}/scripts/ci/renamed-target.sh" ]
 }
 
-@test "renamed-target.sh: names the replacement, and always fails" {
-  run bash scripts/ci/renamed-target.sh sign-release
+@test "every canonical script is named after its target" {
+  audit_output
+  [[ "${output}" != *'Rule 9'* ]]
+}
+
+@test "audit: a script named noun-first fails and is named" {
+  printf '#!/usr/bin/env bash\n' > scripts/ci/widget-check.sh
+  printf 'include .standards/templates/Makefile.canonical\n\ncheck-widget:\n\tbash scripts/ci/widget-check.sh\n' > Makefile
+  audit_output
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *'make sign-release'* ]]
-  run bash scripts/ci/renamed-target.sh
-  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'Rule 9'*'widget-check'* ]]
 }
 
 @test "test runs the Go runner, the project's unit hook and the integration entry point" {
   local -r got="$(make -n -f Makefile test 2> /dev/null)"
-  [[ "${got}" == *'scripts/test/ci.sh'* ]]
-  [[ "${got}" == *'scripts/unit-test.sh'* ]]
-  [[ "${got}" == *'scripts/integration-test.sh'* ]]
+  [[ "${got}" == *'scripts/test/test-unit-go.sh'* ]]
+  [[ "${got}" == *'scripts/test-unit-local.sh'* ]]
+  [[ "${got}" == *'scripts/test-integration.sh'* ]]
 }

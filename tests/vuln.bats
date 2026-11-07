@@ -1,12 +1,12 @@
 #!/usr/bin/env bats
 # tests/vuln.bats
-# scripts/lint/vuln.sh: govulncheck in every repo-owned Go module; nothing in a repo without Go.
+# scripts/lint/lint-vuln.sh: govulncheck in every repo-owned Go module; nothing in a repo without Go.
 
 setup() {
   STANDARDS="$(cd "${BATS_TEST_DIRNAME}/.." && pwd -P)"
   WORK="${BATS_TEST_TMPDIR}/work"
   mkdir -p "${WORK}/scripts/lint" "${WORK}/scripts/lib" "${WORK}/bin"
-  cp "${STANDARDS}/scripts/lint/vuln.sh" "${WORK}/scripts/lint/"
+  cp "${STANDARDS}/scripts/lint/lint-vuln.sh" "${WORK}/scripts/lint/"
   cp "${STANDARDS}/scripts/lib/paths.sh" "${WORK}/scripts/lib/"
   CALLS="${BATS_TEST_TMPDIR}/calls"
   export CALLS
@@ -32,31 +32,31 @@ track_modules() {
   done
 }
 
-@test "vuln.sh: a repo with no Go module has nothing to check" {
-  run bash scripts/lint/vuln.sh
+@test "lint-vuln.sh: a repo with no Go module has nothing to check" {
+  run bash scripts/lint/lint-vuln.sh
   [ "${status}" -eq 0 ]
   [ ! -f "${CALLS}" ]
 }
 
-@test "vuln.sh: every repo-owned module is checked" {
+@test "lint-vuln.sh: every repo-owned module is checked" {
   track_modules . nested
-  run bash scripts/lint/vuln.sh
+  run bash scripts/lint/lint-vuln.sh
   [ "${status}" -eq 0 ]
   [ "$(grep -c ' ./...$' "${CALLS}")" -eq 2 ]
   grep -q '^nested ' "${CALLS}"
 }
 
-@test "vuln.sh: a vendored module is not checked" {
+@test "lint-vuln.sh: a vendored module is not checked" {
   track_modules . vendor/dep
-  run bash scripts/lint/vuln.sh
+  run bash scripts/lint/lint-vuln.sh
   [ "${status}" -eq 0 ]
   [ "$(wc -l < "${CALLS}")" -eq 1 ]
 }
 
-@test "vuln.sh: a reachable vulnerability fails, in any module" {
+@test "lint-vuln.sh: a reachable vulnerability fails, in any module" {
   track_modules . nested
   export VULN_FAIL_IN=nested
-  run bash scripts/lint/vuln.sh
+  run bash scripts/lint/lint-vuln.sh
   [ "${status}" -ne 0 ]
 }
 

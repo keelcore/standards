@@ -20,7 +20,7 @@ The prompt makes Claude actualize the requirements already documented in:
 - [CLAUDE.md](CLAUDE.md) — the adapter Claude reads on session start; the bootstrap symlinks it as the consumer's
   `CLAUDE.md`.
 
-The acceptance gate is `scripts/ci/audit-make-targets.sh` — vendored by `bootstrap-standards.sh`, invoked as
+The acceptance gate is `scripts/ci/audit.sh` — vendored by `bootstrap-standards.sh`, invoked as
 `make audit`.
 
 ## Human-in-the-loop contract
@@ -70,7 +70,7 @@ authoring required:
 5. **Tooling installation** (idempotent; no-op if already installed):
    - shellcheck, markdownlint-cli, syft
 6. **Pre-commit hook**:
-   - `.git/hooks/pre-commit → ../../scripts/git_precommit.sh` (via install-hooks.sh)
+   - `.git/hooks/pre-commit → ../../scripts/run-pre-commit.sh` (via install-hooks.sh)
 
 ## Non-greenfield repos
 
@@ -145,12 +145,12 @@ You may stage; you may not commit. The human owns every commit.
    Stage and pause for review.
 
 Acceptance — all must pass before reporting done (run these yourself, do not commit):
-  - `make audit`              (scripts/ci/audit-make-targets.sh — the compliance gate)
+  - `make audit`              (scripts/ci/audit.sh — the compliance gate)
   - `make lint`
   - `make test-unit`
   - `make test-integration`
   - `git submodule status` shows .standards clean
-  - `bash .standards/scripts/ci/verify-canonical-scripts.sh .`
+  - `bash .standards/scripts/ci/verify-canonical.sh .`
     (all canonical scripts byte-identical with .standards)
   - Every scripts/**/*.sh appears in exactly one Makefile recipe
   - Pre-existing project content lint failures (e.g. markdown table-style errors in

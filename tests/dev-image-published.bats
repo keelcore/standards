@@ -223,3 +223,78 @@ on_host() {
   [ "${status}" -eq 0 ]
   grep -qxF "image pull ${PIN}" "${WORK}/calls"
 }
+
+# slow_runtime SECONDS: the fake runtime takes SECONDS to build or pull, printing a build step first.
+slow_runtime() {
+  for tool in container docker; do
+    printf '#!/usr/bin/env bash\necho "$*" >> "%s/calls"\ncase "${1} ${2:-}" in\n  "image inspect") exit 1 ;;\n  "build -f"|"image pull") echo "#7 [linux/arm64 stage-1 3/9] RUN bash scripts/ci/setup-x.sh"; echo "#7 0.020 Installing x"; sleep %s ;;\nesac\n' \
+      "${WORK}" "${1}" > "${WORK}/fake/${tool}"
+    chmod +x "${WORK}/fake/${tool}"
+  done
+}
+
+@test "run.sh: a long build prints progress at the interval, with its step" {
+  ref_repo
+  printf '#!/usr/bin/env bash\nexit 22\n' > "${WORK}/fake/curl"
+  slow_runtime 3
+  KEELCORE_DEV_PROGRESS_SECONDS=1 PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *'⏳'*'building'*'step 3/9: Installing x'* ]]
+}
+
+@test "run.sh: a build that passes its time limit is stopped and fails, saying so" {
+  ref_repo
+  printf '#!/usr/bin/env bash\nexit 22\n' > "${WORK}/fake/curl"
+  slow_runtime 60
+  local -r started="${SECONDS}"
+  KEELCORE_DEV_BUILD_TIMEOUT=2 PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -ne 0 ]
+  [ $(( SECONDS - started )) -lt 20 ]
+  [[ "${output}" == *'time limit'* ]]
+}
+
+@test "run.sh: a pull that passes its time limit is stopped and fails, saying so" {
+  ref_repo
+  slow_runtime 60
+  local -r started="${SECONDS}"
+  KEELCORE_DEV_PULL_TIMEOUT=2 PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -ne 0 ]
+  [ $(( SECONDS - started )) -lt 20 ]
+  [[ "${output}" == *'time limit'* ]]
+}
+
+@test "setup scripts: every download retries and gives up on a stalled connection" {
+  local file line
+  for file in "${STANDARDS}"/scripts/ci/setup-*.sh; do
+    while IFS= read -r line; do
+      # An options array stands for its definition in the same file.
+      [[ "${line}" != *'CURL_RETRY'* ]] || line="$(grep -E '^readonly CURL_RETRY=' "${file}")"
+      [[ "${line}" == *'--retry'* ]] || { echo "no retry: ${file}: ${line}"; false; }
+      [[ "${line}" == *'--connect-timeout'* ]] || { echo "no connect timeout: ${file}: ${line}"; false; }
+      [[ "${line}" == *'--speed-time'* && "${line}" == *'--speed-limit'* ]] || { echo "no stall limit: ${file}: ${line}"; false; }
+    done < <(grep -E '^\s*[^#]*\bcurl ' "${file}")
+  done
+}
+
+@test "run.sh: a builder that does not answer stops the run at its time limit, saying so" {
+  ref_repo
+  printf '#!/usr/bin/env bash\nexit 22\n' > "${WORK}/fake/curl"
+  printf '#!/usr/bin/env bash\ncase "${1} ${2:-}" in\n  "image inspect") exit 1 ;;\n  "builder status") sleep 60 ;;\nesac\n' > "${WORK}/fake/container"
+  chmod +x "${WORK}/fake/container"
+  printf '#!/usr/bin/env bash\nif [ "${1:-}" = "-s" ]; then echo Darwin; else echo arm64; fi\n' > "${WORK}/fake/uname"
+  chmod +x "${WORK}/fake/uname"
+  local -r started="${SECONDS}"
+  KEELCORE_DEV_BUILDER_TIMEOUT=2 PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -ne 0 ]
+  [ $(( SECONDS - started )) -lt 20 ]
+  [[ "${output}" == *'time limit'* ]]
+}
+
+@test "scripts: every network call has a connect timeout and a stall or total limit" {
+  local line
+  while IFS= read -r line; do
+    [[ "${line}" == *'CURL_RETRY'* ]] && continue
+    [[ "${line}" == *'--connect-timeout'* || "${line}" == *'--max-time'* ]] || { echo "unbounded: ${line}"; false; }
+    [[ "${line}" == *'--speed-time'* || "${line}" == *'--max-time'* ]] || { echo "no stall limit: ${line}"; false; }
+  done < <(cd "${STANDARDS}" && grep -rnE '^\s*[^#]*\bcurl (-|--)' scripts --include='*.sh' | grep -v 'curl()' )
+}

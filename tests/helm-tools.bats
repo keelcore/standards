@@ -16,49 +16,49 @@ setup() {
 
 @test "no chart: all three have nothing to do" {
   local s
-  for s in helm helm-validate helm-policy; do
+  for s in lint-helm lint-helm-validate lint-helm-policy; do
     run bash "scripts/lint/${s}.sh"
     [ "${status}" -eq 0 ]
   done
   [ -z "$(cat "${CALLS}")" ]
 }
 
-@test "helm.sh: lints every chart, with config's arguments; a vendored chart does not count" {
+@test "lint-helm.sh: lints every chart, with config's arguments; a vendored chart does not count" {
   track chart/a/Chart.yaml other/Chart.yaml vendor/x/Chart.yaml
   mkdir config
   printf -- '--set\nmode=sidecar\n' > config/helm-args.local.txt
-  run bash scripts/lint/helm.sh
+  run bash scripts/lint/lint-helm.sh
   [ "${status}" -eq 0 ]
   [ "$(calls_of helm | wc -l)" -eq 2 ]
   calls_of helm | grep -q 'lint chart/a --set mode=sidecar'
 }
 
-@test "helm-validate.sh: the Kubernetes version comes from config" {
+@test "lint-helm-validate.sh: the Kubernetes version comes from config" {
   track c/Chart.yaml
   mkdir config
   printf '1.31.0\n' > config/kubeconform.local.txt
-  run bash scripts/lint/helm-validate.sh
+  run bash scripts/lint/lint-helm-validate.sh
   [ "${status}" -eq 0 ]
   calls_of kubeconform | grep -q -- '-kubernetes-version 1.31.0'
 }
 
-@test "helm-policy.sh: a failed control outside the allowed list fails" {
+@test "lint-helm-policy.sh: a failed control outside the allowed list fails" {
   track c/Chart.yaml
-  run bash scripts/lint/helm-policy.sh
+  run bash scripts/lint/lint-helm-policy.sh
   [ "${status}" -ne 0 ]
   [[ "${output}" == *'C-1'* ]]
 }
 
-@test "helm-policy.sh: each configured render has its own arguments and allowed controls" {
+@test "lint-helm-policy.sh: each configured render has its own arguments and allowed controls" {
   track c/Chart.yaml
   mkdir config
   printf 'library\t--set mode=library\tC-1 C-9\nsidecar\t-f v.yaml\tC-1\n' > config/helm-policy.local.txt
-  run bash scripts/lint/helm-policy.sh
+  run bash scripts/lint/lint-helm-policy.sh
   [ "${status}" -eq 0 ]
   calls_of helm | grep -q -- '--set mode=library'
   calls_of helm | grep -q -- '-f v.yaml'
   printf 'library\t--set mode=library\tC-9\n' > config/helm-policy.local.txt
-  run bash scripts/lint/helm-policy.sh
+  run bash scripts/lint/lint-helm-policy.sh
   [ "${status}" -ne 0 ]
 }
 

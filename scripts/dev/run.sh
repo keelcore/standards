@@ -144,7 +144,7 @@ function build_image() {
     while IFS= read -r opt; do args+=("${opt}"); done < <(dev_builder_args)
   fi
   log "🔨 Building image ${tag}..."
-  "$(runtime)" "${args[@]}" "${dir}" >&2
+  dev_watch "building ${tag}" "${KEELCORE_DEV_BUILD_TIMEOUT:-3600}" "$(runtime)" "${args[@]}" "${dir}"
 }
 
 # fetch_image NAME: NAME's image on this machine, built or pulled, ready for runs that follow.

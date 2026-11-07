@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # tests/lint-suppressions.bats
-# forbid-lint-suppressions.sh fails on a lint-suppression directive in any
+# lint-suppressions.sh fails on a lint-suppression directive in any
 # repo-owned file, whatever its type, and leaves vendored trees (top-level
 # vendor/, nested vendor/ listed in .nolint) alone. Markdown is scanned only for
 # markdownlint's comment directive.
@@ -17,7 +17,7 @@ setup() {
   mkdir -p "${CONSUMER}/scripts/lint" "${CONSUMER}/scripts/lib"
   cd "${CONSUMER}"
   git init --quiet
-  cp -p "${STANDARDS}/scripts/lint/forbid-lint-suppressions.sh" scripts/lint/
+  cp -p "${STANDARDS}/scripts/lint/lint-suppressions.sh" scripts/lint/
   cp -p "${STANDARDS}/scripts/lib/paths.sh" scripts/lib/
   printf 'package main\n\nfunc main() {}\n' > main.go
 }
@@ -29,7 +29,7 @@ directive() {
 
 scan() {
   git add --all
-  run bash scripts/lint/forbid-lint-suppressions.sh
+  run bash scripts/lint/lint-suppressions.sh
 }
 
 @test "clean source passes" {

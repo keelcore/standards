@@ -18,18 +18,18 @@ setup() {
 }
 
 @test "audit: names each missing file, and passes when they exist" {
-  run bash scripts/ci/audit-make-targets.sh
+  run bash scripts/ci/audit.sh
   [[ "${output}" == *'Rule 7'*'SECURITY.md'* ]]
   [[ "${output}" == *'.github/CODEOWNERS'* ]]
   [[ "${output}" == *'.github/dependabot.yml'* ]]
   touch SECURITY.md .github/CODEOWNERS .github/dependabot.yml
-  run bash scripts/ci/audit-make-targets.sh
+  run bash scripts/ci/audit.sh
   [[ "${output}" != *'Rule 7'* ]]
 }
 
 @test "audit: SECURITY.md may live in .github" {
   touch .github/SECURITY.md .github/CODEOWNERS .github/dependabot.yml
-  run bash scripts/ci/audit-make-targets.sh
+  run bash scripts/ci/audit.sh
   [[ "${output}" != *'Rule 7'* ]]
 }
 

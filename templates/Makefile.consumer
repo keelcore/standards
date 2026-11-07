@@ -1,15 +1,15 @@
 # Consumer Makefile — delegates canonical targets to the canonical Makefile
 # shipped in the .standards submodule.
 #
-# All universal targets (build, test, lint, audit, ci-*, check-*, setup-*,
-# coverage-*, install-hooks, format, governance-refresh, migrate-makefile,
+# All universal targets (build, test, lint, audit, check-*, setup-*,
+# test-coverage-*, install-hooks, format, refresh-governance, migrate-makefile,
 # help, etc.) live in .standards/templates/Makefile.canonical, which this
 # file includes. Project-specific build/test/clean behavior is customized
 # by creating scripts/<target>.local.sh files — the canonical delegate
 # scripts (scripts/build.sh etc.) pick those up automatically.
 #
 # Path resolution: when Make `include`s a file, it does NOT change CWD.
-# Recipe lines in Makefile.canonical (e.g. `bash scripts/lint/shellcheck.sh`)
+# Recipe lines in Makefile.canonical (e.g. `bash scripts/lint/lint-bash.sh`)
 # resolve relative to THIS Makefile's directory (the consumer repo root),
 # which means they run the consumer's copies of the scripts — as intended.
 

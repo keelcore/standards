@@ -1,4 +1,4 @@
-# config/vex-checks.jq — OpenVEX checks run by scripts/lint/vex.sh.
+# config/vex-checks.jq — OpenVEX checks run by scripts/lint/lint-vex.sh.
 # Prints one line per problem; empty output means the document is valid.
 def utc: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$");
 (if ."@context" == "https://openvex.dev/ns/v0.2.0" then empty else "@context is not OpenVEX v0.2.0" end),

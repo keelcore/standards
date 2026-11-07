@@ -69,7 +69,7 @@ function install_linux() {
   local -r url="https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-${arch}.tar.gz"
   local tmp
   tmp="$(mktemp -d)"
-  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors "${url}" -o "${tmp}/kubeconform.tar.gz"
+  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors --connect-timeout 30 --speed-limit 1024 --speed-time 60 "${url}" -o "${tmp}/kubeconform.tar.gz"
   printf '%s  %s\n' "${sum}" "${tmp}/kubeconform.tar.gz" | sha256sum --check --quiet
   as_root tar -xzf "${tmp}/kubeconform.tar.gz" -C /usr/local/bin kubeconform
   as_root chmod +x /usr/local/bin/kubeconform

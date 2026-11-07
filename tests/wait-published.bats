@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # tests/wait-published.bats
-# wait-published.sh returns only once the registry serves everything of the version the job just
+# wait-for-publish.sh returns only once the registry serves everything of the version the job just
 # published; the release job, which needs the publish jobs, reads metadata after that.
 
 setup() {
@@ -9,7 +9,7 @@ setup() {
   STATE="${BATS_TEST_TMPDIR}/state"
   export WORK STATE
   mkdir -p "${WORK}/scripts/release" "${WORK}/bin" "${WORK}/target/dist" "${STATE}"
-  cp "${STANDARDS}/scripts/release/wait-published.sh" "${WORK}/scripts/release/"
+  cp "${STANDARDS}/scripts/release/wait-for-publish.sh" "${WORK}/scripts/release/"
   cat > "${WORK}/bin/curl" <<'STUB'
 #!/usr/bin/env bash
 url="${*: -1}"
@@ -48,7 +48,7 @@ STUB
 calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
 
 @test "npm: returns once the version, tarball and attestations are all served" {
-  run bash scripts/release/wait-published.sh npm
+  run bash scripts/release/wait-for-publish.sh npm
   [ "${status}" -eq 0 ]
   [ "$(calls_to 'registry.npmjs.org/@acme%2fp/1.2.3')" -ge 1 ]
   [ "$(calls_to 'https://r/p-1.2.3.tgz')" -eq 1 ]
@@ -57,28 +57,28 @@ calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
 
 @test "npm: keeps waiting, with no attempt limit, for the version" {
   export MISSING_UNTIL='registry.npmjs.org=200'
-  run bash scripts/release/wait-published.sh npm
+  run bash scripts/release/wait-for-publish.sh npm
   [ "${status}" -eq 0 ]
   [ "$(calls_to 'registry.npmjs.org')" -gt 200 ]
 }
 
 @test "npm: keeps waiting for the tarball after the version appears" {
   export MISSING_UNTIL='p-1.2.3.tgz=5'
-  run bash scripts/release/wait-published.sh npm
+  run bash scripts/release/wait-for-publish.sh npm
   [ "${status}" -eq 0 ]
   [ "$(calls_to 'https://r/p-1.2.3.tgz')" -eq 6 ]
 }
 
 @test "npm: keeps waiting for the attestations after the tarball appears" {
   export MISSING_UNTIL='attest/p=5'
-  run bash scripts/release/wait-published.sh npm
+  run bash scripts/release/wait-for-publish.sh npm
   [ "${status}" -eq 0 ]
   [ "$(calls_to 'https://r/attest/p')" -eq 6 ]
 }
 
 @test "pypi: waits until every file this job built is listed, then for each file and its provenance" {
   export PYPI_ONE_FILE_UNTIL=4
-  run bash scripts/release/wait-published.sh pypi
+  run bash scripts/release/wait-for-publish.sh pypi
   [ "${status}" -eq 0 ]
   [ "$(calls_to 'https://pypi.org/pypi/acme-p/1.2.3/json')" -ge 5 ]
   [ "$(calls_to 'https://f/p.whl')" -eq 1 ]
@@ -88,21 +88,21 @@ calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
 }
 
 @test "pypi: the publish action's attestation files are not packages, and are not waited for" {
-  run timeout 20 bash scripts/release/wait-published.sh pypi
+  run timeout 20 bash scripts/release/wait-for-publish.sh pypi
   [ "${status}" -eq 0 ]
   [ "$(calls_to 'publish.attestation')" -eq 0 ]
 }
 
 @test "go: waits for the module zip and the checksum database record" {
   export MISSING_UNTIL='sum.golang.org=5'
-  run bash scripts/release/wait-published.sh go
+  run bash scripts/release/wait-for-publish.sh go
   [ "${status}" -eq 0 ]
   [ "$(calls_to 'https://proxy.golang.org/example.com/p/@v/v1.2.3.zip')" -eq 1 ]
   [ "$(calls_to 'https://sum.golang.org/lookup/example.com/p@v1.2.3')" -eq 6 ]
 }
 
 @test "an unknown registry fails at once" {
-  run bash scripts/release/wait-published.sh nope
+  run bash scripts/release/wait-for-publish.sh nope
   [ "${status}" -ne 0 ]
 }
 
@@ -121,4 +121,13 @@ calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
   upload="$(grep -n 'gh-action-pypi-publish' "${wf}" | cut -d: -f1)"
   wait="$(grep -n 'wait-for-publish ARGS="\?pypi' "${wf}" | cut -d: -f1)"
   [ "${upload}" -lt "${wait}" ]
+}
+
+@test "a registry that never serves the version fails at the deadline, saying so" {
+  export WAIT_TIMEOUT=2 WAIT_INTERVAL=1 MISSING_UNTIL='registry.npmjs.org=100000'
+  local -r started="${SECONDS}"
+  run bash scripts/release/wait-for-publish.sh npm
+  [ "${status}" -ne 0 ]
+  [ $(( SECONDS - started )) -lt 15 ]
+  [[ "${output}" == *'gave up'* ]]
 }

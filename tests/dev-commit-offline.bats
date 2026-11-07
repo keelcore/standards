@@ -2,7 +2,7 @@
 # tests/dev-commit-offline.bats
 # A git commit never fetches and never stops for a missing image, so a new image can bootstrap:
 # inside a hook, run.sh uses the pinned tool image when it is on the machine and otherwise skips
-# that check, saying so. scripts/dev/pull.sh fetches the image outside any commit.
+# that check, saying so. scripts/dev/pull-dev-image.sh fetches the image outside any commit.
 
 bats_require_minimum_version 1.5.0
 
@@ -108,8 +108,8 @@ run_sh_in_hook() {
     chmod +x "${WORK}/bin/${tool}"
   done
   cd "${WORK}/repo"
-  PATH="${WORK}/bin:${PATH}" run bash "${STANDARDS}/scripts/dev/pull.sh"
+  PATH="${WORK}/bin:${PATH}" run bash "${STANDARDS}/scripts/dev/pull-dev-image.sh"
   [ "${status}" -eq 0 ]
   grep -qE "^pull-tool image pull( --progress plain)? ${REF}\$" "${CALLS}"
-  grep -qxF "$(printf '\tbash scripts/dev/pull.sh')" "${STANDARDS}/templates/Makefile.canonical"
+  grep -qxF "$(printf '\tbash scripts/dev/pull-dev-image.sh')" "${STANDARDS}/templates/Makefile.canonical"
 }

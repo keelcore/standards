@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # create-release.local.sh
 # keelcore/standards bump hook for the canonical scripts/release/create-release.sh.
-# Project-owned, never canonical: verify-canonical and governance-refresh skip
+# Project-owned, never canonical: verify-canonical and refresh-governance skip
 # *.local.sh, so consumers never receive this file.
 #
 # Usage: create-release.local.sh <previous-tag>

@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
 # tests/wait-ci.bats
-# scripts/release/wait-ci.sh: waits for the GitHub Actions runs on a commit to finish, with
+# scripts/release/wait-for-ci.sh: waits for the GitHub Actions runs on a commit to finish, with
 # progress, then fails if any is red. A tag's workflow runs it first, so a red commit is never published.
 
 setup() {
   REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-  SCRIPT="${REPO_ROOT}/scripts/release/wait-ci.sh"
+  SCRIPT="${REPO_ROOT}/scripts/release/wait-for-ci.sh"
   T="${BATS_TEST_TMPDIR}"
   export GITHUB_REPOSITORY='acme/widget' CI_WAIT_SECONDS=0 T
   unset GITHUB_RUN_ID GITHUB_REF_TYPE GITHUB_REF_NAME
@@ -127,5 +127,5 @@ calls() {
   run bash "${SCRIPT}"
   [ "${status}" -eq 0 ]
   grep -qF "head_sha=$(git rev-parse HEAD)" "${T}/calls"
-  grep -qxF "$(printf '\tbash scripts/release/wait-ci.sh')" "${REPO_ROOT}/templates/Makefile.canonical"
+  grep -qxF "$(printf '\tbash scripts/release/wait-for-ci.sh')" "${REPO_ROOT}/templates/Makefile.canonical"
 }
