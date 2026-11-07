@@ -4,12 +4,18 @@
   "enforcement": "active",
   "conditions": {
     "ref_name": {
-      "include": ["~DEFAULT_BRANCH"],
+      "include": [
+        "~DEFAULT_BRANCH"
+      ],
       "exclude": []
     }
   },
   "rules": [
-    { "type": "deletion" },
-    { "type": "non_fast_forward" }
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    }
   ]
 }
