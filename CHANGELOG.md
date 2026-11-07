@@ -142,8 +142,8 @@ Corrections, clarifications, metadata: patch bump.
 - `go/cmd/materialize` refuses an embedded path that would land outside the target directory, and `FuzzDestination`
   fuzzes that check.
 - `markdownlint-cli` 0.50.0, with npm overrides for `katex` 0.18.2 and `re2js` 2.8.8, fixes the `js-yaml`, `smol-toml`,
-  `katex` and `re2js` advisories in its lockfile. `osv-scanner.toml` accepts the `minimatch` advisory until 2027-01-07:
-  its first fixed release is still inside the pin cooldown.
+  `katex` and `re2js` advisories in its lockfile. `scripts/ci/markdownlint/osv-scanner.toml`, beside that lockfile,
+  accepts the `minimatch` advisory until 2027-01-07: its first fixed release is still inside the pin cooldown.
 - `main` is protected by rulesets kept as code (`.github/rulesets/`): no one deletes or force-pushes it, and only a
   repository admin pushes to it without a reviewed pull request.
 

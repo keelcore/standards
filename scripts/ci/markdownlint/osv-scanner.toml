@@ -1,6 +1,7 @@
-# osv-scanner.toml
-# Advisories accepted for a limited time, each with its reason. OpenSSF Scorecard (Vulnerabilities) and
-# osv-scanner read this file. An entry lapses on its ignoreUntil date and the advisory counts again.
+# scripts/ci/markdownlint/osv-scanner.toml
+# Advisories in this directory's package-lock.json, accepted for a limited time, each with its reason. OpenSSF
+# Scorecard (Vulnerabilities) and osv-scanner read the file beside the lockfile it covers. An entry lapses on its
+# ignoreUntil date and the advisory counts again.
 
 [[IgnoredVulns]]
 id = "GHSA-g3hv-75wg-m249"
