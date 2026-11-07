@@ -14,6 +14,8 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- `make update-pins` prints progress every 30 seconds while it verifies (`UPDATE_PINS_PROGRESS_SECONDS`): elapsed time, pin,
+  image build step and latest log line for each running pin and the combined run, and a result line as each pin finishes.
 - Canonical image release, chart push, upload and self-verification: `make release-images`, `release-helm-push`,
   `release-upload`, `release-verify`, `release-metadata`, `release-ghcr-login`, driven by `config/release-images.local.txt`,
   `release-dockerfile.local.txt` and the workflow's repository; grype in the tool image.

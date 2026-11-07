@@ -75,7 +75,8 @@
 # Env: UPDATE_PINS_NOW (epoch seconds; default: now), UPDATE_PINS_FIXTURES (dir;
 # every remote read comes from it — tests), UPDATE_PINS_PLATFORM (default:
 # uname -s), UPDATE_PINS_LOGDIR (per-pin verification logs; default: next to the
-# throwaway worktree), GITHUB_TOKEN (else `gh auth token`).
+# throwaway worktree), UPDATE_PINS_PROGRESS_SECONDS (progress interval; default: 30),
+# GITHUB_TOKEN (else `gh auth token`).
 #
 # Usage: update-pins.sh [--apply | --discover-only | --from-pins-doc FILE] [--tsv FILE] [--report FILE]
 
@@ -97,6 +98,9 @@ readonly SEMVER_RE='^v?[0-9]+(\.[0-9]+)*$'
 
 NOW=0
 HOLDS=''
+PROGRESS_SECONDS="${UPDATE_PINS_PROGRESS_SECONDS:-30}"
+PROGRESS_DIR=''
+PROGRESS_PID=''
 ROOT=''
 MODE='verify'
 APPLY=''
@@ -1343,6 +1347,7 @@ function verify_all() {
   mkdir -p "${resdir}"
   local results='' kind name loc current source status cand age note locs origin logf i=0
   local -a queued=()
+  start_progress
   while IFS=$'\t' read -r -u 3 kind name loc current source status cand age note locs origin; do
     i=$(( i + 1 ))
     logf="${LOGDIR}/$(printf '%02d' "${i}")-${kind}-$(printf '%s' "${name}" | tr -c 'A-Za-z0-9._-' '_').log"
@@ -1371,6 +1376,7 @@ function verify_all() {
   rm -rf "${resdir}"
   local combined
   combined="$(combined_run "${results}")"
+  stop_progress
   verify_report "${results}" "${combined}"
   if [ -n "${APPLY}" ]; then
     apply_passing "${results}" "${combined}"
@@ -1443,14 +1449,74 @@ function add_worktree() {
 
 # verify_in_own_worktree RESULT_FILE KIND NAME CURRENT CAND SOURCE LOCS LOG: verify_pin in a
 # worktree of its own (removed afterwards); writes the result row to RESULT_FILE.
+# start_progress: until stop_progress, print every running pin's state on the console, so a long
+# verification is never silent. Each verification's output stays in its own log. Disowned, so the
+# driver's `wait` and job count see only verifications; it ends by itself if the driver is gone.
+function start_progress() {
+  PROGRESS_DIR="${WT}.running"
+  mkdir -p "${PROGRESS_DIR}"
+  (
+    while kill -0 "$$" 2> /dev/null; do
+      sleep "${PROGRESS_SECONDS}"
+      print_progress
+    done
+  ) > /dev/null 2>&1 &
+  PROGRESS_PID="${!}"
+  disown "${PROGRESS_PID}"
+}
+
+function stop_progress() {
+  kill "${PROGRESS_PID}" 2> /dev/null || true
+  rm -rf "${PROGRESS_DIR}"
+}
+
+# progress_add LABEL LOG STARTED: a running verification, whose state print_progress reports.
+function progress_add() {
+  printf '%s\t%s\t%s\n' "${1}" "${2}" "${3}" > "${PROGRESS_DIR}/$(basename "${2}")"
+}
+
+function progress_done() {
+  rm -f "${PROGRESS_DIR}/$(basename "${1}")"
+}
+
+# print_progress: one line per running verification: elapsed time, the latest image build step, if
+# any, and the latest line of its log.
+function print_progress() {
+  local entry label logf started step latest
+  for entry in "${PROGRESS_DIR}"/*; do
+    [ -f "${entry}" ] || continue
+    IFS=$'\t' read -r label logf started < "${entry}" || continue
+    step="$(sed -nE 's/^#[0-9]+ \[.* ([0-9]+\/[0-9]+)\].*/\1/p' "${logf}" 2> /dev/null | tail -n 1)"
+    latest="$(awk 'NF { line = $0 } END { print line }' "${logf}" 2> /dev/null | cut -c1-100)"
+    log "⏳ $(elapsed_since "${started}") ${label}: ${step:+image step ${step}: }${latest}"
+  done
+}
+
+# report_finished LABEL RESULT STARTED: a verification's outcome, as it finishes.
+function report_finished() {
+  local mark='✅'
+  [ "${2}" != 'fail' ] || mark='❌'
+  log "${mark} ${1} ${2} $(elapsed_since "${3}")"
+}
+
+# elapsed_since EPOCH: the time since EPOCH, as 12m05s.
+function elapsed_since() {
+  local -r seconds=$(( $(date +%s) - ${1} ))
+  printf '%dm%02ds' "$(( seconds / 60 ))" "$(( seconds % 60 ))"
+}
+
 function verify_in_own_worktree() {
   local -r resfile="${1}"
   shift
   (
     trap 'git -C "${ROOT}" worktree remove --force "${WT}" > /dev/null 2>&1; rm -rf "${TOOLS}"' EXIT
     add_worktree
-    local result
+    local result started
+    started="$(date +%s)"
+    progress_add "${1} ${2}" "${7}" "${started}"
     result="$(verify_pin "$@")" || result="$(printf 'fail\tverification error')"
+    progress_done "${7}"
+    report_finished "${1} ${2}" "${result%%$'\t'*}" "${started}"
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${1}" "${2}" "${3}" "${4}" "${5}" "${6}" "${result}" "${7}" \
       > "${resfile}"
   )
@@ -1458,6 +1524,7 @@ function verify_in_own_worktree() {
 
 function cleanup_worktree() {
   [ -n "${WT}" ] || return 0
+  [ -z "${PROGRESS_PID}" ] || stop_progress
   if [ -f "${ROOT}/${LOCAL_HOOK}" ]; then
     (cd "${ROOT}" && bash "${LOCAL_HOOK}" cleanup "${PLATFORM}") > /dev/null 2>&1 || true
   fi
@@ -1509,9 +1576,10 @@ function combined_run() {
     return
   fi
   local -r clog="${LOGDIR}/combined.log"
+  progress_add 'combined' "${clog}" "$(date +%s)"
   while IFS=$'\t' read -r -u 3 kind name current cand source locs result detail logf; do
     apply_pin "${WT}" "${kind}" "${name}" "${current}" "${cand}" "${source}" "${locs}" >> "${clog}" 2>&1 \
-      || { printf 'fail\tapply of %s failed (log: %s)\n' "${name}" "${clog}"; rollback_worktree; return; }
+      || { printf 'fail\tapply of %s failed (log: %s)\n' "${name}" "${clog}"; progress_done "${clog}"; rollback_worktree; return; }
   done 3<<< "${passing}"
   targets="$(combined_targets)"
   if run_targets "${targets}" >> "${clog}" 2>&1; then
@@ -1519,6 +1587,7 @@ function combined_run() {
   else
     printf 'fail\tmake %s (log: %s)\n' "${targets}" "${clog}"
   fi
+  progress_done "${clog}"
   rollback_worktree
 }
 

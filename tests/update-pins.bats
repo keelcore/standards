@@ -246,6 +246,58 @@ checkout_fixture() {
   grep -q 'interrupted' "${BATS_TEST_TMPDIR}/run.log"
 }
 
+@test "verify: a running pin prints elapsed time, its image step and its latest log line" {
+  checkout_fixture
+  perl -0pi -e 's/lint-workflows:\n\t\@true\n/lint-workflows:\n\t\@echo "#33 [linux\/arm64 stage-1 26\/45] RUN x"; echo "downloading things"; sleep 3\n/' Makefile
+  commit
+  UPDATE_PINS_PROGRESS_SECONDS=1 verify
+  grep -qE '^⏳ [0-9]+m[0-9]{2}s action actions/checkout: image step 26/45: downloading things$' <<< "${output}"
+}
+
+@test "verify: each pin prints its result and elapsed time when it finishes" {
+  checkout_fixture
+  verify
+  grep -qE '^✅ action actions/checkout pass [0-9]+m[0-9]{2}s$' <<< "${output}"
+  grep -qE '^❌ gotool example.com/bar/cmd/bar fail [0-9]+m[0-9]{2}s$' <<< "${output}"
+}
+
+@test "verify: the combined run prints progress too" {
+  checkout_fixture
+  perl -0pi -e 's/audit:\n\t\@true\n/audit:\n\t\@echo "testing things"; sleep 3\n/' Makefile
+  commit
+  UPDATE_PINS_PROGRESS_SECONDS=1 verify
+  grep -qE '^⏳ [0-9]+m[0-9]{2}s combined: testing things$' <<< "${output}"
+}
+
+@test "verify: progress stops when the run ends" {
+  checkout_fixture
+  export TMPDIR="${BATS_TEST_TMPDIR}"
+  UPDATE_PINS_PROGRESS_SECONDS=1 bash scripts/release/update-pins.sh > "${BATS_TEST_TMPDIR}/run.log" 2>&1 || true
+  local -r before="$(wc -c < "${BATS_TEST_TMPDIR}/run.log")"
+  sleep 3
+  [ "$(wc -c < "${BATS_TEST_TMPDIR}/run.log")" -eq "${before}" ]
+  ! ls -d "${TMPDIR}"/update-pins.*.running 2> /dev/null
+}
+
+@test "verify: progress stops when the run is interrupted" {
+  checkout_fixture
+  export TMPDIR="${BATS_TEST_TMPDIR}"
+  perl -0pi -e 's/lint-workflows:\n\t\@true\n/lint-workflows:\n\t\@sleep 38.5\n/' Makefile
+  commit
+  UPDATE_PINS_PROGRESS_SECONDS=1 bash scripts/release/update-pins.sh > "${BATS_TEST_TMPDIR}/run.log" 2>&1 &
+  local pid="${!}" i
+  for (( i = 0; i < 100; i++ )); do
+    pgrep -f 'sleep 38.5' > /dev/null && break
+    sleep 0.2
+  done
+  kill -TERM "${pid}"
+  wait "${pid}" || true
+  local -r before="$(wc -c < "${BATS_TEST_TMPDIR}/run.log")"
+  sleep 3
+  [ "$(wc -c < "${BATS_TEST_TMPDIR}/run.log")" -eq "${before}" ]
+  ! ls -d "${TMPDIR}"/update-pins.*.running 2> /dev/null
+}
+
 @test "verify: the working tree is untouched and the worktree is removed" {
   checkout_fixture
   local before
