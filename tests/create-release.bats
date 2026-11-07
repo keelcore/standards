@@ -595,7 +595,7 @@ devimage_pin() {
   git push --quiet
   run bash "${DRIVER}"
   [ "${status}" -eq 1 ]
-  [[ "${output}" == *'make pins-doc'* ]] || false
+  [[ "${output}" == *'make generate-pins-doc'* ]] || false
 }
 
 @test "pins: with no stale pins the tag records the pin summary and no override" {

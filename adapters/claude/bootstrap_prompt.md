@@ -147,8 +147,8 @@ You may stage; you may not commit. The human owns every commit.
 Acceptance — all must pass before reporting done (run these yourself, do not commit):
   - `make audit`              (scripts/ci/audit-make-targets.sh — the compliance gate)
   - `make lint`
-  - `make unit-test`
-  - `make integration-test`
+  - `make test-unit`
+  - `make test-integration`
   - `git submodule status` shows .standards clean
   - `bash .standards/scripts/ci/verify-canonical-scripts.sh .`
     (all canonical scripts byte-identical with .standards)

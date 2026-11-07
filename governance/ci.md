@@ -71,15 +71,15 @@ CI alike. Names are fixed; projects may not rename or skip them. Language-specif
 | Build default artifact | `make build`             | project-specific                   | Produce the primary deliverable (binary, image, package).          |
 | Run all linters        | `make lint`              | project-specific                   | Format check + static analysis. Must invoke `make lint-newlines`.  |
 | Run full test suite    | `make test`              | project-specific                   | Unit + integration tests in sequence.                              |
-| Run unit tests         | `make unit-test`         | `scripts/test/ci.sh`               | Unit tests only; produces JUnit XML and coverage profile.          |
-| Run integration tests  | `make integration-test`  | project-specific                   | BATS / end-to-end tests against a built artifact.                  |
+| Run unit tests         | `make test-unit`         | `scripts/test/ci.sh`               | Unit tests only; produces JUnit XML and coverage profile.          |
+| Run integration tests  | `make test-integration`  | project-specific                   | BATS / end-to-end tests against a built artifact.                  |
 | Remove artifacts       | `make clean`             | —                                  | Remove `dist/` and generated files.                                |
 | Standards audit        | `make audit`             | `scripts/ci/audit-make-targets.sh` | CI/Makefile compliance auditor.                                    |
-| Code coverage report   | `make coverage`          | `scripts/test/coverage.sh`         | Print total %, uncovered statements, total lines.                  |
-| PR coverage gate       | `make ci-coverage-delta` | `scripts/test/coverage-delta.sh`   | Fail PR if coverage drops > threshold vs. base branch.             |
-| PR policy gate         | `make ci-pr-policy`      | `scripts/ci/pr-policy.sh`          | Title, body, branch naming, linked issue enforcement.              |
-| Secret scan            | `make ci-secret-scan`    | `scripts/ci/secret-scan.sh`        | gitleaks scan; required on every PR and default-branch push.       |
-| DCO check              | `make ci-dco`            | `scripts/ci/dco-check.sh`          | Signed-off-by trailer on every commit in the PR.                   |
+| Code coverage report   | `make test-coverage`          | `scripts/test/coverage.sh`         | Print total %, uncovered statements, total lines.                  |
+| PR coverage gate       | `make check-coverage-delta` | `scripts/test/coverage-delta.sh`   | Fail PR if coverage drops > threshold vs. base branch.             |
+| PR policy gate         | `make check-pr-policy`      | `scripts/ci/pr-policy.sh`          | Title, body, branch naming, linked issue enforcement.              |
+| Secret scan            | `make check-secrets`    | `scripts/ci/secret-scan.sh`        | gitleaks scan; required on every PR and default-branch push.       |
+| DCO check              | `make check-dco`            | `scripts/ci/dco-check.sh`          | Signed-off-by trailer on every commit in the PR.                   |
 | Trailing newlines      | `make lint-newlines`     | `scripts/lint/newlines.sh`         | Every `.md`, `.sh`, `.go` ends with `\n`.                          |
 | Legal drift check      | `make check-legal-drift` | `scripts/check-legal-drift.sh`     | Copied legal files (LICENSE, TRADEMARK) match the source of truth. |
 
@@ -87,11 +87,11 @@ CI alike. Names are fixed; projects may not rename or skip them. Language-specif
 
 | Target             | Makefile target                 | Script                                  | Responsibility                                                  |
 | ------------------ | ------------------------------- | --------------------------------------- | --------------------------------------------------------------- |
-| Generate checksums | `make release-checksums`        | `scripts/release/checksums.sh`          | Write `dist/SHA256SUMS` for all release artifacts.              |
-| Verify checksums   | `make release-checksums-verify` | `scripts/release/checksums.sh --verify` | Confirm downloaded artifacts match `SHA256SUMS`.                |
-| Generate SBOM      | `make release-sbom`             | `scripts/release/sbom.sh`               | SPDX JSON SBOM via syft; attached to every release.             |
-| Sign artifacts     | `make release-sign`             | `scripts/release/sign.sh`               | cosign keyless signing; bundles attached alongside binaries.    |
-| Upload to release  | `make release-upload`           | `scripts/release/upload.sh`             | Push artifacts + checksums + SBOM to GitHub Release.            |
+| Generate checksums | `make generate-release-checksums`        | `scripts/release/checksums.sh`          | Write `dist/SHA256SUMS` for all release artifacts.              |
+| Verify checksums   | `make verify-release-checksums` | `scripts/release/checksums.sh --verify` | Confirm downloaded artifacts match `SHA256SUMS`.                |
+| Generate SBOM      | `make generate-sbom`             | `scripts/release/sbom.sh`               | SPDX JSON SBOM via syft; attached to every release.             |
+| Sign artifacts     | `make sign-release`             | `scripts/release/sign.sh`               | cosign keyless signing; bundles attached alongside binaries.    |
+| Upload to release  | `make upload-release`           | `scripts/release/upload.sh`             | Push artifacts + checksums + SBOM to GitHub Release.            |
 | Version tagging    | `make create-release`           | `scripts/release/create-release.sh`     | Semver bump from project hook + signed tag; developer action.   |
 
 ### Required for projects with container images
@@ -106,7 +106,7 @@ CI alike. Names are fixed; projects may not rename or skip them. Language-specif
 | ---------------------- | ------------------------- | ------------------------------- | ------------------------------------------------------ |
 | Helm lint              | `make lint-helm`          | `scripts/lint/helm.sh`          | `helm lint` + template render; no cluster required.    |
 | Helm schema validation | `make lint-helm-validate` | `scripts/lint/helm-validate.sh` | kubeconform validation of rendered templates.          |
-| Helm chart publish     | `make release-helm-push`  | `scripts/release/helm-push.sh`  | OCI push to GHCR + cosign signing of the chart digest. |
+| Helm chart publish     | `make push-helm-chart`  | `scripts/release/helm-push.sh`  | OCI push to GHCR + cosign signing of the chart digest. |
 
 ## CI Auditor
 
@@ -145,7 +145,7 @@ from the `keelcore/standards` repository root. This compares `sha256sum` of each
 per file, exiting 1 if any mismatch is found.
 
 Project-local hooks (`scripts/**/*.local.sh`) are owned by the repo that holds them and are never canonical, including
-the ones in `keelcore/standards` itself. `verify-canonical` and `governance-refresh` neither compare nor sync them, so a
+the ones in `keelcore/standards` itself. `verify-canonical` and `refresh-governance` neither compare nor sync them, so a
 consumer's hook is never overwritten. A canonical script that calls a hook resolves it from the git toplevel of the repo
 it runs in: inside a consumer it calls the consumer's hook, never the copy in `.standards`.
 
@@ -169,14 +169,14 @@ from the standards repo to verify compliance.
 | Script                             | Makefile target          | Responsibility                                                     | Source of truth    |
 | ---------------------------------- | ------------------------ | ------------------------------------------------------------------ | ------------------ |
 | `scripts/ci/audit-make-targets.sh` | `make audit`             | CI/Makefile standards compliance auditor.                          | keelcore/standards |
-| `scripts/ci/pr-policy.sh`          | `make ci-pr-policy`      | PR policy gate: title, body, branch naming, linked issue.          | project-specific   |
-| `scripts/ci/secret-scan.sh`        | `make ci-secret-scan`    | Secret scanning on every PR and default-branch push.               | keelcore/standards |
-| `scripts/ci/dco-check.sh`          | `make ci-dco`            | DCO Signed-off-by trailer verification.                            | keelcore/standards |
+| `scripts/ci/pr-policy.sh`          | `make check-pr-policy`      | PR policy gate: title, body, branch naming, linked issue.          | project-specific   |
+| `scripts/ci/secret-scan.sh`        | `make check-secrets`    | Secret scanning on every PR and default-branch push.               | keelcore/standards |
+| `scripts/ci/dco-check.sh`          | `make check-dco`            | DCO Signed-off-by trailer verification.                            | keelcore/standards |
 | `scripts/ci/setup-bats.sh`         | `make setup-bats`        | Install bats-core (test harness) idempotently across darwin/linux. | keelcore/standards |
 | `scripts/install-hooks.sh`         | `make install-hooks`     | Point `core.hooksPath` at the versioned `scripts/hooks/`.          | keelcore/standards |
 | `scripts/lint/newlines.sh`         | `make lint-newlines`     | Trailing newline enforcement for `.md`, `.sh`, `.go` files.        | keelcore/standards |
-| `scripts/test/coverage.sh`         | `make coverage`          | Coverage report: total %, uncovered statements, total lines.       | keelcore/standards |
-| `scripts/test/coverage-delta.sh`   | `make ci-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold).          | keelcore/standards |
+| `scripts/test/coverage.sh`         | `make test-coverage`          | Coverage report: total %, uncovered statements, total lines.       | keelcore/standards |
+| `scripts/test/coverage-delta.sh`   | `make check-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold).          | keelcore/standards |
 | `scripts/check-legal-drift.sh`     | `make check-legal-drift` | Verify copied legal files match the source of truth.               | project-specific   |
 | `scripts/lib/paths.sh`             | _(sourced; no target)_   | Shared path-filter helpers; sourced by other scripts.              | keelcore/standards |
 
@@ -184,10 +184,10 @@ from the standards repo to verify compliance.
 
 | Script                              | Makefile target                                            | Responsibility                                                  |
 | ----------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
-| `scripts/release/checksums.sh`      | `make release-checksums` / `make release-checksums-verify` | Generate or verify `dist/SHA256SUMS`.                           |
-| `scripts/release/sbom.sh`           | `make release-sbom`                                        | Generate SPDX JSON SBOM via syft.                               |
-| `scripts/release/sign.sh`           | `make release-sign`                                        | cosign keyless signing of all release artifacts.                |
-| `scripts/release/upload.sh`         | `make release-upload`                                      | Upload artifacts to GitHub Release via gh CLI.                  |
+| `scripts/release/checksums.sh`      | `make generate-release-checksums` / `make verify-release-checksums` | Generate or verify `dist/SHA256SUMS`.                           |
+| `scripts/release/sbom.sh`           | `make generate-sbom`                                        | Generate SPDX JSON SBOM via syft.                               |
+| `scripts/release/sign.sh`           | `make sign-release`                                        | cosign keyless signing of all release artifacts.                |
+| `scripts/release/upload.sh`         | `make upload-release`                                      | Upload artifacts to GitHub Release via gh CLI.                  |
 | `scripts/release/create-release.sh` | `make create-release`                                      | Semver bump from project hook + signed tag; developer action.   |
 
 ### Required for projects with container images
@@ -202,7 +202,7 @@ from the standards repo to verify compliance.
 | ------------------------------- | ------------------------- | --------------------------------------------------------- |
 | `scripts/lint/helm.sh`          | `make lint-helm`          | `helm lint` + template render; no cluster required.       |
 | `scripts/lint/helm-validate.sh` | `make lint-helm-validate` | kubeconform schema validation of rendered Helm templates. |
-| `scripts/release/helm-push.sh`  | `make release-helm-push`  | OCI Helm chart push to GHCR + cosign signing.             |
+| `scripts/release/helm-push.sh`  | `make push-helm-chart`  | OCI Helm chart push to GHCR + cosign signing.             |
 
 ## Source File Formatting Invariants
 
@@ -274,9 +274,9 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
 - **Run:** each tool target runs `scripts/dev/run.sh`, which starts the image with the repository mounted
   read-only and its output directories writable (`containers/writable`, one per line; default `target/`). A
   submodule is mounted as a standalone snapshot under `/tmp` (a clone with its current files), never through its
-  superproject. Targets whose job is editing tracked files (`format`, `coverage-baseline-init`, a publish step that
+  superproject. Targets whose job is editing tracked files (`format`, `generate-coverage-baseline`, a publish step that
   stamps a version) mount it writable explicitly (`--writable`); in a snapshot their edits are copied back.
-  `make dev-shell` opens a shell in the image.
+  `make run-dev-shell` opens a shell in the image.
 - **Git hooks:** inside a hook (`GIT_INDEX_FILE` set), the tool-image scripts drop the hook's git environment
   before running git in other repositories (the `.standards` submodule, snapshots) and never build an image: a
   commit that changes a build context is checked with the pinned image. A TTY is requested only when stdin and
@@ -284,7 +284,7 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
 - **Environment:** `run.sh` passes variables by name (`-e NAME`), so no value, token or other, appears in the
   runtime's argument list.
 - **Registry credentials:** in CI, one login per job into a per-job `DOCKER_CONFIG` (under `$RUNNER_TEMP`), mounted
-  read-only into the tool container, which never logs in itself. On a developer machine, `make dev-image-publish`
+  read-only into the tool container, which never logs in itself. On a developer machine, `make publish-dev-image`
   logs Apple `container` in once, only when it holds no credential for the registry, and never logs out: one
   credential read per `container system start`.
 - **Builder size:** Apple `container` builds use `KEELCORE_BUILD_CPUS` (4) and `KEELCORE_BUILD_MEMORY` (8g), and a
@@ -294,13 +294,13 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
   a multi-arch index and signed keyless. `run.sh` uses, in order: the image `containers/NAME/image.ref` pins by
   digest when it matches the tree's context; the published `ctx-<hash>` of that context; a local build of it. Each
   context is therefore built once on a developer machine (before its commit) and published once by CI; every other
-  machine pulls it. `make update-pins APPLY=1` (or `make dev-image-ref`) pins a published context by digest.
+  machine pulls it. `make update-pins APPLY=1` (or `make update-dev-image-ref`) pins a published context by digest.
 - **Publish once per context:** `dev-image.yml` is a reusable workflow. The project's `ci.yml` calls it as its first
   job on every push to `main` (`publish.sh` skips a context GHCR already holds), and every job that runs tool
   targets `needs:` it, so those jobs pull the one image. Pull requests do not publish; their jobs pull a published
   context or build it in the runner.
 - **Project hook:** after each mode, `publish.sh` runs `scripts/dev/publish.local.sh MODE` when the repository holds
-  it (`push`, `merge`, `ref`, `local`), e.g. to check the published packages after `make dev-image-publish`.
+  it (`push`, `merge`, `ref`, `local`), e.g. to check the published packages after `make publish-dev-image`.
 - **Workflows** run the same `make` targets: no `setup-*` steps and no `actions/setup-<language>` actions in jobs
   that run tool targets. Each such job ends with `make check-clean-tree`: the job left the working tree
   exactly as checked out.
@@ -378,7 +378,7 @@ Projects extend discovery, holds, verification targets and appliers through `scr
 - Signing lives in `scripts/release/sign.sh`; workflow YAML provides only the OIDC token and artifact path.
 - Signatures and certificates are uploaded alongside binaries.
 - The release's last step verifies every asset: `SHA256SUMS`, and each cosign bundle against the release workflow's
-  identity (`make release-verify-blobs`).
+  identity (`make verify-release-blobs`).
 - The GitHub Release notes carry the signed tag message, the version's CHANGELOG entries (its `## [X.Y.Z]` section,
   else the `[Unreleased]` entries added since the previous tag), the pins table at the tag (`docs/current_pins.md`,
   committed with the pins), verify instructions and the provenance kinds the release carries, for every project.
@@ -397,7 +397,7 @@ Projects extend discovery, holds, verification targets and appliers through `scr
   cannot identify (from the image's installers).
 - Each artifact's provenance is attached as its registry published it (npm attestations, PyPI provenance, GitHub
   build attestations, the Go checksum database record).
-- Both are attached to the GitHub Release, covered by `SHA256SUMS`, and signed (`make release-assets`).
+- Both are attached to the GitHub Release, covered by `SHA256SUMS`, and signed (`make build-release-assets`).
 
 ### Artifact Integrity Between Jobs
 
@@ -640,3 +640,15 @@ pre-release identifiers (`-alpha.1`) and build metadata (`+sha`) are not support
 - Ship release artifacts without provenance attestation, signatures, or checksums.
 - Create, push, or move version tags from CI. Tags are a developer action only.
 - Bypass the `create-release.sh` script to tag manually without its approval step.
+
+## Make Targets
+
+Every target is verb-first: `<verb>-<object>[-<qualifier>]` (`test-unit`, `lint-go`, `sign-release`, `push-dev-image`).
+A project hook is the canonical target's name plus `-local`. There is one target per job, with no aliases.
+
+- **Verbs**, each with one meaning: apply, bootstrap, build, check, clean, create, deploy, detect, format, generate, help,
+  install, lint, load, login, merge, migrate, publish, push, refresh, report, run, set, setup, sign, teardown, test,
+  update, upload, verify, wait.
+- **Single-word aggregates:** `audit`, `build`, `clean`, `format`, `help`, `lint`, `test`.
+- `make audit` (Rule 8) enforces this. A renamed target keeps its old name for one major release, as a recipe that prints
+  the new name and fails (`scripts/ci/renamed-target.sh`).

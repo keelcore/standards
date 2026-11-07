@@ -183,7 +183,7 @@ function detect_consumer() {
 # have to chain it with a manual prerequisite.
 #
 # Dry-run mode does NOT migrate: it reports the pending migration and
-# exits 1 so the CI governance gate fails until 'make governance-refresh'
+# exits 1 so the CI governance gate fails until 'make refresh-governance'
 # is run for real.
 #
 # Scope: fires only when STANDARDS_ROOT is a directory NESTED inside
@@ -202,7 +202,7 @@ function ensure_consumer_migrated() {
   fi
   if [ "${DRY_RUN}" -eq 1 ]; then
     log "🛠  Consumer Makefile is unmigrated — would invoke migrate-makefile.sh"
-    log "⚠️  dry-run: migration pending. Run 'make governance-refresh' to apply."
+    log "⚠️  dry-run: migration pending. Run 'make refresh-governance' to apply."
     exit 1
   fi
   log "🛠  Consumer Makefile is unmigrated — invoking migrate-makefile.sh"
@@ -223,7 +223,7 @@ function maybe_pull_submodule() {
   git -C "${REPO_ROOT}" submodule update --remote --merge .standards
 }
 
-# When `make governance-refresh` invokes the consumer's LOCAL copy at
+# When `make refresh-governance` invokes the consumer's LOCAL copy at
 # scripts/governance-refresh.sh, that copy may be older than the canonical
 # at .standards/scripts/governance-refresh.sh — the running process was
 # loaded into bash memory before maybe_pull_submodule fetched the fresh
@@ -540,7 +540,7 @@ function dry_run_exit() {
     pending=1
   fi
   if [ "${pending}" -eq 1 ]; then
-    log "⚠️  dry-run: changes pending. Run 'make governance-refresh' to apply"
+    log "⚠️  dry-run: changes pending. Run 'make refresh-governance' to apply"
     log "    plumbing; substantive recipe drift requires MANUAL repair."
     exit 1
   fi

@@ -11,13 +11,13 @@
 # that increases coverage (and the increased numbers should become the
 # new baseline).
 #
-# Canonical (shipped). Invoked as `make coverage-baseline-init`.
+# Canonical (shipped). Invoked as `make generate-coverage-baseline`.
 #
 # Usage:
 #   bash coverage-baseline-init.sh [--source PATH] [--target PATH]
 #
 #   --source PATH  defaults to ${REPO_ROOT}/target/llvm-cov/lcov.info
-#                  if missing, runs `make coverage` to generate it
+#                  if missing, runs `make test-coverage` to generate it
 #   --target PATH  defaults to ${REPO_ROOT}/tests/coverage-baseline.lcov
 
 # bash configuration:
@@ -62,8 +62,8 @@ function ensure_source() {
   if [ -f "${SOURCE}" ]; then
     return 0
   fi
-  log "ℹ️  source LCOV missing at ${SOURCE}; running 'make coverage'..."
-  make -C "${REPO_ROOT}" coverage >&2
+  log "ℹ️  source LCOV missing at ${SOURCE}; running 'make test-coverage'..."
+  make -C "${REPO_ROOT}" test-coverage >&2
   if [ ! -f "${SOURCE}" ]; then
     log "❌ coverage did not produce ${SOURCE}"
     exit 2

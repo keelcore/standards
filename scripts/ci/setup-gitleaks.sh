@@ -48,7 +48,7 @@ function install_gitleaks() {
     return 0
   fi
   if [[ "$(uname -s)" != 'Linux' ]]; then
-    log '❌ gitleaks installs in the dev image (Linux); run: make ci-secret-scan'
+    log '❌ gitleaks installs in the dev image (Linux); run: make check-secrets'
     exit 1
   fi
   require_image_build

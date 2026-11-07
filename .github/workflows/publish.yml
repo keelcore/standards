@@ -52,12 +52,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - run: make release-npm
+      - run: make publish-npm
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
           KEELCORE_DEV_ENV: INPUT_TAG
-      - run: make release-wait-published ARGS="npm"
+      - run: make wait-for-publish ARGS="npm"
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
@@ -79,13 +79,13 @@ jobs:
           persist-credentials: false
           fetch-tags: true
 
-      - run: make release-pypi
+      - run: make publish-pypi
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
         with:
           packages-dir: target/dist/
-      - run: make release-wait-published ARGS="pypi"
+      - run: make wait-for-publish ARGS="pypi"
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
@@ -109,12 +109,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - run: make release-go
+      - run: make publish-go
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
           KEELCORE_DEV_ENV: INPUT_TAG
-      - run: make release-wait-published ARGS="go"
+      - run: make wait-for-publish ARGS="go"
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}

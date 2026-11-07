@@ -66,7 +66,7 @@ setup() {
 
 @test "codeql.yml: analyzes the detected languages, and nothing when there are none" {
   local -r wf="${STANDARDS}/.github/workflows/codeql.yml"
-  grep -q 'run: make codeql-languages' "${wf}"
+  grep -q 'run: make detect-codeql-languages' "${wf}"
   grep -q 'language: ${{ fromJSON(needs.languages.outputs.languages) }}' "${wf}"
   grep -q "if: \${{ needs.languages.outputs.languages != '\[\]' }}" "${wf}"
 }

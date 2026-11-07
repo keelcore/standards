@@ -38,7 +38,7 @@ jobs:
           submodules: recursive
       - name: Detect languages
         id: detect
-        run: make codeql-languages
+        run: make detect-codeql-languages
 
   # ---------------------------------------------------------------------------
   # CodeQL — SAST. Results upload to the repository's code scanning alerts.

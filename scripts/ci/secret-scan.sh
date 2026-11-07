@@ -33,7 +33,7 @@ function validate_args() { :; }
 
 function ensure_gitleaks() {
   command -v gitleaks >/dev/null 2>&1 && return 0
-  log 'ERROR: gitleaks not found; the secret scan runs in the dev image: make ci-secret-scan'
+  log 'ERROR: gitleaks not found; the secret scan runs in the dev image: make check-secrets'
   exit 1
 }
 

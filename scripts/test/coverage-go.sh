@@ -3,7 +3,7 @@
 # Emit Go coverage as an LCOV tracefile for EVERY Go module in the repo — the
 # root module, or nested modules (clients/*, proxy/*) when there is no root
 # go.mod. LCOV is the common interchange format (same as lcov/gcov on Linux), so
-# `make coverage` can concatenate this with the other languages' tracefiles into
+# `make test-coverage` can concatenate this with the other languages' tracefiles into
 # one report bucketed by source-file extension. Skips with exit 0 when there is
 # no Go scope.
 #

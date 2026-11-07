@@ -2,7 +2,7 @@
 # helm-push.sh
 # Package the repository's Helm chart and push it to GHCR as an OCI artifact.
 # Signs the pushed chart digest with cosign keyless signing. Runs in the dev
-# image (make release-helm-push), which carries helm and cosign.
+# image (make push-helm-chart), which carries helm and cosign.
 #
 # Required environment variables:
 #   GITHUB_TOKEN   — GHCR write token (GITHUB_TOKEN in Actions)

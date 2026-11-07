@@ -99,7 +99,7 @@ unchanged.
 - It reports the raw change. It does not apply pre-1.0 demotion or add the demotion note; the driver does both.
 - It is read-only and deterministic: it runs from the git toplevel against the clean `HEAD`, and never tags, commits,
   pushes or writes outside temporary files.
-- It is never canonical. `verify-canonical` and `governance-refresh` skip `*.local.sh`, so `keelcore/standards`' own
+- It is never canonical. `verify-canonical` and `refresh-governance` skip `*.local.sh`, so `keelcore/standards`' own
   hook is never copied into a project and a project's hook is never overwritten.
 
 ### The project's release-policy document
@@ -168,7 +168,7 @@ preconditions and stale pins as warnings. CI picks up the pushed tag and runs th
 A pin is stale when an eligible newer release exists (`governance/ci.md` "Pin Refresh": no prereleases, 14-day
 cooldown) and was not adopted. Majors outside GitHub Actions stay report-only until named with `MAJOR=`.
 `create-release` reads the status recorded in
-`docs/current_pins.md` by the last `make update-pins APPLY=1` or `make pins-doc`, lists every stale pin with the
+`docs/current_pins.md` by the last `make update-pins APPLY=1` or `make generate-pins-doc`, lists every stale pin with the
 consequence of staying on it, and refuses to tag. Upstream releases after that commit reach the next
 `make update-pins` run, never the tag. A tool-image pin (`containers/NAME/image.ref`) never blocks: `run.sh` builds an
 unpublished build context locally, and `make update-pins APPLY=1` pins it once it is published.

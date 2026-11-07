@@ -3,8 +3,8 @@
 # CI/standards compliance auditor — a GATE. Enforces six invariants:
 #   1. Every workflow run: step is `make <target>` — no direct tool calls.
 #   2. Every scripts/**/*.sh (except scripts/lib/) has a Makefile target.
-#   3. Universal canonical targets (build, lint, test, unit-test,
-#      integration-test, clean, audit) are defined in the Makefile.
+#   3. Universal canonical targets (build, lint, test, test-unit,
+#      test-integration, clean, audit) are defined in the Makefile.
 #   4. Every Makefile target has at most one active recipe line, and that
 #      line invokes a single scripts/**/*.sh script. @echo / blank / # are
 #      ignored; multi-step orchestration belongs in scripts/, not Makefile.
@@ -13,6 +13,8 @@
 #      script paths).
 #   6. No runtime tool installs in workflows (`actions/setup-*`, `make setup-*`):
 #      tools come from the tool image; host jobs are listed in .runtime-install-exceptions.
+#   7. SECURITY.md, CODEOWNERS and dependabot.yml exist.
+#   8. Targets are verb-first (<verb>-<object>[-<qualifier>]).
 #
 # Exit semantics:
 #   - Exit 0 only when every invariant holds; exit 1 when any finding is
@@ -179,10 +181,10 @@ readonly -a UNIVERSAL_TARGETS=(
   audit
   build
   clean
-  integration-test
   lint
   test
-  unit-test
+  test-integration
+  test-unit
 )
 
 function check_universal_targets() {
@@ -388,6 +390,25 @@ function check_required_files() {
   return "${failed}"
 }
 
+# Rule 8: targets are verb-first, <verb>-<object>[-<qualifier>], from a fixed list; single-word
+# aggregates are the exceptions. A renamed target (scripts/ci/renamed-target.sh) is exempt.
+readonly TARGET_VERBS='apply|bootstrap|build|check|clean|create|deploy|detect|format|generate|help|install|lint|load|login|merge|migrate|publish|pull|push|refresh|report|run|set|setup|sign|teardown|test|update|upload|verify|wait'
+readonly TARGET_AGGREGATES='audit|build|clean|format|help|lint|test'
+
+function check_target_names() {
+  local failed=0 target
+  while IFS= read -r target; do
+    [[ "${target}" =~ ^(${TARGET_VERBS})-[a-z0-9][a-z0-9-]*$ ]] && continue
+    [[ "${target}" =~ ^(${TARGET_AGGREGATES})$ ]] && continue
+    log "❌ Rule 8: target '${target}' is not verb-first (governance/ci.md, Make Targets)"
+    failed=1
+  done < <(awk '
+      /^[A-Za-z0-9_-]+:([^=]|$)/ { if (t != "" && !renamed) print t; split($0, a, ":"); t = a[1]; renamed = 0; next }
+      /^\t.*renamed-target\.sh/ { renamed = 1 }
+      END { if (t != "" && !renamed) print t }' "${EXPANDED_MAKEFILE}" | sort -u)
+  return "${failed}"
+}
+
 # runtime_install_steps: "<workflow file>\t<job id>\t<step line>" for every setup step.
 function runtime_install_steps() {
   local f
@@ -416,6 +437,7 @@ function main() {
   check_recipe_shape       || overall=1
   check_runtime_installs   || overall=1
   check_required_files     || overall=1
+  check_target_names       || overall=1
 
   if [ "${overall}" -eq 0 ]; then
     log '✅ CI audit clean: all Makefile target invariants satisfied.'
@@ -423,7 +445,7 @@ function main() {
   fi
   log ''
   log '❌ CI audit failed: findings above violate the Makefile/CI invariants.'
-  log '   Run `make governance-refresh` to reconcile canonical files; resolve'
+  log '   Run `make refresh-governance` to reconcile canonical files; resolve'
   log '   any remaining findings (e.g., new local script needs a Makefile'
   log '   target) by hand.'
   exit 1

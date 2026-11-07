@@ -60,7 +60,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 2
-      - run: make ci-pr-policy
+      - run: make check-pr-policy
       - run: make check-clean-tree
 
   check-governance:
@@ -116,7 +116,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
           persist-credentials: false
-      - run: make integration-test
+      - run: make test-integration
       - run: make check-clean-tree
 
   verify-go:

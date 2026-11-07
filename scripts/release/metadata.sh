@@ -2,7 +2,7 @@
 # metadata.sh
 # Generate the release metadata concurrently (scripts/lib/parallel.sh): one SBOM per release binary
 # (the project, its version, the Go modules compiled into it) and the OpenVEX document from govulncheck
-# reachability. Runs in the dev image (make release-metadata).
+# reachability. Runs in the dev image (make generate-release-metadata).
 #
 # Required environment variables:
 #   TAG — the release tag

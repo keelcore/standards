@@ -71,7 +71,7 @@ function validate_env() {
   local tool
   for tool in syft jq unzip; do
     command -v "${tool}" > /dev/null 2>&1 && continue
-    log "❌ ${tool} not found on PATH (the dev image carries it: make release-sbom)"
+    log "❌ ${tool} not found on PATH (the dev image carries it: make generate-sbom)"
     exit 1
   done
 }

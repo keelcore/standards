@@ -4,7 +4,7 @@
 # before the registry has finished processing it, and the release job reads what the registries
 # serve, so each publish job ends here. The job's timeout-minutes is the only limit.
 #
-# Usage: wait-published.sh npm|pypi|go   (make release-wait-published ARGS=...)
+# Usage: wait-published.sh npm|pypi|go   (make wait-for-publish ARGS=...)
 # Tag: GITHUB_REF_NAME, else INPUT_TAG.
 
 # bash configuration:

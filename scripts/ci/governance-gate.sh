@@ -2,10 +2,10 @@
 # governance-gate.sh
 # CI gate. Wraps `governance-refresh.sh --dry-run` and translates pending
 # changes into a non-zero exit so PR CI fails. Contributor must run
-# `make governance-refresh`, stage the diff, and push.
+# `make refresh-governance`, stage the diff, and push.
 #
 # Canonical (shipped to consumers via bootstrap-standards.sh). Invoked from
-# CI workflow as `make ci-governance-gate`.
+# CI workflow as `make check-governance`.
 #
 # Usage: bash governance-gate.sh
 #
@@ -55,7 +55,7 @@ function main() {
   log ""
   printf '%s\n' "${output}" | while IFS= read -r line; do log "   ${line}"; done
   log ""
-  log "Remediation: run 'make governance-refresh' locally, stage the diff,"
+  log "Remediation: run 'make refresh-governance' locally, stage the diff,"
   log "commit, and push."
   exit 1
 }

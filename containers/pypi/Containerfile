@@ -2,7 +2,7 @@
 # keelcore-standards PyPI build image: CPython (.python-version) and the
 # hash-locked build tooling (scripts/release/pypi/requirements-build.txt),
 # installed once at build time. scripts/release/pypi-publish.sh builds the wheel
-# and sdist in it (make release-pypi) with nothing else installed.
+# and sdist in it (make publish-pypi) with nothing else installed.
 # Build context: the repository root.
 
 FROM python:3.12.15-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704

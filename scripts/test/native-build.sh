@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/test/native-build.sh
 # Cross-build everything a native macOS or Windows job runs, in the dev image
-# (make native-build OS=darwin|windows ARCH=arm64|amd64). The native job only
+# (make build-native OS=darwin|windows ARCH=arm64|amd64). The native job only
 # executes the output (scripts/test/native-run.sh): it installs no toolchain.
 #
 # Output, under target/native/<os>-<arch>/:

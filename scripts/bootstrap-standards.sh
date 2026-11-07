@@ -32,7 +32,7 @@
 #     canonical, so governance-refresh never copies the standards repo's own.
 #
 # For ongoing reconciliation after bootstrap, the consumer runs
-# `make governance-refresh`.
+# `make refresh-governance`.
 #
 # Run locally:  bash .standards/scripts/bootstrap-standards.sh
 

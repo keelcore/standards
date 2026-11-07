@@ -18,11 +18,11 @@ endif
 
 include templates/Makefile.canonical
 
-.PHONY: integration-test-local
+.PHONY: test-integration-local
 .PHONY: create-release-local
 
-## BATS suites under tests/ — also delegated to by canonical integration-test.sh (`make integration-test`)
-integration-test-local:
+## BATS suites under tests/ — also delegated to by canonical integration-test.sh (`make test-integration`)
+test-integration-local:
 	@echo "🧪 Running standards BATS suites..."
 	bash scripts/integration-test.local.sh
 

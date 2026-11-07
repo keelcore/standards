@@ -16,7 +16,7 @@
 #   2  — hard error (bad args, missing baseline, malformed LCOV)
 #
 # Canonical (shipped to consumers via bootstrap-standards.sh). CI invokes
-# it as `make ci-coverage-no-regression`.
+# it as `make check-coverage-regression`.
 #
 # Usage:
 #   bash coverage-no-regression.sh [--baseline PATH] [--current PATH]
@@ -65,13 +65,13 @@ function parse_args() {
 function validate_files() {
   if [ ! -f "${BASELINE}" ]; then
     log "❌ coverage-no-regression: baseline missing at ${BASELINE}"
-    log "   Run 'make coverage-baseline-init' once to establish it,"
+    log "   Run 'make generate-coverage-baseline' once to establish it,"
     log "   then commit the resulting tests/coverage-baseline.lcov."
     exit 2
   fi
   if [ ! -f "${CURRENT}" ]; then
     log "❌ coverage-no-regression: current LCOV missing at ${CURRENT}"
-    log "   Run 'make coverage' first."
+    log "   Run 'make test-coverage' first."
     exit 2
   fi
 }

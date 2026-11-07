@@ -19,7 +19,7 @@
 #   - SHA256SUMS over all of the above, and a keyless cosign bundle per file
 #     (scripts/release/sign.sh)
 #
-# Usage: release-assets.sh TAG DIR   (in the dev image: make release-assets TAG=vX.Y.Z)
+# Usage: release-assets.sh TAG DIR   (in the dev image: make build-release-assets TAG=vX.Y.Z)
 # Env: ACTIONS_ID_TOKEN_REQUEST_URL / _TOKEN (keyless signing in GitHub Actions); GITHUB_REPOSITORY
 # (owner/repo: its build attestations); GITHUB_TOKEN (optional: the attestation API's rate limit).
 # RELEASE_LICENSE: the SPDX license id for the SBOMs when package.json / pyproject.toml do not name one.

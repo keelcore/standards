@@ -19,7 +19,7 @@ projects under this governance. They are non-negotiable and take precedence over
 
 ## Test Suite Execution
 
-- Run `make test` (or `make unit-test` at minimum) before declaring any code change complete.
+- Run `make test` (or `make test-unit` at minimum) before declaring any code change complete.
 - Do not hand off code without verifying the test suite passes.
 - If tests cannot be run (environment constraint), state this explicitly and enumerate what was not validated.
 

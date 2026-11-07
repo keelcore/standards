@@ -4,7 +4,7 @@
 # cosign bundle against this repository's release workflow identity. Fails if a
 # file has no signature.
 #
-# Usage: verify-blobs.sh DIR   (in the dev image: make release-verify-blobs)
+# Usage: verify-blobs.sh DIR   (in the dev image: make verify-release-blobs)
 # Env: GITHUB_REPOSITORY (owner/repo: the signing identity).
 
 # bash configuration:

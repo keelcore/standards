@@ -5,7 +5,7 @@
 # cargo-llvm-cov runs the cargo test suite as a side effect, so this script
 # also satisfies the "tests must pass" obligation for the Rust scope.
 # Skips with exit 0 when no Rust scope is present (no Cargo.toml at
-# REPO_ROOT) — invoked unconditionally by `make coverage` via the
+# REPO_ROOT) — invoked unconditionally by `make test-coverage` via the
 # aggregator pattern; the per-language gate lives here. HALTs (non-zero) if
 # Rust scope is detected but cargo-llvm-cov is not installed.
 

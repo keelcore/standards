@@ -48,8 +48,8 @@ Every project MUST define the following test layers. Names and Makefile targets 
 
 | Layer       | Makefile target         | Scope                                  | External deps        |
 | ----------- | ----------------------- | -------------------------------------- | -------------------- |
-| Unit        | `make unit-test`        | In-process logic; no system boundaries | None                 |
-| Integration | `make integration-test` | Binary + real peers                    | Test daemons on PATH |
+| Unit        | `make test-unit`        | In-process logic; no system boundaries | None                 |
+| Integration | `make test-integration` | Binary + real peers                    | Test daemons on PATH |
 | Compose     | `make test-compose`     | Full stack via Docker Compose          | Docker               |
 | Kubernetes  | `make test-k8s`         | Helm deploy + pod probes               | kind / Docker        |
 
@@ -66,8 +66,8 @@ Every project MUST define the following test layers. Names and Makefile targets 
 - Unit test runner MUST emit JUnit XML (`gotestsum --junitfile` or equivalent).
 - Upload JUnit XML as a workflow artifact for test history and flake detection.
 - Coverage profile MUST be produced on every unit test run.
-- `make coverage` prints: total %, uncovered statement count, total statement count.
-- `make ci-coverage-delta` compares PR head coverage against the merge-target base branch; fails if coverage drops
+- `make test-coverage` prints: total %, uncovered statement count, total statement count.
+- `make check-coverage-delta` compares PR head coverage against the merge-target base branch; fails if coverage drops
   beyond the configured threshold.
 
 ## Coverage Regression Policy
@@ -92,13 +92,13 @@ Granularity, baseline, comparison:
     coverage cause the gate to fail. This is an absolute floor — no override.
   - **Deleted files** (`SF:` present only in baseline): drop out of comparison, but the baseline entry MUST be removed
     in the same change set; otherwise the audit flags a stale baseline.
-- The enforcement target is `make ci-coverage-no-regression`. The implementation lives at
-  `scripts/test/coverage-no-regression.sh` (canonical; shipped). It consumes the LCOV from `make coverage` and the
+- The enforcement target is `make check-coverage-regression`. The implementation lives at
+  `scripts/test/coverage-no-regression.sh` (canonical; shipped). It consumes the LCOV from `make test-coverage` and the
   baseline at `tests/coverage-baseline.lcov`; exits non-zero on any per-file regression OR new-file floor violation.
 
 Two consequences when a regression is detected:
 
-1. **CI gates the merge.** `make ci-coverage-no-regression` exits non-zero. The PR is rejected.
+1. **CI gates the merge.** `make check-coverage-regression` exits non-zero. The PR is rejected.
 2. **Assistant workflow procedure.** An assistant detecting a regression in its own work-in-progress MUST NOT present
    the change for human approval. It MUST revert the offending change set, then report to the human: the file(s) whose
    coverage decreased, the prior and current percentages, and the revert. The decision about next action belongs to
@@ -110,7 +110,7 @@ Edge cases:
   set. The comparison sees no `SF:` for that path in either side.
 - **Splitting a file** (one file becomes two) is treated as removal + two new files. Each resulting file is subject
   to the new-file 95% floor from its first measurement; the original baseline entry is removed in the same change set.
-- **Baseline initialization** (the first run of `make coverage-baseline-init` against a repo with no prior baseline)
+- **Baseline initialization** (the first run of `make generate-coverage-baseline` against a repo with no prior baseline)
   is exempt from the 95% new-file floor — every file is captured at its current ratio to seed the baseline. From the
   second change set onward the rule binds in full: existing-file no-regression PLUS new-file 95% floor.
 - **Non-determinism in coverage tooling** (per-file numbers that drift across runs without code change) is itself a

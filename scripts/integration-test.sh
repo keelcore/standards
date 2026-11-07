@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # integration-test.sh
-# Canonical entrypoint for `make integration-test`. Delegates to
+# Canonical entrypoint for `make test-integration`. Delegates to
 # scripts/integration-test.local.sh if present, allowing each consumer to
 # define end-to-end / BATS / cross-service test invocation without
 # modifying the canonical script. If no local recipe exists, prints a

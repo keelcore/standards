@@ -208,7 +208,7 @@ function write_ref() {
   local -r repository="$(dev_repository . "${name}")"
   local digest
   digest="$(remote_digest "${repository}:ctx-${hash}")" \
-    || { log "❌ ${repository}:ctx-${hash} is not published yet (make dev-image-publish)"; exit 1; }
+    || { log "❌ ${repository}:ctx-${hash} is not published yet (make publish-dev-image)"; exit 1; }
   printf '%s:ctx-%s@%s\n' "${repository}" "${hash}" "${digest}" > "$(dev_ref_file "${name}")"
   log "✅ $(dev_ref_file "${name}"): ${repository}:ctx-${hash}@${digest}"
 }

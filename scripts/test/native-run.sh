@@ -50,7 +50,7 @@ function log() {
 
 function validate_args() {
   if [ "${#}" -ne 1 ] || [ ! -f "${1:-}/tests.tsv" ]; then
-    log '❌ Usage: native-run.sh target/native/<os>-<arch>   (built by make native-build)'
+    log '❌ Usage: native-run.sh target/native/<os>-<arch>   (built by make build-native)'
     exit 1
   fi
 }

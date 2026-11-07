@@ -5,7 +5,7 @@
 # CHANGELOG section for the version, the pins table, and how to verify the assets.
 # Idempotent: a rerun updates the notes and replaces assets of the same name.
 #
-# Usage: github-release.sh TAG DIR   (in the dev image: make release-github TAG=vX.Y.Z)
+# Usage: github-release.sh TAG DIR   (in the dev image: make publish-github-release TAG=vX.Y.Z)
 # Env: GITHUB_TOKEN (contents: write), GITHUB_REPOSITORY (owner/repo).
 
 # bash configuration:

@@ -64,5 +64,5 @@ copy_canonical_scripts() {
   rm scripts/release/pypi-publish.sh
   run bash scripts/ci/audit-make-targets.sh
   [ "${status}" -eq 1 ]
-  [[ "${output}" == *"Rule 5: target 'release-pypi'"* ]] || false
+  [[ "${output}" == *"Rule 5: target 'publish-pypi'"* ]] || false
 }

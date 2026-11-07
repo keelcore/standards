@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # unit-test.sh
-# Canonical entrypoint for `make unit-test`. Delegates to
+# Canonical entrypoint for `make test-unit`. Delegates to
 # scripts/unit-test.local.sh if present, allowing each consumer to define
 # language-specific unit-test invocation (go test, cargo test, npm test,
 # etc.) without modifying the canonical script. If no local recipe

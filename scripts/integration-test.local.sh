@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # integration-test.local.sh
 # keelcore/standards integration tests, delegated to by the canonical
-# scripts/integration-test.sh (`make integration-test`). Runs every BATS suite
+# scripts/integration-test.sh (`make test-integration`). Runs every BATS suite
 # under tests/. Project-owned, never canonical: verify-canonical and
 # governance-refresh skip *.local.sh, so consumers never receive this file.
 

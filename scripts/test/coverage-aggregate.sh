@@ -24,7 +24,7 @@ function log() {
 function main() {
   exec 5>&1
   if ! ls "${COVERAGE_DIR}"/*.lcov >/dev/null 2>&1; then
-    log 'ℹ️  no per-language LCOV tracefiles found; run make coverage-go / coverage-rust first.'
+    log 'ℹ️  no per-language LCOV tracefiles found; run make test-coverage-go / coverage-rust first.'
     return 0
   fi
   : > "${MERGED}"

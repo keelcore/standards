@@ -14,19 +14,19 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
-- `make setup-apple-container` (`scripts/ci/setup-apple-container.sh`): installs Apple `container` from the signed
-  installer package of its latest GitHub release, checked against the published SHA-256, Apple's signature and
-  notarization, then starts the system and installs its default kernel when it has none. Runs on the Mac host; when
-  the latest version and a kernel are present it changes nothing.
-- `make wait-for-ci` (`scripts/release/wait-ci.sh`): waits, with progress, for the GitHub Actions runs on a commit to
-  finish, then fails if any is red. The tag's publish workflow runs it first, so a red commit is never published; the host
-  never waits for CI.
+- `make wait-for-ci` (`scripts/release/wait-ci.sh`): waits, with progress, for the GitHub Actions runs on a commit to finish,
+  then fails if any is red. The tag's publish workflow runs it first, so a red commit is never published; the host never
+  waits for CI.
 - `make update-pins MAJOR='NAME ...'` (`--major NAME`): moves a named pin to its newest release of any major past the
   cooldown, with the usual verification.
 - `make pull-dev-image` (`scripts/dev/pull.sh`): fetches the pinned dev image onto this machine.
 - `make update-pins` prints progress every 30 seconds while it verifies (`UPDATE_PINS_PROGRESS_SECONDS`): elapsed
   time, pin, image build step and latest log line for each running pin and the combined run, and a result line as each
   pin finishes.
+- `make setup-apple-container` (`scripts/ci/setup-apple-container.sh`): installs Apple `container` from the signed
+  installer package of its latest GitHub release, checked against the published SHA-256, Apple's signature and
+  notarization, then starts the system and installs its default kernel when it has none. Runs on the Mac host; when
+  the latest version and a kernel are present it changes nothing.
 - Canonical image release, chart push, upload and self-verification: `make release-images`, `release-helm-push`,
   `release-upload`, `release-verify`, `release-metadata`, `release-ghcr-login`, driven by `config/release-images.local.txt`,
   `release-dockerfile.local.txt` and the workflow's repository; grype in the tool image.
@@ -53,8 +53,12 @@ Corrections, clarifications, metadata: patch bump.
   number).
 - A git commit never fetches or stops for the dev image: without it on the machine, or with no pin yet, the hook skips
   those checks and says so, and CI runs them, so a new image can bootstrap.
-- `setup-helm.sh`, `setup-kubeconform.sh`, `setup-kubescape.sh`, `setup-zizmor.sh` and `setup-grype.sh` install in the
-  dev image only; their Homebrew paths are gone.
+- `setup-helm.sh`, `setup-kubeconform.sh`, `setup-kubescape.sh`, `setup-zizmor.sh` and `setup-grype.sh` install in the dev
+  image only; their Homebrew paths are gone.
+- **Breaking:** every make target is verb-first (`governance/ci.md`, Make Targets), and `make audit` enforces it (Rule 8).
+  Old canonical names print the new name and fail, for example `release-sign` to `sign-release`, `dev-image-push` to
+  `push-dev-image`, `pins-doc` to `generate-pins-doc`, `integration-test` to `test-integration`. `unit-test` and the Go runner
+  join as `test-unit`.
 - `make create-release` decides on the pin status committed in `docs/current_pins.md` (`update-pins --from-pins-doc`),
   with no network query, so an upstream change after the commit cannot block a commit that was current. A tree with
   pins and no such document, or a document out of step with the tree, blocks the release (`make pins-doc`).

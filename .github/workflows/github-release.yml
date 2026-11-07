@@ -49,12 +49,12 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - run: make release-assets
+      - run: make build-release-assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: make release-github
+      - run: make publish-github-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: make release-verify-blobs
+      - run: make verify-release-blobs

@@ -110,7 +110,7 @@ calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
   local -r wf="${STANDARDS}/.github/workflows/publish.yml"
   local registry
   for registry in npm pypi go; do
-    grep -qE "run: make release-wait-published ARGS=\"?${registry}\"?$" "${wf}"
+    grep -qE "run: make wait-for-publish ARGS=\"?${registry}\"?$" "${wf}"
   done
   grep -q 'needs: \[publish-npm, publish-pypi, publish-go\]' "${wf}"
 }
@@ -119,6 +119,6 @@ calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
   local -r wf="${STANDARDS}/.github/workflows/publish.yml"
   local upload wait
   upload="$(grep -n 'gh-action-pypi-publish' "${wf}" | cut -d: -f1)"
-  wait="$(grep -n 'release-wait-published ARGS="\?pypi' "${wf}" | cut -d: -f1)"
+  wait="$(grep -n 'wait-for-publish ARGS="\?pypi' "${wf}" | cut -d: -f1)"
   [ "${upload}" -lt "${wait}" ]
 }

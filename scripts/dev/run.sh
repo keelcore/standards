@@ -116,7 +116,7 @@ function dev_image() {
 function hook_image() {
   local -r file="${1}/$(dev_ref_file "${2}")"
   if [ ! -s "${file}" ]; then
-    log "⚠️  ${file} pins no image yet (make dev-image-publish)"
+    log "⚠️  ${file} pins no image yet (make publish-dev-image)"
     return 1
   fi
   local ref
