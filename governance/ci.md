@@ -66,33 +66,33 @@ CI alike. Names are fixed; projects may not rename or skip them. Language-specif
 
 ### Always required
 
-| Target                 | Makefile target          | Script                             | Responsibility                                                     |
-| ---------------------- | ------------------------ | ---------------------------------- | ------------------------------------------------------------------ |
-| Build default artifact | `make build`             | project-specific                   | Produce the primary deliverable (binary, image, package).          |
-| Run all linters        | `make lint`              | project-specific                   | Format check + static analysis. Must invoke `make lint-newlines`.  |
-| Run full test suite    | `make test`              | project-specific                   | Unit + integration tests in sequence.                              |
-| Run unit tests         | `make test-unit`         | `scripts/test/ci.sh`               | Unit tests only; produces JUnit XML and coverage profile.          |
-| Run integration tests  | `make test-integration`  | project-specific                   | BATS / end-to-end tests against a built artifact.                  |
-| Remove artifacts       | `make clean`             | —                                  | Remove `dist/` and generated files.                                |
-| Standards audit        | `make audit`             | `scripts/ci/audit-make-targets.sh` | CI/Makefile compliance auditor.                                    |
-| Code coverage report   | `make test-coverage`          | `scripts/test/coverage.sh`         | Print total %, uncovered statements, total lines.                  |
+| Target                 | Makefile target             | Script                             | Responsibility                                                     |
+| ---------------------- | --------------------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| Build default artifact | `make build`                | project-specific                   | Produce the primary deliverable (binary, image, package).          |
+| Run all linters        | `make lint`                 | project-specific                   | Format check + static analysis. Must invoke `make lint-newlines`.  |
+| Run full test suite    | `make test`                 | project-specific                   | Unit + integration tests in sequence.                              |
+| Run unit tests         | `make test-unit`            | `scripts/test/ci.sh`               | Unit tests only; produces JUnit XML and coverage profile.          |
+| Run integration tests  | `make test-integration`     | project-specific                   | BATS / end-to-end tests against a built artifact.                  |
+| Remove artifacts       | `make clean`                | —                                  | Remove `dist/` and generated files.                                |
+| Standards audit        | `make audit`                | `scripts/ci/audit-make-targets.sh` | CI/Makefile compliance auditor.                                    |
+| Code coverage report   | `make test-coverage`        | `scripts/test/coverage.sh`         | Print total %, uncovered statements, total lines.                  |
 | PR coverage gate       | `make check-coverage-delta` | `scripts/test/coverage-delta.sh`   | Fail PR if coverage drops > threshold vs. base branch.             |
 | PR policy gate         | `make check-pr-policy`      | `scripts/ci/pr-policy.sh`          | Title, body, branch naming, linked issue enforcement.              |
-| Secret scan            | `make check-secrets`    | `scripts/ci/secret-scan.sh`        | gitleaks scan; required on every PR and default-branch push.       |
+| Secret scan            | `make check-secrets`        | `scripts/ci/secret-scan.sh`        | gitleaks scan; required on every PR and default-branch push.       |
 | DCO check              | `make check-dco`            | `scripts/ci/dco-check.sh`          | Signed-off-by trailer on every commit in the PR.                   |
-| Trailing newlines      | `make lint-newlines`     | `scripts/lint/newlines.sh`         | Every `.md`, `.sh`, `.go` ends with `\n`.                          |
-| Legal drift check      | `make check-legal-drift` | `scripts/check-legal-drift.sh`     | Copied legal files (LICENSE, TRADEMARK) match the source of truth. |
+| Trailing newlines      | `make lint-newlines`        | `scripts/lint/newlines.sh`         | Every `.md`, `.sh`, `.go` ends with `\n`.                          |
+| Legal drift check      | `make check-legal-drift`    | `scripts/check-legal-drift.sh`     | Copied legal files (LICENSE, TRADEMARK) match the source of truth. |
 
 ### Required for projects with releases
 
-| Target             | Makefile target                 | Script                                  | Responsibility                                                  |
-| ------------------ | ------------------------------- | --------------------------------------- | --------------------------------------------------------------- |
-| Generate checksums | `make generate-release-checksums`        | `scripts/release/checksums.sh`          | Write `dist/SHA256SUMS` for all release artifacts.              |
-| Verify checksums   | `make verify-release-checksums` | `scripts/release/checksums.sh --verify` | Confirm downloaded artifacts match `SHA256SUMS`.                |
-| Generate SBOM      | `make generate-sbom`             | `scripts/release/sbom.sh`               | SPDX JSON SBOM via syft; attached to every release.             |
-| Sign artifacts     | `make sign-release`             | `scripts/release/sign.sh`               | cosign keyless signing; bundles attached alongside binaries.    |
-| Upload to release  | `make upload-release`           | `scripts/release/upload.sh`             | Push artifacts + checksums + SBOM to GitHub Release.            |
-| Version tagging    | `make create-release`           | `scripts/release/create-release.sh`     | Semver bump from project hook + signed tag; developer action.   |
+| Target             | Makefile target                   | Script                                  | Responsibility                                                |
+| ------------------ | --------------------------------- | --------------------------------------- | ------------------------------------------------------------- |
+| Generate checksums | `make generate-release-checksums` | `scripts/release/checksums.sh`          | Write `dist/SHA256SUMS` for all release artifacts.            |
+| Verify checksums   | `make verify-release-checksums`   | `scripts/release/checksums.sh --verify` | Confirm downloaded artifacts match `SHA256SUMS`.              |
+| Generate SBOM      | `make generate-sbom`              | `scripts/release/sbom.sh`               | SPDX JSON SBOM via syft; attached to every release.           |
+| Sign artifacts     | `make sign-release`               | `scripts/release/sign.sh`               | cosign keyless signing; bundles attached alongside binaries.  |
+| Upload to release  | `make upload-release`             | `scripts/release/upload.sh`             | Push artifacts + checksums + SBOM to GitHub Release.          |
+| Version tagging    | `make create-release`             | `scripts/release/create-release.sh`     | Semver bump from project hook + signed tag; developer action. |
 
 ### Required for projects with container images
 
@@ -106,7 +106,7 @@ CI alike. Names are fixed; projects may not rename or skip them. Language-specif
 | ---------------------- | ------------------------- | ------------------------------- | ------------------------------------------------------ |
 | Helm lint              | `make lint-helm`          | `scripts/lint/helm.sh`          | `helm lint` + template render; no cluster required.    |
 | Helm schema validation | `make lint-helm-validate` | `scripts/lint/helm-validate.sh` | kubeconform validation of rendered templates.          |
-| Helm chart publish     | `make push-helm-chart`  | `scripts/release/helm-push.sh`  | OCI push to GHCR + cosign signing of the chart digest. |
+| Helm chart publish     | `make push-helm-chart`    | `scripts/release/helm-push.sh`  | OCI push to GHCR + cosign signing of the chart digest. |
 
 ## CI Auditor
 
@@ -166,29 +166,29 @@ from the standards repo to verify compliance.
 
 ### Always required
 
-| Script                             | Makefile target          | Responsibility                                                     | Source of truth    |
-| ---------------------------------- | ------------------------ | ------------------------------------------------------------------ | ------------------ |
-| `scripts/ci/audit-make-targets.sh` | `make audit`             | CI/Makefile standards compliance auditor.                          | keelcore/standards |
+| Script                             | Makefile target             | Responsibility                                                     | Source of truth    |
+| ---------------------------------- | --------------------------- | ------------------------------------------------------------------ | ------------------ |
+| `scripts/ci/audit-make-targets.sh` | `make audit`                | CI/Makefile standards compliance auditor.                          | keelcore/standards |
 | `scripts/ci/pr-policy.sh`          | `make check-pr-policy`      | PR policy gate: title, body, branch naming, linked issue.          | project-specific   |
-| `scripts/ci/secret-scan.sh`        | `make check-secrets`    | Secret scanning on every PR and default-branch push.               | keelcore/standards |
+| `scripts/ci/secret-scan.sh`        | `make check-secrets`        | Secret scanning on every PR and default-branch push.               | keelcore/standards |
 | `scripts/ci/dco-check.sh`          | `make check-dco`            | DCO Signed-off-by trailer verification.                            | keelcore/standards |
-| `scripts/ci/setup-bats.sh`         | `make setup-bats`        | Install bats-core (test harness) idempotently across darwin/linux. | keelcore/standards |
-| `scripts/install-hooks.sh`         | `make install-hooks`     | Point `core.hooksPath` at the versioned `scripts/hooks/`.          | keelcore/standards |
-| `scripts/lint/newlines.sh`         | `make lint-newlines`     | Trailing newline enforcement for `.md`, `.sh`, `.go` files.        | keelcore/standards |
-| `scripts/test/coverage.sh`         | `make test-coverage`          | Coverage report: total %, uncovered statements, total lines.       | keelcore/standards |
+| `scripts/ci/setup-bats.sh`         | `make setup-bats`           | Install bats-core (test harness) idempotently across darwin/linux. | keelcore/standards |
+| `scripts/install-hooks.sh`         | `make install-hooks`        | Point `core.hooksPath` at the versioned `scripts/hooks/`.          | keelcore/standards |
+| `scripts/lint/newlines.sh`         | `make lint-newlines`        | Trailing newline enforcement for `.md`, `.sh`, `.go` files.        | keelcore/standards |
+| `scripts/test/coverage.sh`         | `make test-coverage`        | Coverage report: total %, uncovered statements, total lines.       | keelcore/standards |
 | `scripts/test/coverage-delta.sh`   | `make check-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold).          | keelcore/standards |
-| `scripts/check-legal-drift.sh`     | `make check-legal-drift` | Verify copied legal files match the source of truth.               | project-specific   |
-| `scripts/lib/paths.sh`             | _(sourced; no target)_   | Shared path-filter helpers; sourced by other scripts.              | keelcore/standards |
+| `scripts/check-legal-drift.sh`     | `make check-legal-drift`    | Verify copied legal files match the source of truth.               | project-specific   |
+| `scripts/lib/paths.sh`             | _(sourced; no target)_      | Shared path-filter helpers; sourced by other scripts.              | keelcore/standards |
 
 ### Required for projects with releases
 
-| Script                              | Makefile target                                            | Responsibility                                                  |
-| ----------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
-| `scripts/release/checksums.sh`      | `make generate-release-checksums` / `make verify-release-checksums` | Generate or verify `dist/SHA256SUMS`.                           |
-| `scripts/release/sbom.sh`           | `make generate-sbom`                                        | Generate SPDX JSON SBOM via syft.                               |
-| `scripts/release/sign.sh`           | `make sign-release`                                        | cosign keyless signing of all release artifacts.                |
-| `scripts/release/upload.sh`         | `make upload-release`                                      | Upload artifacts to GitHub Release via gh CLI.                  |
-| `scripts/release/create-release.sh` | `make create-release`                                      | Semver bump from project hook + signed tag; developer action.   |
+| Script                              | Makefile target                                                     | Responsibility                                                |
+| ----------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `scripts/release/checksums.sh`      | `make generate-release-checksums` / `make verify-release-checksums` | Generate or verify `dist/SHA256SUMS`.                         |
+| `scripts/release/sbom.sh`           | `make generate-sbom`                                                | Generate SPDX JSON SBOM via syft.                             |
+| `scripts/release/sign.sh`           | `make sign-release`                                                 | cosign keyless signing of all release artifacts.              |
+| `scripts/release/upload.sh`         | `make upload-release`                                               | Upload artifacts to GitHub Release via gh CLI.                |
+| `scripts/release/create-release.sh` | `make create-release`                                               | Semver bump from project hook + signed tag; developer action. |
 
 ### Required for projects with container images
 
@@ -202,7 +202,7 @@ from the standards repo to verify compliance.
 | ------------------------------- | ------------------------- | --------------------------------------------------------- |
 | `scripts/lint/helm.sh`          | `make lint-helm`          | `helm lint` + template render; no cluster required.       |
 | `scripts/lint/helm-validate.sh` | `make lint-helm-validate` | kubeconform schema validation of rendered Helm templates. |
-| `scripts/release/helm-push.sh`  | `make push-helm-chart`  | OCI Helm chart push to GHCR + cosign signing.             |
+| `scripts/release/helm-push.sh`  | `make push-helm-chart`    | OCI Helm chart push to GHCR + cosign signing.             |
 
 ## Source File Formatting Invariants
 

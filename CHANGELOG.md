@@ -59,7 +59,8 @@ Corrections, clarifications, metadata: patch bump.
   image only; their Homebrew paths are gone.
 - **Breaking:** every make target is verb-first (`governance/ci.md`, Make Targets), and `make audit` enforces it (Rule 8).
   Old canonical names print the new name and fail, for example `release-sign` to `sign-release`, `dev-image-push` to
-  `push-dev-image`, `pins-doc` to `generate-pins-doc`, `integration-test` to `test-integration`. `unit-test` and the Go runner
+  `push-dev-image`, `pins-doc` to `generate-pins-doc`, `integration-test` to `test-integration`.
+  `unit-test` and the Go runner
   join as `test-unit`.
 - `make create-release` decides on the pin status committed in `docs/current_pins.md` (`update-pins --from-pins-doc`),
   with no network query, so an upstream change after the commit cannot block a commit that was current. A tree with
@@ -84,6 +85,7 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- The tables in `governance/ci.md` and the long lines in `CHANGELOG.md` pass markdownlint 0.49.1.
 - `publish.sh` builds on the published `.standards` tool image when `image.ref` pins another context, as `run.sh` does:
   both use `dev_resolve_ref`, so a consumer's image no longer waits for a pin and a second release.
 - `tests/release-images.bats` passes on CI: the tests use their own repository, not the workflow's `GITHUB_REPOSITORY`.
