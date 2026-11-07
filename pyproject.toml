@@ -13,7 +13,7 @@ requires-python = ">=3.9"
 source = "vcs"
 
 [tool.hatch.build.targets.wheel]
-include = ["governance/"]
+include = ["governance/", "containers/dev/image.ref"]
 
 [tool.hatch.build.targets.sdist]
-include = ["governance/", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+include = ["governance/", "containers/dev/image.ref", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]

@@ -385,3 +385,11 @@ GH
   grep -qF 'github\.com/acme/widget/\.github/workflows/release' "${STATE}/calls"
   calls 'gh attestation verify oci://ghcr.io/acme/widget@sha256:max --repo acme/widget'
 }
+
+@test "docker.sh: images carry the name of the dev image that built them" {
+  mkdir -p containers/dev
+  printf 'ghcr.io/keelcore/keel-dev:ctx-abc\n' > containers/dev/image.ref
+  run ./scripts/release/docker.sh
+  [ "${status}" -eq 0 ]
+  calls 'docker build .*--label io\.keelcore\.dev-image=ghcr\.io/keelcore/keel-dev:ctx-abc'
+}

@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
 # tests/dev-image-published.bats
 # A tool image is built once per build context and pulled everywhere else:
-#   - run.sh uses the published ctx-<hash> image from the registry when image.ref pins
-#     another context, and builds locally only when that context is unpublished;
+#   - run.sh uses the image its context names, on this machine or published, and builds locally
+#     only when that context is unpublished;
 #   - CI publishes the context once (the reusable dev-image workflow, called first by
 #     ci.yml), and every tool job waits for it instead of building it itself.
 
@@ -35,11 +35,11 @@ published() {
   run bash -c "PATH='${WORK}/bin':\"\${PATH}\"; source '${STANDARDS}/scripts/lib/dev-image.sh'; dev_published_ref ghcr.io/keelcore/x-dev abc"
 }
 
-@test "dev_published_ref: a published context resolves to its digest" {
+@test "dev_published_ref: a published context resolves to its name" {
   fake_registry 1
   published
   [ "${status}" -eq 0 ]
-  [ "${output}" = "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}" ]
+  [ "${output}" = 'ghcr.io/keelcore/x-dev:ctx-abc' ]
 }
 
 @test "dev_published_ref: an unpublished context, or no registry, is not found" {
@@ -52,45 +52,11 @@ published() {
   [ "${status}" -ne 0 ]
 }
 
-# resolve_with PIN: dev_resolve_ref for context abc of a directory whose image.ref holds PIN.
-resolve_with() {
-  mkdir -p "${WORK}/x/containers/dev"
-  printf '%s\n' "${1}" > "${WORK}/x/containers/dev/image.ref"
-  run bash -c "
-    PATH='${WORK}/bin':\"\${PATH}\"
-    source '${STANDARDS}/scripts/lib/dev-image.sh'
-    dev_repository() { printf ghcr.io/keelcore/x-dev; }
-    dev_resolve_ref '${WORK}/x' dev abc"
-}
-
-@test "dev_resolve_ref: a matching pin wins, without asking the registry" {
-  printf '#!/usr/bin/env bash\nexit 7\n' > "${WORK}/bin/curl"
-  chmod +x "${WORK}/bin/curl"
-  resolve_with "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}"
-  [ "${status}" -eq 0 ]
-  [ "${output}" = "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}" ]
-}
-
-@test "dev_resolve_ref: a stale pin resolves to the published image of the context" {
-  fake_registry 1
-  resolve_with "ghcr.io/keelcore/x-dev:ctx-old@${DIGEST}"
-  [ "${status}" -eq 0 ]
-  [ "${output}" = "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}" ]
-}
-
-@test "dev_resolve_ref: a stale pin and an unpublished context is not found" {
-  fake_registry 0
-  resolve_with "ghcr.io/keelcore/x-dev:ctx-old@${DIGEST}"
-  [ "${status}" -ne 0 ]
-  [ -z "${output}" ]
-}
-
-# standards_ref_with PUBLISHED: publish.sh's standards_ref, with .standards pinning another context.
+# standards_ref_with PUBLISHED: publish.sh's standards_ref, with its context published or not.
 standards_ref_with() {
   fake_registry "${1}"
   sed -n '/^function standards_ref()/,/^}/p' "${STANDARDS}/scripts/dev/publish.sh" > "${WORK}/standards_ref.sh"
   mkdir -p "${WORK}/s/.standards/containers/dev"
-  printf 'ghcr.io/keelcore/x-dev:ctx-old@%s\n' "${DIGEST}" > "${WORK}/s/.standards/containers/dev/image.ref"
   run bash -c "
     PATH='${WORK}/bin':\"\${PATH}\"
     cd '${WORK}/s'
@@ -102,10 +68,10 @@ standards_ref_with() {
     standards_ref"
 }
 
-@test "publish.sh: a stale .standards pin builds on the published image of its context" {
+@test "publish.sh: builds on the published .standards image of its context" {
   standards_ref_with 1
   [ "${status}" -eq 0 ]
-  [ "${output}" = "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}" ]
+  [ "${output}" = 'ghcr.io/keelcore/x-dev:ctx-abc' ]
 }
 
 @test "publish.sh: an unpublished .standards context stops the publish, and says so" {
@@ -115,36 +81,40 @@ standards_ref_with() {
   [[ "${output}" == *'not published'* ]]
 }
 
-# dev_image_with PUBLISHED: run.sh's dev_image for a context image.ref does not pin,
-# with the registry answering PUBLISHED; prints the reference and whether it built.
+# dev_image_with PUBLISHED [LOCAL]: run.sh's dev_image with the registry answering PUBLISHED, and the
+# image on this machine when LOCAL=1; prints the reference and whether it built.
 dev_image_with() {
   sed -n '/^function dev_image()/,/^}/p' "${STANDARDS}/scripts/dev/run.sh" > "${WORK}/dev_image.sh"
   run bash -c "
     log() { :; }
     runtime() { printf docker; }
-    docker() { return 1; }
+    docker() { [ '${2:-0}' = 1 ] && [ \"\${3}\" = 'ghcr.io/keelcore/x-dev:ctx-abc' ]; }
     dev_containerfile() { printf 'containers/x/Containerfile'; }
-    dev_has_base() { return 1; }
-    dev_context_hash() { printf abc; }
-    dev_pinned_ref() { return 1; }
-    dev_ref_file() { printf 'containers/x/image.ref'; }
+    dev_base_ref() { :; }
+    dev_tree_hash() { printf abc; }
+    dev_pin_ref() { printf ghcr.io/keelcore/x-dev:ctx-abc; }
     dev_repository() { printf 'ghcr.io/keelcore/x-dev'; }
     dev_repo_name() { printf x; }
-    dev_published_ref() { [ '${1}' = 1 ] && printf 'ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}'; }
-    dev_resolve_ref() { dev_pinned_ref "\$1" "\$2" "\$3" || dev_published_ref x abc; }
+    dev_published_ref() { echo published-asked >> '${WORK}/asked'; [ '${1}' = 1 ]; }
     build_image() { printf 'BUILT ' >&2; }
     source '${WORK}/dev_image.sh'
     mkdir -p '${WORK}/repo/containers/x'
     : > '${WORK}/repo/containers/x/Containerfile'
-    printf 'ghcr.io/keelcore/x-dev:ctx-old@${DIGEST}\n' > '${WORK}/repo/containers/x/image.ref'
     dev_image '${WORK}/repo' x 2>&1
   "
 }
 
-@test "run.sh: a stale pin uses the published image for the tree's context, without building" {
+@test "run.sh: a published context is used, without building" {
   dev_image_with 1
   [ "${status}" -eq 0 ]
-  [ "${output}" = "ghcr.io/keelcore/x-dev:ctx-abc@${DIGEST}" ]
+  [ "${output}" = 'ghcr.io/keelcore/x-dev:ctx-abc' ]
+}
+
+@test "run.sh: an image already on this machine is used, without asking the registry" {
+  dev_image_with 0 1
+  [ "${status}" -eq 0 ]
+  [ "${output}" = 'ghcr.io/keelcore/x-dev:ctx-abc' ]
+  [ ! -e "${WORK}/asked" ]
 }
 
 @test "run.sh: an unpublished context is built locally" {
@@ -184,7 +154,7 @@ job_block() {
   done
 }
 
-# ref_repo: a repository at WORK/r with a dev image whose pin matches its context, and a runtime
+# ref_repo: a repository at WORK/r with a published dev image, and a runtime
 # that records every call: "image inspect" succeeds once FOUND exists.
 ref_repo() {
   mkdir -p "${WORK}/r/containers/dev" "${WORK}/fake"
@@ -197,10 +167,9 @@ ref_repo() {
   cd "${WORK}/r"
   git init --quiet
   git add -A
-  local hash
-  hash="$(bash -c "source '${STANDARDS}/scripts/lib/dev-image.sh'; dev_context_hash . dev")"
-  PIN="ghcr.io/keelcore/x-dev:ctx-${hash}@${DIGEST}"
-  printf '%s\n' "${PIN}" > containers/dev/image.ref
+  PIN="$(bash -c "source '${STANDARDS}/scripts/lib/dev-image.sh'; dev_pin_ref . dev")"
+  printf '#!/usr/bin/env bash\ncase "$*" in\n  *token*) printf "{\\"token\\":\\"T\\"}" ;;\n  *) printf "docker-content-digest: %s\\r\\n" ;;\nesac\n' "${DIGEST}" > "${WORK}/fake/curl"
+  chmod +x "${WORK}/fake/curl"
 }
 
 @test "run.sh --image-ref: names the image, with nothing fetched or built" {
@@ -208,12 +177,11 @@ ref_repo() {
   PATH="${WORK}/fake:${PATH}" run --separate-stderr bash "${STANDARDS}/scripts/dev/run.sh" --image-ref
   [ "${status}" -eq 0 ]
   [ "${output}" = "${PIN}" ]
-  [ ! -e "${WORK}/calls" ]
+  [ -z "$(grep -E " pull |^build|^image pull" "${WORK}/calls" 2> /dev/null)" ]
 }
 
 @test "run.sh --image-ref: an unpublished context names its local tag, unbuilt" {
   ref_repo
-  printf 'ghcr.io/keelcore/x-dev:ctx-old@%s\n' "${DIGEST}" > containers/dev/image.ref
   printf '#!/usr/bin/env bash\nexit 22\n' > "${WORK}/fake/curl"
   chmod +x "${WORK}/fake/curl"
   PATH="${WORK}/fake:${PATH}" run --separate-stderr bash "${STANDARDS}/scripts/dev/run.sh" --image-ref

@@ -41,8 +41,6 @@
 #              pyproject build-system requirement
 #   npmlock    exact dependencies of a package.json beside its package-lock.json
 #   runner     workflow `runs-on:` / matrix `os:` image labels (newer images report-only)
-#   devimage   containers/NAME/image.ref: the pinned build context vs the tree's (a hold until the
-#              new context is published; apply pins it by digest)
 #   unpinned   inputs that float: @latest, apk/apt packages without a version,
 #              Homebrew installs, FROM / image: references without a digest,
 #              `*-latest` runners, npx and pip installs without a version or
@@ -300,7 +298,6 @@ function discover_generic() {
   discover_python
   discover_pypi
   discover_npmlock
-  discover_devimages
   discover_unpinned
 }
 
@@ -457,46 +454,6 @@ function discover_node() {
   done < <(files_of '.nvmrc' '*/.nvmrc')
 }
 
-# Tool images (containers/NAME/image.ref, scripts/lib/dev-image.sh): the pinned build context
-# against the tree's. A changed context (a tool pin bumped in a Containerfile, a new base) is a
-# hold until the image is published (dev-image.yml, after the commit), then stale until pinned.
-function discover_devimages() {
-  [ -f scripts/lib/dev-image.sh ] || return 0
-  local cf name ref pinned tree
-  for cf in containers/*/Containerfile; do
-    [ -f "${cf}" ] || continue
-    name="$(basename "$(dirname "${cf}")")"
-    ref="containers/${name}/image.ref"
-    [ -s "${ref}" ] || continue
-    pinned="$(sed -nE 's/.*:(ctx-[0-9a-f]+)@sha256:.*/\1/p' "${ref}" | head -1)"
-    tree="ctx-$(devimage_context "${name}")" || continue
-    record devimage "${name}" "${ref}:1" "${pinned:-none}" "${tree}"
-  done
-}
-
-# devimage_context NAME: the tree's build-context hash for containers/NAME (its .standards base as
-# pinned there, for an image that builds on it).
-function devimage_context() {
-  (
-    # shellcheck source=../lib/dev-image.sh
-    source scripts/lib/dev-image.sh
-    local base=''
-    if dev_has_base . "${1}"; then
-      base="$(dev_pinned_ref .standards dev "$(dev_context_hash .standards dev)")" || base=''
-    fi
-    dev_context_hash . "${1}" "${base}"
-  )
-}
-
-# devimage_repository NAME: where containers/NAME is published.
-function devimage_repository() {
-  (
-    # shellcheck source=../lib/dev-image.sh
-    source scripts/lib/dev-image.sh
-    dev_repository . "${1}"
-  )
-}
-
 # Workflow runner labels (`runs-on:` or a matrix `os:`) that name an exact image.
 function discover_runners() {
   local line label
@@ -554,7 +511,7 @@ function discover_npmlock() {
 }
 
 # digest_pinned_filter: drop file:line:text matches from a Containerfile whose image is
-# pinned by digest (containers/NAME/image.ref) — packages it installs at build time are
+# named by its build context (containers/NAME/image.ref) — packages it installs at build time are
 # fixed by that digest.
 function digest_pinned_filter() {
   local line file
@@ -1032,8 +989,6 @@ function resolve() {
       resolve_runner "${current}" ;;
     image)
       resolve_image "${name}" "${current}" ;;
-    devimage)
-      resolve_devimage "${name}" "${current}" "${source}" ;;
     unpinned)
       printf 'unpinned\t-\t-\t%s\n' "${source}" ;;
     *)
@@ -1090,20 +1045,6 @@ function resolve_runner() {
 # runner_version LABEL: the OS version in a runner label (ubuntu-24.04 → 24.04).
 function runner_version() {
   sed -E 's/^[a-z]+-([0-9]+(\.[0-9]+)?).*/\1/' <<< "${1}"
-}
-
-# resolve_devimage NAME PINNED TREE: current when the tree's build context is the pinned one; stale
-# toward the tree's context once it is published (apply pins it by digest); until then a hold:
-# run.sh builds that context locally.
-function resolve_devimage() {
-  local -r name="${1}" pinned="${2}" tree="${3}"
-  if [ "${pinned}" = "${tree}" ]; then
-    printf 'current\t-\t-\t\n'
-  elif image_digest "$(devimage_repository "${name}"):${tree}" > /dev/null; then
-    printf 'stale\t%s\t-\tpublished; apply pins it by digest\n' "${tree}"
-  else
-    printf 'hold\t%s\t-\tnot published yet; run.sh builds it locally\n' "${tree}"
-  fi
 }
 
 function resolve_image() {
@@ -1735,8 +1676,6 @@ function verify_targets() {
       if has_target lint-workflows; then printf 'lint-workflows'; else printf 'audit'; fi ;;
     gomod)
       printf 'test' ;;
-    devimage)
-      printf 'audit' ;;
     # Tool installs run in the tool image (Linux) on every host.
     gotool | npm | tool)
       if [ -n "${setup}" ]; then printf '%s' "${setup}"; else combined_targets; fi ;;
@@ -1809,7 +1748,6 @@ function apply_pin() {
   case "${kind}" in
     action) apply_action "${root}" "${name}" "${current}" "${cand}" "${source#github:}" ;;
     image) replace_all "${root}" "${name}@${current}" "${name}@${cand}" ;;
-    devimage) (cd "${root}" && bash scripts/dev/publish.sh ref) ;;
     tool) replace_at "${root}" "${locs}" "${current}" "${new}" && refresh_checksums "${root}" "${locs}" "${source#github:}" "${current}" "${cand}" \
       && refresh_commits "${root}" "${locs}" "${source#github:}" "${cand}" ;;
     gotool | toolchain | npm | python | runner) replace_at "${root}" "${locs}" "${current}" "${new}" ;;

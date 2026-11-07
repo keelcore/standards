@@ -158,6 +158,10 @@ The host never waits for CI. The pushed tag starts its own workflow, whose first
 Actions run on that commit to finish, then fails if any is red (`make wait-for-ci`, `scripts/release/wait-ci.sh`), and
 nothing is published.
 
+Every bundle names the dev image that built it, as `containers/dev/image.ref` holds at the tag: the signed tag
+(`Dev-Image:` trailer), the GitHub release (`dev-image.txt`, in `SHA256SUMS`), container images (label
+`io.keelcore.dev-image`), the Helm chart (annotation of that name), and the npm and PyPI packages.
+
 A dry run prints the version and the full tag message without prompting, tagging or pushing, and reports failed
 preconditions and stale pins as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).
 
@@ -170,8 +174,7 @@ cooldown) and was not adopted. Majors outside GitHub Actions stay report-only un
 `create-release` reads the status recorded in
 `docs/current_pins.md` by the last `make update-pins APPLY=1` or `make generate-pins-doc`, lists every stale pin with the
 consequence of staying on it, and refuses to tag. Upstream releases after that commit reach the next
-`make update-pins` run, never the tag. A tool-image pin (`containers/NAME/image.ref`) never blocks: `run.sh` builds an
-unpublished build context locally, and `make update-pins APPLY=1` pins it once it is published.
+`make update-pins` run, never the tag.
 
 - **Fix:** `make update-pins`, then `make update-pins APPLY=1`; review, commit and push the refreshed pins.
 - **Override:** `make create-release ALLOW_STALE_PINS="<reason>"` (`--allow-stale-pins "<reason>"`). A non-empty reason

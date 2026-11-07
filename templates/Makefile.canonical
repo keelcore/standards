@@ -437,9 +437,9 @@ generate-pins-doc:
 ## the repository mounted read-only (scripts/dev/run.sh). dev-shell opens a shell in the dev
 ## image. The dev-image workflow publishes them: dev-image-push ARCH=amd64|arm64 builds and
 ## pushes natively per architecture, dev-image-merge joins and signs the multi-arch index,
-## dev-image-sign REF=<repository@digest> signs one. dev-image-ref pins the published images
-## of the current build context by digest in containers/NAME/image.ref. dev-image-publish
-## (macOS) builds, pushes and pins every unpublished image before the commit.
+## dev-image-sign REF=<repository@digest> signs one. update-dev-image-ref names the image this commit
+## builds in containers/NAME/image.ref, as the pre-commit hook does. publish-dev-image
+## (macOS) builds and pushes every unpublished image.
 run-dev-shell:
 	@echo "🐚 Shell in the dev image (repository read-only; target/ writable)..."
 	bash scripts/dev/run.sh bash
@@ -457,8 +457,8 @@ sign-dev-image:
 	bash scripts/dev/run.sh bash scripts/dev/sign-image.sh $(REF)
 
 update-dev-image-ref:
-	@echo "📌 Pinning published tool images by digest..."
-	bash scripts/dev/run.sh --writable bash scripts/dev/publish.sh ref
+	@echo "📌 Naming the tool images this commit builds..."
+	bash scripts/dev/write-image-ref.sh
 
 ## Fetch the pinned dev image onto this machine, outside any commit: a commit only uses what is here.
 pull-dev-image:

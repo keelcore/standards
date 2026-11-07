@@ -11,7 +11,7 @@
 #              already cataloged is added as a package the image CONTAINS
 #   TARGET   a package archive (.tgz, .tar.gz, .whl, .zip: unpacked, then scanned),
 #            a binary or other file (scanned as a file), or an image by digest
-#            (REPO@sha256:...: scanned from the registry — the build environment)
+#            (REPO:ctx-...: scanned from the registry — the build environment)
 #   Output:  DIR/<target basename>.spdx.json for each TARGET (an image:
 #            DIR/<repo name>.spdx.json)
 #
@@ -81,7 +81,7 @@ function sbom_for() {
   local -r target="${1}"
   local source out tmp='' scan_dir='' catalogers=''
   case "${target}" in
-    *@sha256:*)
+    *@sha256:* | *:ctx-*)
       source="registry:${target}"
       out="${OUT_DIR}/$(basename "${target%@*}" | cut -d: -f1).spdx.json" ;;
     *.whl | *.zip | *.tgz | *.tar.gz)

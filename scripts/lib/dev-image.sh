@@ -6,9 +6,9 @@
 #
 # An image is identified by its build context: the Containerfile, every file it
 # COPYs, and — for a Containerfile with `ARG BASE_DEV_IMAGE` — the .standards dev
-# image it builds on. Published images are tagged ctx-<hash>, and
-# containers/NAME/image.ref pins one by digest:
-#   ghcr.io/keelcore/<repo>-<name>:ctx-<hash>@sha256:<digest>
+# image it builds on. Published images are tagged ctx-<hash>, and containers/NAME/image.ref names the
+# one built from each commit (scripts/dev/write-image-ref.sh):
+#   ghcr.io/keelcore/<repo>-<name>:ctx-<hash>
 
 # Inside a git hook, git exports the hook's repository layout (GIT_INDEX_FILE=.git/index, and
 # GIT_DIR / GIT_WORK_TREE in some cases) as paths relative to that repository. These scripts run
@@ -89,14 +89,36 @@ function dev_context_files() {
   local cf
   cf="$(dev_containerfile "${2}")"
   printf '%s\n' "${cf}"
-  awk '
+  dev_context_read "${dir}" "${cf}" | awk '
     { line = line $0 }
     /\\$/ { sub(/\\$/, " ", line); next }
     { print line; line = "" }
-  ' "${dir}/${cf}" | awk '$1 == "COPY" && $2 !~ /^--from=/ { for (i = 2; i < NF; i++) print $i }' \
+  ' | awk '$1 == "COPY" && $2 !~ /^--from=/ { for (i = 2; i < NF; i++) print $i }' \
     | while IFS= read -r src; do
-        (cd "${dir}" && git ls-files -co --exclude-standard -- "${src%/}")
+        if [ -n "${DEV_CONTEXT_STAGED:-}" ]; then
+          (cd "${dir}" && git ls-files -c -- "${src%/}")
+        else
+          (cd "${dir}" && git ls-files -co --exclude-standard -- "${src%/}")
+        fi
       done | sort -u
+}
+
+# dev_context_read DIR FILE: FILE as the context sees it: staged with DEV_CONTEXT_STAGED, else the tree's.
+function dev_context_read() {
+  if [ -n "${DEV_CONTEXT_STAGED:-}" ]; then
+    git -C "${1}" show ":${2}"
+  else
+    cat "${1}/${2}"
+  fi
+}
+
+# dev_context_blob DIR FILE: FILE's blob hash, staged or in the tree as dev_context_read.
+function dev_context_blob() {
+  if [ -n "${DEV_CONTEXT_STAGED:-}" ]; then
+    git -C "${1}" rev-parse ":${2}"
+  else
+    (cd "${1}" && git hash-object -- "${2}")
+  fi
 }
 
 # dev_context_hash DIR NAME [BASE]: one hash over DIR's NAME build context (and BASE, the
@@ -105,35 +127,30 @@ function dev_context_hash() {
   local -r dir="${1}" name="${2}" base="${3:-}"
   {
     dev_context_files "${dir}" "${name}" | while IFS= read -r f; do
-      printf '%s %s\n' "$(cd "${dir}" && git hash-object -- "${f}")" "${f}"
+      printf '%s %s\n' "$(dev_context_blob "${dir}" "${f}")" "${f}"
     done
     [ -z "${base}" ] || printf 'base %s\n' "${base}"
   } | git hash-object --stdin | cut -c1-16
 }
 
-# dev_pinned_ref DIR NAME HASH: the image.ref reference when it was built from context HASH.
-function dev_pinned_ref() {
-  local -r file="${1}/$(dev_ref_file "${2}")" hash="${3}"
-  [ -s "${file}" ] || return 1
-  local ref
-  read -r ref < "${file}"
-  case "${ref}" in
-    *":ctx-${hash}@sha256:"*) printf '%s' "${ref}" ;;
-    *) return 1 ;;
-  esac
+# dev_base_ref DIR NAME: the image NAME builds on: the name its .standards pins, empty if it builds on none.
+function dev_base_ref() {
+  dev_has_base "${1}" "${2}" || return 0
+  head -1 "${1}/.standards/$(dev_ref_file dev)"
 }
 
-# dev_published_ref REPOSITORY HASH: REPOSITORY:ctx-HASH@<digest> when the registry holds the
-# multi-arch image for build context HASH (the dev-image workflow publishes it); fails when it
-# does not, or the registry cannot be reached. Anonymous pull token, as for any public image.
-# dev_resolve_ref DIR NAME HASH: the image of this build context: the pinned reference when image.ref
-# pins it, else the published one. Fails when neither exists; what happens then is the caller's.
-function dev_resolve_ref() {
-  local -r dir="${1}" name="${2}" hash="${3}"
-  dev_pinned_ref "${dir}" "${name}" "${hash}" \
-    || dev_published_ref "$(dev_repository "${dir}" "${name}")" "${hash}"
+# dev_tree_hash DIR NAME: the context hash of DIR's NAME image, with the base it builds on.
+function dev_tree_hash() {
+  dev_context_hash "${1}" "${2}" "$(dev_base_ref "${1}" "${2}")"
 }
 
+# dev_pin_ref DIR NAME: the name of the image built from NAME's context: REPOSITORY:ctx-HASH.
+function dev_pin_ref() {
+  printf '%s:ctx-%s' "$(dev_repository "${1}" "${2}")" "$(dev_tree_hash "${1}" "${2}")"
+}
+
+# dev_published_ref REPOSITORY HASH: REPOSITORY:ctx-HASH when the registry holds it (registry metadata
+# only); a context not published yet, or no registry, is not found.
 function dev_published_ref() {
   local -r repository="${1}" hash="${2}"
   local -r host="${repository%%/*}" path="${repository#*/}"
@@ -146,7 +163,7 @@ function dev_published_ref() {
     "https://${host}/v2/${path}/manifests/ctx-${hash}" 2> /dev/null \
     | tr -d '\r' | sed -nE 's/^[Dd]ocker-[Cc]ontent-[Dd]igest: (sha256:[0-9a-f]{64})$/\1/p')" || return 1
   [ -n "${digest}" ] || return 1
-  printf '%s:ctx-%s@%s' "${repository}" "${hash}" "${digest}"
+  printf '%s:ctx-%s' "${repository}" "${hash}"
 }
 
 # runtime: the container runtime of this host.

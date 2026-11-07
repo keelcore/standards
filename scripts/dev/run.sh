@@ -17,8 +17,7 @@
 # directory lives outside it) is mounted as a standalone snapshot under /tmp: a clone holding
 # its current files; a writable run's edits are copied back.
 #
-# Image: the digest-pinned reference in containers/NAME/image.ref when it was
-# built from the current build context (the files the Containerfile COPYs);
+# Image: <repository>:ctx-<context hash>, on this machine or published;
 # otherwise keelcore-NAME-<repo>:ctx-<context hash>, built locally from
 # containers/NAME/Containerfile on first use. A Containerfile with
 # `ARG BASE_DEV_IMAGE` gets the .standards dev image as that argument.
@@ -89,10 +88,8 @@ function validate_args() {
   fi
 }
 
-# dev_image DIR NAME: the reference for DIR's NAME image — the pinned image.ref when it
-# matches the current build context, else the published image of that context (the
-# dev-image workflow publishes each context once), else a local build of it.
-# Inside a git hook: hook_image.
+# dev_image DIR NAME: DIR's NAME image: the one its context names, on this machine or published, else
+# a local build of that context. Inside a git hook: hook_image.
 function dev_image() {
   local -r dir="${1}" name="${2}"
   if [ -n "${KEELCORE_DEV_IN_HOOK:-}" ]; then
@@ -101,54 +98,39 @@ function dev_image() {
   fi
   local -r cf="$(dev_containerfile "${name}")"
   [ -f "${dir}/${cf}" ] || { log "❌ ${dir}/${cf} not found"; exit 1; }
-  local base='' hash ref tag
-  if dev_has_base "${dir}" "${name}"; then
-    base="$(dev_image "${dir}/.standards" dev)" || return 1
-  fi
-  hash="$(dev_context_hash "${dir}" "${name}" "${base}")"
-  if ref="$(dev_resolve_ref "${dir}" "${name}" "${hash}")"; then
-    dev_pinned_ref "${dir}" "${name}" "${hash}" > /dev/null \
-      || log "ℹ️  ${dir}/$(dev_ref_file "${name}") pins another build context; using the published ${ref%@*}"
-    printf '%s' "${ref}"
+  local base hash tag
+  base="$(dev_base_ref "${dir}" "${name}")"
+  hash="$(dev_tree_hash "${dir}" "${name}")"
+  if "$(runtime)" image inspect "$(dev_pin_ref "${dir}" "${name}")" > /dev/null 2>&1 \
+    || dev_published_ref "$(dev_repository "${dir}" "${name}")" "${hash}" > /dev/null; then
+    dev_pin_ref "${dir}" "${name}"
     return 0
   fi
-  if [ -s "${dir}/$(dev_ref_file "${name}")" ]; then
-    log "ℹ️  ${dir}/$(dev_ref_file "${name}") pins another build context; building ctx-${hash} locally"
-  fi
+  log "ℹ️  ctx-${hash} of ${dir} is not published yet; building it locally"
   tag="keelcore-${name}-$(dev_repo_name "${dir}"):ctx-${hash}"
   if [ -z "${IMAGE_REF_ONLY:-}" ] && ! "$(runtime)" image inspect "${tag}" > /dev/null 2>&1; then
-    build_image "${dir}" "${cf}" "${tag}" "${base}" || { log "❌ building ${tag} failed"; exit 1; }
+    local build_base=''
+    [ -z "${base}" ] || build_base="$(dev_image "${dir}/.standards" dev)" || return 1
+    build_image "${dir}" "${cf}" "${tag}" "${build_base}" || { log "❌ building ${tag} failed"; exit 1; }
   fi
   printf '%s' "${tag}"
 }
 
-# hook_image DIR NAME: the image holding this tree's tools, when it is on this machine: the pinned
-# one if it was built from this tree's context, else a local build of that context. A commit never
-# fetches or builds, and a stale pin's tools may not match the tree, so without either it says so and
-# returns 1: the checks are skipped and CI runs them.
+# hook_image DIR NAME: the image holding this tree's tools, when it is on this machine: the one its
+# context names, else a local build of that context. A commit never fetches or builds, so without
+# either it says so and returns 1: the checks are skipped and CI runs them.
 function hook_image() {
   local -r dir="${1}" name="${2}"
-  local base='' hash ref tag
-  if dev_has_base "${dir}" "${name}" && [ -s "${dir}/.standards/$(dev_ref_file dev)" ]; then
-    base="$(head -1 "${dir}/.standards/$(dev_ref_file dev)")"
-  fi
-  hash="$(dev_context_hash "${dir}" "${name}" "${base}")"
-  if ref="$(dev_pinned_ref "${dir}" "${name}" "${hash}")"; then
+  local hash ref
+  hash="$(dev_tree_hash "${dir}" "${name}")"
+  for ref in "$(dev_pin_ref "${dir}" "${name}")" "keelcore-${name}-$(dev_repo_name "${dir}"):ctx-${hash}"; do
     if "$(runtime)" image inspect "${ref}" > /dev/null 2>&1; then
-      log "ℹ️  hook uses the pinned ${ref}"
+      log "ℹ️  hook uses ${ref}"
       printf '%s' "${ref}"
       return 0
     fi
-    log "⚠️  ${ref} is not on this machine; to check commits here: make pull-dev-image"
-    return 1
-  fi
-  tag="keelcore-${name}-$(dev_repo_name "${dir}"):ctx-${hash}"
-  if "$(runtime)" image inspect "${tag}" > /dev/null 2>&1; then
-    log "ℹ️  hook uses the local ${tag}"
-    printf '%s' "${tag}"
-    return 0
-  fi
-  log "⚠️  no image for this tree (ctx-${hash}) on this machine"
+  done
+  log "⚠️  no image for this tree (ctx-${hash}) on this machine; to check commits here: make pull-dev-image"
   return 1
 }
 

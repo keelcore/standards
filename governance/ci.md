@@ -291,10 +291,10 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
   builder running at another size is restarted at that size.
 - **Identity:** an image is identified by its build context (the Containerfile, every file it copies, and its base
   image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per architecture, joined into
-  a multi-arch index and signed keyless. `run.sh` uses, in order: the image `containers/NAME/image.ref` pins by
-  digest when it matches the tree's context; the published `ctx-<hash>` of that context; a local build of it. Each
-  context is therefore built once on a developer machine (before its commit) and published once by CI; every other
-  machine pulls it. `make update-pins APPLY=1` (or `make update-dev-image-ref`) pins a published context by digest.
+  a multi-arch index and signed keyless. `run.sh` uses, in order: `ctx-<hash>` of the tree's context on this machine; the
+  published `ctx-<hash>`; a local build of it. The pre-commit hook writes `containers/NAME/image.ref`, so each commit
+  names the image built from it: `<repository>:ctx-<hash>`, computed from the staged files with no network and no
+  image. Every release bundle carries that name (`governance/release-policy.md`).
 - **Publish once per context:** `dev-image.yml` is a reusable workflow. The project's `ci.yml` calls it as its first
   job on every push to `main` (`publish.sh` skips a context GHCR already holds), and every job that runs tool
   targets `needs:` it, so those jobs pull the one image. Pull requests do not publish; their jobs pull a published
@@ -346,10 +346,8 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
 6. **Release gate:** `make create-release` refuses while any pin is stale (see `release-policy.md`).
 
 In a consumer, a pin located in a canonical file (byte-identical to its `.standards` copy) is held by `.standards`:
-the `.standards` release carries it, and the consumer never gates on or applies it. A tool image's pin
-(`containers/NAME/image.ref`, kind `devimage`) is held while the tree's build context is unpublished: `run.sh`
-builds that context locally. Once `dev-image.yml` has published it, the pin is stale and apply pins it by digest. A
-tool-image pin never blocks the release gate.
+the `.standards` release carries it, and the consumer never gates on or applies it. A tool image's name
+(`containers/NAME/image.ref`) is not a pin here: the hook keeps it equal to the commit's build context.
 
 Projects extend discovery, holds, verification targets and appliers through `scripts/release/update-pins.local.sh`.
 
@@ -393,7 +391,7 @@ Projects extend discovery, holds, verification targets and appliers through `scr
   what ships: the package by name, version, license and purl, and its declared dependencies (a Go binary: the
   modules compiled into it). A package archive is cataloged by its own ecosystem's metadata only — files it merely
   carries (another tool's lockfile) are not its dependencies. A source-tree SBOM is not a release SBOM.
-- The build environment has SBOMs of its own: one per digest-pinned tool image the release was built and tested in
+- The build environment has SBOMs of its own: one per tool image the release was built and tested in
   (`containers/*/image.ref`), listing the OS packages and tools it holds, including the pinned tools a cataloger
   cannot identify (from the image's installers).
 - Each artifact's provenance is attached as its registry published it (npm attestations, PyPI provenance, GitHub

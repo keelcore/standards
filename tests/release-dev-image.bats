@@ -1,0 +1,78 @@
+#!/usr/bin/env bats
+# tests/release-dev-image.bats
+# Release bundles name the dev image that built them: the Helm chart, the npm and PyPI packages, and
+# the release assets.
+
+setup() {
+  STANDARDS="$(cd "${BATS_TEST_DIRNAME}/.." && pwd -P)"
+  WORK="${BATS_TEST_TMPDIR}/work"
+  mkdir -p "${WORK}/bin" "${WORK}/containers/dev" "${WORK}/charts/widget" "${WORK}/scripts/release" "${WORK}/scripts/lib" "${WORK}/config"
+  export WORK
+  cp "${STANDARDS}/scripts/release/helm-push.sh" "${WORK}/scripts/release/"
+  cp "${STANDARDS}/scripts/lib/"*.sh "${WORK}/scripts/lib/"
+  cd "${WORK}"
+  git init --quiet
+  printf 'ghcr.io/acme/widget-dev:ctx-abc\n' > containers/dev/image.ref
+  printf 'acme/widget\n' > config/release-repo.local.txt
+  printf 'apiVersion: v2\nname: widget\nversion: 0.0.0\n' > charts/widget/Chart.yaml
+  # helm records the Chart.yaml it packages; cosign and the registry do nothing.
+  cat > bin/helm <<'HELM'
+#!/usr/bin/env bash
+case "${1}" in
+  package) cat "${2}/Chart.yaml" > "${WORK}/packaged.yaml"; touch "dist/widget-${4}.tgz" ;;
+esac
+HELM
+  printf '#!/usr/bin/env bash\nexit 0\n' > bin/cosign
+  printf '#!/usr/bin/env bash\nexit 0\n' > scripts/release/cosign.sh
+  chmod +x bin/helm bin/cosign
+  export PATH="${WORK}/bin:${PATH}" GITHUB_TOKEN=token GITHUB_ACTOR=actor
+}
+
+push() {
+  printf 'x' > tagged && git add -A && git -c user.name=t -c user.email=t@example.invalid commit --quiet -m x \
+    && git -c user.name=t -c user.email=t@example.invalid tag -a v1.2.3 -m v
+  run bash scripts/release/helm-push.sh
+}
+
+@test "helm-push.sh: the chart carries the dev image name; the tree's Chart.yaml is unchanged" {
+  push
+  [ "${status}" -eq 0 ]
+  grep -qF 'io.keelcore.dev-image: ghcr.io/acme/widget-dev:ctx-abc' packaged.yaml
+  [ -z "$(git status --short charts)" ]
+}
+
+@test "helm-push.sh: an existing annotations block is kept and added to" {
+  printf 'annotations:\n  other: value\n' >> charts/widget/Chart.yaml
+  push
+  [ "${status}" -eq 0 ]
+  grep -qF 'other: value' packaged.yaml
+  grep -qF 'io.keelcore.dev-image: ghcr.io/acme/widget-dev:ctx-abc' packaged.yaml
+  [ "$(grep -c '^annotations:' packaged.yaml)" -eq 1 ]
+}
+
+@test "packages: npm and PyPI ship the dev image name" {
+  jq -e '.files | index("containers/dev/image.ref")' "${STANDARDS}/package.json" > /dev/null
+  [ "$(grep -c 'containers/dev/image.ref' "${STANDARDS}/pyproject.toml")" -ge 2 ]
+}
+
+@test "checksums.sh: the dev image name ships in dist, covered by the checksums" {
+  cp "${STANDARDS}/scripts/release/checksums.sh" scripts/release/
+  cp "${STANDARDS}/config/release-binaries.txt" config/ 2> /dev/null || true
+  mkdir -p dist
+  printf 'bin\n' > dist/widget-linux-amd64
+  run bash scripts/release/checksums.sh
+  [ "${status}" -eq 0 ]
+  [ "$(cat dist/dev-image.txt)" = 'ghcr.io/acme/widget-dev:ctx-abc' ]
+  grep -q 'dist/dev-image.txt' dist/SHA256SUMS
+}
+
+@test "release-assets.sh: the dev image name at the tag is a release asset" {
+  sed -n '/^function copy_dev_image()/,/^}/p' "${STANDARDS}/scripts/release/release-assets.sh" > copy.sh
+  printf 'x' > tagged && git add -A && git -c user.name=t -c user.email=t@example.invalid commit --quiet -m x
+  git -c user.name=t -c user.email=t@example.invalid tag -a v1.2.3 -m v
+  printf 'ghcr.io/acme/widget-dev:ctx-later\n' > containers/dev/image.ref
+  mkdir -p out
+  run bash -c "source ./copy.sh; copy_dev_image v1.2.3 out"
+  [ "${status}" -eq 0 ]
+  [ "$(cat out/dev-image.txt)" = 'ghcr.io/acme/widget-dev:ctx-abc' ]
+}

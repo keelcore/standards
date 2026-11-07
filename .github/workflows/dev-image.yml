@@ -2,9 +2,8 @@ name: dev-image
 
 # Publishes the tool images (containers/*/Containerfile) to GHCR, tagged by build
 # context (ctx-<hash>), built natively per architecture, joined into a multi-arch
-# index and signed keyless. scripts/dev/run.sh pulls a published context by its tag;
-# `make update-pins APPLY=1` (or `make update-dev-image-ref`) pins it by digest in
-# containers/NAME/image.ref.
+# index and signed keyless. scripts/dev/run.sh pulls a published context by its tag, and the pre-commit
+# hook names it in containers/NAME/image.ref.
 
 on:
   # Called first by ci.yml on every push, so each build context is published once, before

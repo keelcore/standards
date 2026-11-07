@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # scripts/git_precommit.sh
 # Pre-commit hook entry point. Runs:
+#   0. write-image-ref.sh — containers/NAME/image.ref names the image built from this commit.
 #   1. format.sh  — auto-fix what's auto-fixable
 #   2. lint.sh    — fail on remaining lint issues
 #   3. governance-gate.sh — block commit on governance drift (canonical
@@ -35,7 +36,8 @@ paths_ensure_standard
 
 function main() {
   exec 5>&1
-  log 'Pre-commit: format + lint + governance-gate + pins table'
+  log 'Pre-commit: image name + format + lint + governance-gate + pins table'
+  [ ! -f scripts/dev/write-image-ref.sh ] || bash scripts/dev/write-image-ref.sh
   bash scripts/dev/run.sh --writable bash scripts/format.sh
   bash scripts/dev/run.sh bash scripts/lint.sh
   bash scripts/dev/run.sh bash scripts/ci/governance-gate.sh

@@ -66,7 +66,7 @@ verification, and invoked through a Makefile target per [`ci.md`](ci.md).
 
 ## Immutable Tool Images
 
-1. **(H)** Every tool a target runs comes from a tool image built once, published, and pinned by digest
+1. **(H)** Every tool a target runs comes from a tool image built once, published, and named by its build context
    (`containers/NAME/image.ref`); nothing is installed or updated when a target runs, on a developer machine or in
    CI (`governance/ci.md` § Tool Images; audit Rule 6 rejects `actions/setup-*` and `make setup-*` in workflows
    outside listed host jobs).

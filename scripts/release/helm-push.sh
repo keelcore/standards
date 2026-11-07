@@ -108,14 +108,33 @@ function resolve_tag() {
   git describe --tags --dirty --always
 }
 
+# annotate_dev_image CHART_YAML: name the dev image that built this release in the chart's annotations.
+function annotate_dev_image() {
+  local -r file="${1}" entry="  io.keelcore.dev-image: $(release_dev_image)"
+  if grep -q '^annotations:' "${file}"; then
+    awk -v entry="${entry}" '{ print } /^annotations:/ { print entry }' "${file}" > "${file}.new"
+    mv "${file}.new" "${file}"
+  else
+    printf 'annotations:\n%s\n' "${entry}" >> "${file}"
+  fi
+}
+
 function package_chart() {
   local -r version="${1}"
   mkdir -p "${DIST}"
   log "  Packaging helm chart (version=${version})"
-  helm package "${CHART_DIR}" \
+  local chart="${CHART_DIR}" work=''
+  if [ -n "$(release_dev_image)" ]; then
+    work="$(mktemp -d)"
+    cp -R "${CHART_DIR}" "${work}/${CHART_NAME}"
+    chart="${work}/${CHART_NAME}"
+    annotate_dev_image "${chart}/Chart.yaml"
+  fi
+  helm package "${chart}" \
     --version "${version}" \
     --app-version "${version}" \
     --destination "${DIST}"
+  [ -z "${work}" ] || rm -rf "${work}"
 }
 
 function push_chart() {

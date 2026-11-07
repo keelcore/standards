@@ -13,7 +13,7 @@
 #     (*.github-attestations.json) and the checksum database record (*.zip.sumdb.txt)
 #   - one SBOM per published artifact (scripts/release/sbom.sh): name, version, contents
 #   - one build-environment SBOM per tool image the release was built in (TAG's
-#     containers/*/image.ref, by digest), completed with the pinned tools syft cannot identify
+#     containers/*/image.ref), completed with the pinned tools syft cannot identify
 #   - current_pins.md: every pinned input of TAG (its docs/current_pins.md)
 #   - LICENSE: the repository's license file at TAG
 #   - SHA256SUMS over all of the above, and a keyless cosign bundle per file
@@ -38,6 +38,13 @@ set -o pipefail
 readonly FETCH_TRIES=30
 readonly FETCH_DELAY=30
 readonly LOCAL_HOOK='scripts/release/release-assets.local.sh'
+
+# copy_dev_image TAG DIR: the name of the dev image that built TAG, as a release asset.
+function copy_dev_image() {
+  if git cat-file -e "${1}:containers/dev/image.ref" 2> /dev/null; then
+    git show "${1}:containers/dev/image.ref" > "${2}/dev-image.txt"
+  fi
+}
 
 function main() {
   validate_args "${@:-}"
@@ -68,6 +75,7 @@ function main() {
       --tools "${tools}" "$(git show "${tag}:${ref_file}")"
     rm -f "${tools}"
   done < <(git ls-tree -r --name-only "${tag}" -- containers | grep -E '/image\.ref$' || true)
+  copy_dev_image "${tag}" "${dir}"
   if git cat-file -e "${tag}:docs/current_pins.md" 2> /dev/null; then
     git show "${tag}:docs/current_pins.md" > "${dir}/current_pins.md"
   fi

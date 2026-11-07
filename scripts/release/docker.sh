@@ -204,6 +204,8 @@ function build_image() {
   log "  Building ${ref} (flavor=${flavor}, linux/${arch})"
   # --provenance/--sbom off: this script attests its own SBOM and the workflow
   # attests SLSA provenance, so each pushed arch image stays a plain manifest.
+  local -a dev_image=()
+  [ -z "$(release_dev_image)" ] || dev_image=(--label "io.keelcore.dev-image=$(release_dev_image)")
   docker build \
     --platform "linux/${arch}" --provenance=false --sbom=false \
     --file "${DOCKERFILE}" \
@@ -213,6 +215,7 @@ function build_image() {
     --label "org.opencontainers.image.version=${tag}" \
     --label "org.opencontainers.image.created=$(utc_timestamp "${epoch}")" \
     --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
+    ${dev_image[@]+"${dev_image[@]}"} \
     "${ctx}" >&5
   rm -rf "${ctx}"
 }

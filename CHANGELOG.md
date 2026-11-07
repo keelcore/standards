@@ -48,6 +48,11 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- A dev image pin is its build context: `containers/NAME/image.ref` holds `<repository>:ctx-<hash>`, with no digest,
+  written by the pre-commit hook from the staged files, so each commit names the image built from it. `update-pins` no
+  longer lists tool images, `publish.sh ref` is gone, and `make update-dev-image-ref` writes the name.
+- Every release bundle names its dev image: the tag's `Dev-Image:` trailer, `dev-image.txt` in the GitHub release (in
+  `SHA256SUMS`), the `io.keelcore.dev-image` image label and chart annotation, and the npm and PyPI packages.
 - `update-pins` moves a pin holding checksums only to a release that publishes digests, the newest eligible one. When
   the pinned release publishes none, its checksums move by architecture to the new release's published digests.
 - `update-pins` progress lines are shorter: `step N/M` and the latest log line, or `starting…` before there is one.
