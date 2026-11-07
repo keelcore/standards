@@ -752,3 +752,10 @@ RUN
   [[ "${output}" != *'📥'* ]] || false
   [[ "$(result 'actions/checkout')" == *'pass'* ]] || false
 }
+
+@test "verify: the end of a run does not wait out the progress interval" {
+  checkout_fixture
+  local -r started="${SECONDS}"
+  UPDATE_PINS_PROGRESS_SECONDS=30 verify
+  [ $(( SECONDS - started )) -lt 20 ]
+}

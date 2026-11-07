@@ -17,8 +17,9 @@ setup() {
   printf '%s\n' "${REF}" > "${WORK}/repo/containers/x/image.ref"
 }
 
-# hook_image_with PRESENT: dev_image inside a hook, with the pinned image on the machine when
-# PRESENT=1. Every way of reaching the registry or building records itself in CALLS.
+# hook_image_with PRESENT [PINNED_MATCHES] : dev_image inside a hook. PRESENT lists what is on the machine
+# (a reference, or 1 for anything, 0 for nothing); the pin matches the tree unless PINNED_MATCHES=0.
+# Every way of reaching the registry or building records itself in CALLS.
 hook_image_with() {
   sed -n '/^function dev_image()/,/^}/p;/^function hook_image()/,/^}/p' "${STANDARDS}/scripts/dev/run.sh" \
     > "${WORK}/dev_image.sh"
@@ -26,12 +27,12 @@ hook_image_with() {
     export KEELCORE_DEV_IN_HOOK=1
     log() { printf '%s\n' \"\${1}\" >&2; }
     runtime() { printf docker; }
-    docker() { echo \"docker \$*\" >> '${CALLS}'; [ '${1}' = 1 ]; }
+    docker() { echo \"docker \$*\" >> '${CALLS}'; [ '${1}' = 1 ] || [ \"\${3}\" = '${1}' ]; }
     curl() { echo curl >> '${CALLS}'; }
     dev_containerfile() { printf 'containers/x/Containerfile'; }
     dev_has_base() { return 1; }
     dev_context_hash() { printf abc; }
-    dev_pinned_ref() { return 1; }
+    dev_pinned_ref() { [ '${2:-1}' = 1 ] && head -1 '${WORK}/repo/containers/x/image.ref'; }
     dev_ref_file() { printf 'containers/x/image.ref'; }
     dev_repo_name() { printf x; }
     dev_resolve_ref() { echo dev_resolve_ref >> '${CALLS}'; return 1; }
@@ -42,7 +43,7 @@ hook_image_with() {
 }
 
 only_local_inspect() {
-  [ "$(cat "${CALLS}")" = "docker image inspect ${REF}" ]
+  [ -z "$(grep -vF 'image inspect' "${CALLS}")" ]
 }
 
 @test "hook: the pinned image on this machine is used, with nothing fetched or built" {
@@ -59,11 +60,24 @@ only_local_inspect() {
   only_local_inspect
 }
 
+@test "hook: a stale pin's image is not used: its tools may not match this tree" {
+  hook_image_with "${REF}" 0
+  [ "${status}" -ne 0 ]
+  [ -z "$(grep -E ' (pull|build) |^curl|^build_image' "${CALLS}")" ]
+}
+
+@test "hook: an image built locally for this tree is used" {
+  hook_image_with 'keelcore-x-x:ctx-abc' 0
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *'keelcore-x-x:ctx-abc' ]]
+  [ -z "$(grep -E ' (pull|build) |^curl|^build_image' "${CALLS}")" ]
+}
+
 @test "hook: no pin is reported, with nothing fetched or built" {
   rm "${WORK}/repo/containers/x/image.ref"
-  hook_image_with 1
+  hook_image_with 0
   [ "${status}" -ne 0 ]
-  [ ! -s "${CALLS}" ]
+  [ -z "$(grep -E " (pull|build) |^curl|^build_image" "${CALLS}")" ]
 }
 
 # run_sh_in_hook: scripts/dev/run.sh as a commit's hook runs it, in a repository at WORK/repo whose
@@ -87,7 +101,6 @@ run_sh_in_hook() {
   run_sh_in_hook
   [ "${status}" -eq 0 ]
   [[ "${output}" == *'skipped'* ]]
-  [[ "${output}" == *'make pull-dev-image'* ]]
   [ ! -e "${WORK}/ran" ]
   ! grep -qE ' (pull|build) |^curl ' "${CALLS}"
 }

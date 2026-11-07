@@ -41,6 +41,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/dev-image.sh"
 # Environment passed into the container: every GITHUB_*, RUNNER_* and ACTIONS_* variable (the
 # Actions context: npm and cosign build provenance from it; the OIDC token request), plus CI,
 # PR metadata, coverage settings, and any names a project lists in KEELCORE_DEV_ENV.
+SNAPSHOT=''
+
 readonly PASS_ENV="TZ CI PR_TITLE PR_BODY PR_AUTHOR BASE_SHA HEAD_SHA COVERAGE_DIR COVERAGE_THRESHOLD COVERAGE_BASE_FILE COVERAGE_PR_FILE
   GO_COVERAGE_IGNORE_REGEX CARGO_COVERAGE_FEATURES CARGO_COVERAGE_IGNORE_REGEX
   ${KEELCORE_DEV_ENV:-}"
@@ -120,23 +122,34 @@ function dev_image() {
   printf '%s' "${tag}"
 }
 
-# hook_image DIR NAME: the pinned image, when it is on this machine. A commit never fetches or
-# builds, so a context the commit changes is checked with the pinned image (the new one is
-# published only after the commit). Without one, it says why and returns 1.
+# hook_image DIR NAME: the image holding this tree's tools, when it is on this machine: the pinned
+# one if it was built from this tree's context, else a local build of that context. A commit never
+# fetches or builds, and a stale pin's tools may not match the tree, so without either it says so and
+# returns 1: the checks are skipped and CI runs them.
 function hook_image() {
-  local -r file="${1}/$(dev_ref_file "${2}")"
-  if [ ! -s "${file}" ]; then
-    log "⚠️  ${file} pins no image yet (make publish-dev-image)"
-    return 1
+  local -r dir="${1}" name="${2}"
+  local base='' hash ref tag
+  if dev_has_base "${dir}" "${name}" && [ -s "${dir}/.standards/$(dev_ref_file dev)" ]; then
+    base="$(head -1 "${dir}/.standards/$(dev_ref_file dev)")"
   fi
-  local ref
-  ref="$(head -1 "${file}")"
-  if ! "$(runtime)" image inspect "${ref}" > /dev/null 2>&1; then
+  hash="$(dev_context_hash "${dir}" "${name}" "${base}")"
+  if ref="$(dev_pinned_ref "${dir}" "${name}" "${hash}")"; then
+    if "$(runtime)" image inspect "${ref}" > /dev/null 2>&1; then
+      log "ℹ️  hook uses the pinned ${ref}"
+      printf '%s' "${ref}"
+      return 0
+    fi
     log "⚠️  ${ref} is not on this machine; to check commits here: make pull-dev-image"
     return 1
   fi
-  log "ℹ️  hook uses the pinned ${ref}"
-  printf '%s' "${ref}"
+  tag="keelcore-${name}-$(dev_repo_name "${dir}"):ctx-${hash}"
+  if "$(runtime)" image inspect "${tag}" > /dev/null 2>&1; then
+    log "ℹ️  hook uses the local ${tag}"
+    printf '%s' "${tag}"
+    return 0
+  fi
+  log "⚠️  no image for this tree (ctx-${hash}) on this machine"
+  return 1
 }
 
 function build_image() {
@@ -170,12 +183,13 @@ function output_dirs() {
   fi
 }
 
-# snapshot DIR: a standalone copy of DIR (a submodule or worktree) under /tmp — a clone (its
+# snapshot DIR: a standalone copy of DIR (a submodule or worktree) under /tmp, this run's own — a clone (its
 # own .git, so git works without the outer repository) holding DIR's current files, tracked
 # and untracked; each submodule of DIR is a standalone copy of its own (snapshot_into).
 function snapshot() {
   local -r dir="${1}"
-  local -r dest="/tmp/keelcore-dev-snapshot/$(dev_repo_name "${dir}")-$(printf '%s' "${dir}" | git hash-object --stdin | cut -c1-12)"
+  mkdir -p '/tmp/keelcore-dev-snapshot'
+  local -r dest="$(mktemp -d "/tmp/keelcore-dev-snapshot/$(dev_repo_name "${dir}")-XXXXXXXX")"
   snapshot_into "${dir}" "${dest}"
   printf '%s' "${dest}"
 }
@@ -185,15 +199,8 @@ function snapshot() {
 # submodules are not copied as files: each becomes a snapshot of its own, recursively.
 function snapshot_into() {
   local -r dir="${1}" dest="${2}"
-  if [ -d "${dest}/.git" ]; then
-    git -C "${dest}" fetch --quiet --tags --force "${dir}" HEAD
-    git -C "${dest}" reset --quiet --hard FETCH_HEAD
-    git -C "${dest}" clean --quiet -fdx
-  else
-    rm -rf "${dest}"
-    mkdir -p "$(dirname "${dest}")"
-    git clone --quiet --no-hardlinks "${dir}" "${dest}"
-  fi
+  rm -rf "${dest}"
+  git clone --quiet --no-hardlinks "${dir}" "${dest}"
   local -r subs="$(git -C "${dir}" ls-files -s | awk '$1 == "160000" { print $4 }')"
   # Every file of the clone's commit that DIR no longer has (deleted, staged or not) goes.
   git -C "${dest}" ls-files -z | while IFS= read -r -d '' f; do
@@ -212,16 +219,27 @@ function snapshot_into() {
   git -C "${dest}" add -A
 }
 
-# sync_back SNAPSHOT DIR: copy every file a writable run changed in SNAPSHOT back to DIR.
+# sync_back SNAPSHOT DIR: copy back to DIR what a writable run's command changed, measured against
+# the snapshot's index, which holds what DIR held when the run started. A file edited in DIR since
+# then keeps the edit. Files are replaced, never written into: one may be a script running now.
 function sync_back() {
   local -r snap="${1}" dir="${2}"
-  local f
-  (cd "${snap}" && git ls-files -co --exclude-standard -z) | while IFS= read -r -d '' f; do
+  local f base now
+  (cd "${snap}" && { git diff --name-only -z; git ls-files -o --exclude-standard -z; }) | while IFS= read -r -d '' f; do
     # A submodule entry is a directory, not a file: its own snapshot holds its files.
-    [ -d "${snap}/${f}" ] && continue
+    [ -f "${snap}/${f}" ] || continue
     cmp -s "${snap}/${f}" "${dir}/${f}" && continue
+    if [ -e "${dir}/${f}" ]; then
+      base="$(git -C "${snap}" rev-parse --verify --quiet ":${f}" || true)"
+      now="$(git -C "${snap}" hash-object --no-filters "${dir}/${f}")"
+      if [ "${now}" != "${base}" ]; then
+        log "⚠️  ${f}: kept the version in the tree, edited since this run started"
+        continue
+      fi
+    fi
     mkdir -p "$(dirname "${dir}/${f}")"
-    cp -p "${snap}/${f}" "${dir}/${f}"
+    cp -p "${snap}/${f}" "${dir}/${f}.sync-back.$$"
+    mv -f "${dir}/${f}.sync-back.$$" "${dir}/${f}"
     log "✍️  ${f}"
   done
 }
@@ -230,6 +248,10 @@ function sync_back() {
 # or rw) and its output directories writable, working directory the same relative path as here.
 # A submodule (its git directory lives in the superproject) is mounted as a standalone snapshot
 # (/tmp); a writable run's edits are copied back.
+function remove_snapshot() {
+  [ -z "${SNAPSHOT}" ] || rm -rf "${SNAPSHOT}" || true
+}
+
 function run_in() {
   local -r image="${1}" mode="${2}"
   shift 2
@@ -239,6 +261,8 @@ function run_in() {
   # A submodule or worktree: its .git is a file pointing at a git directory outside it.
   if [ -f "${here}/.git" ]; then
     src="$(snapshot "${here}")"
+    SNAPSHOT="${src}"
+    trap remove_snapshot EXIT
   fi
   # git reports the physical path (macOS /tmp and /var are symlinks into /private).
   local rel
@@ -282,10 +306,10 @@ function run_in() {
     [ "${name}" = 'GITHUB_EVENT_PATH' ] && fmode='ro'
     args+=(-v "$(dirname "${file}"):$(dirname "${file}"):${fmode}")
   done
-  if [ "${src}" != "${here}" ] && [ "${mode}" = 'rw' ]; then
+  if [ "${src}" != "${here}" ]; then
     local rc=0
     "$(runtime)" "${args[@]}" "${image}" "$@" || rc=$?
-    sync_back "${src}" "${here}"
+    [ "${mode}" != 'rw' ] || sync_back "${src}" "${here}"
     return "${rc}"
   fi
   exec "$(runtime)" "${args[@]}" "${image}" "$@"

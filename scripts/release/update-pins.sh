@@ -1575,7 +1575,8 @@ function start_progress() {
   mkdir -p "${PROGRESS_DIR}"
   (
     while kill -0 "$$" 2> /dev/null; do
-      sleep "${PROGRESS_SECONDS}"
+      # Holds no copy of the console: the run ends without waiting for this sleep.
+      sleep "${PROGRESS_SECONDS}" 5>&-
       print_progress
     done
   ) > /dev/null 2>&1 &

@@ -85,6 +85,11 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- A commit checks with the image that holds its tree's tools, pinned or built locally. Without one on the machine, the hook
+  skips those checks and says so, and CI runs them, so changing a tool never blocks a commit.
+- A git hook or any `run.sh` run in a worktree or submodule no longer risks reverting the working tree: each run has its
+  own snapshot, removed when it ends, and a writable run copies back only what its command changed, keeping newer edits.
+- `update-pins` no longer holds the console open for the rest of a progress interval when a run ends.
 - The tables in `governance/ci.md` and the long lines in `CHANGELOG.md` pass markdownlint 0.49.1.
 - `publish.sh` builds on the published `.standards` tool image when `image.ref` pins another context, as `run.sh` does:
   both use `dev_resolve_ref`, so a consumer's image no longer waits for a pin and a second release.
