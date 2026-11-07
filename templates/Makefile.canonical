@@ -66,6 +66,7 @@ export TZ := UTC
 .PHONY: check-clean-tree
 .PHONY: check-pins-doc
 .PHONY: check-legal-drift
+.PHONY: setup-apple-container
 .PHONY: setup-bats
 .PHONY: setup-cosign
 .PHONY: setup-gitleaks
@@ -268,6 +269,11 @@ coverage-baseline-init:
 
 ## Setup targets — the tool images run these installers at build time; `make setup-<tool>` runs
 ## one in the dev image (a throwaway install: how update-pins checks a new tool pin).
+
+## Apple container and its kernel on this Mac, from the signed installer package (needs an administrator password).
+setup-apple-container:
+	@echo "🔧 Installing Apple container..."
+	bash scripts/ci/setup-apple-container.sh
 
 setup-bats:
 	@echo "🔧 Installing bats-core test harness..."

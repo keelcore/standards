@@ -14,6 +14,10 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- `make setup-apple-container` (`scripts/ci/setup-apple-container.sh`): installs Apple `container` from the signed
+  installer package of its latest GitHub release, checked against the published SHA-256, Apple's signature and
+  notarization, then starts the system and installs its default kernel when it has none. Runs on the Mac host; when
+  the latest version and a kernel are present it changes nothing.
 - `make wait-for-ci` (`scripts/release/wait-ci.sh`): waits, with progress, for the GitHub Actions runs on a commit to
   finish, then fails if any is red. The tag's publish workflow runs it first, so a red commit is never published; the host
   never waits for CI.
