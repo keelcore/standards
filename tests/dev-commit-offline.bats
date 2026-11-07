@@ -123,6 +123,6 @@ run_sh_in_hook() {
   cd "${WORK}/repo"
   PATH="${WORK}/bin:${PATH}" run bash "${STANDARDS}/scripts/dev/pull.sh"
   [ "${status}" -eq 0 ]
-  [ "$(cat "${CALLS}")" = "pull-tool image pull ${REF}" ]
+  grep -qE "^pull-tool image pull( --progress plain)? ${REF}\$" "${CALLS}"
   grep -qxF "$(printf '\tbash scripts/dev/pull.sh')" "${STANDARDS}/templates/Makefile.canonical"
 }

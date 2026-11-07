@@ -24,7 +24,7 @@ function main() {
   local ref
   ref="$(head -1 "${IMAGE_REF}")"
   log "📥 Pulling ${ref}..."
-  "$(runtime)" image pull "${ref}"
+  pull_image "${ref}"
   log "✅ ${ref} is on this machine"
 }
 

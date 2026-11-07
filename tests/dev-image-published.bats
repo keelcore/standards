@@ -226,10 +226,32 @@ ref_repo() {
   ref_repo
   PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
   [ "${status}" -eq 0 ]
-  grep -qxF "image pull ${PIN}" "${WORK}/calls"
+  grep -qE "^image pull( --progress plain)? ${PIN}\$" "${WORK}/calls"
   : > "${WORK}/calls"
   touch "${WORK}/found"
   PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
   [ "${status}" -eq 0 ]
   [ -z "$(grep ' pull ' "${WORK}/calls")" ]
+}
+
+# on_host OS: uname reports OS, so run.sh picks that host's runtime.
+on_host() {
+  printf '#!/usr/bin/env bash\nif [ "${1:-}" = "-s" ]; then echo %s; else echo arm64; fi\n' "${1}" > "${WORK}/fake/uname"
+  chmod +x "${WORK}/fake/uname"
+}
+
+@test "run.sh --fetch-image: Apple container prints progress without a terminal" {
+  ref_repo
+  on_host Darwin
+  PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -eq 0 ]
+  grep -qxF "image pull --progress plain ${PIN}" "${WORK}/calls"
+}
+
+@test "run.sh --fetch-image: docker pull takes no progress flag" {
+  ref_repo
+  on_host Linux
+  PATH="${WORK}/fake:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -eq 0 ]
+  grep -qxF "image pull ${PIN}" "${WORK}/calls"
 }

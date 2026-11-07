@@ -85,6 +85,10 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `run.sh --fetch-image` and `make pull-dev-image` show Apple `container` pull progress without a terminal, so
+  `update-pins` reports it while it fetches.
+- `coverage-go.sh` succeeds and reports 0 files when there is nothing to report: no coverage data, or only ignored
+  files.
 - A commit checks with the image that holds its tree's tools, pinned or built locally. Without one on the machine, the hook
   skips those checks and says so, and CI runs them, so changing a tool never blocks a commit.
 - A git hook or any `run.sh` run in a worktree or submodule no longer risks reverting the working tree: each run has its

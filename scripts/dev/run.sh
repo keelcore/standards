@@ -169,7 +169,7 @@ function build_image() {
 function fetch_image() {
   local image
   image="$(dev_image . "${1}")" || exit 1
-  "$(runtime)" image inspect "${image}" > /dev/null 2>&1 || "$(runtime)" image pull "${image}" >&2
+  "$(runtime)" image inspect "${image}" > /dev/null 2>&1 || pull_image "${image}" >&2
 }
 
 # output_dirs ROOT: the writable output directories (repository-relative): the lines of

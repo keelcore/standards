@@ -49,9 +49,9 @@ function main() {
   printf '%s\n' "${dirs}" | while IFS= read -r dir; do
     [ -n "${dir}" ] && collect_module "${dir}"
   done > "${combined}"
-  grep -Ev "${GO_COVERAGE_IGNORE_REGEX}" "${combined}" | to_lcov > "${GO_LCOV}"
+  { grep -Ev "${GO_COVERAGE_IGNORE_REGEX}" "${combined}" || true; } | to_lcov > "${GO_LCOV}"
   rm -f "${combined}"
-  log "📊 Go LCOV -> ${GO_LCOV} ($(grep -c '^SF:' "${GO_LCOV}" || echo 0) files)"
+  log "📊 Go LCOV -> ${GO_LCOV} ($(grep -c '^SF:' "${GO_LCOV}" || true) files)"
 }
 
 # go_module_dirs: repo-relative dirs containing a go.mod (root or nested).
@@ -85,7 +85,7 @@ function collect_module() {
   # workspace it otherwise lists every module (multi-line), corrupting the sed below.
   modpath="$(cd "${dir}" && GOWORK=off go list -m 2>/dev/null)"
   if [ "${dir}" = '.' ]; then prefix=''; else prefix="${dir}/"; fi
-  grep -v '^mode:' "${prof}" | sed "s|^${modpath}/|${prefix}|"
+  { grep -v '^mode:' "${prof}" || true; } | sed "s|^${modpath}/|${prefix}|"
   rm -f "${prof}"
 }
 

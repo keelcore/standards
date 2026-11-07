@@ -153,3 +153,11 @@ function dev_published_ref() {
 function runtime() {
   if [ "$(uname -s)" = 'Darwin' ]; then printf 'container'; else printf 'docker'; fi
 }
+
+# pull_image REF: fetch REF. Apple container's default progress prints nothing without a terminal, so
+# it asks for plain lines; docker prints them either way.
+function pull_image() {
+  local -a progress=()
+  [ "$(runtime)" != 'container' ] || progress=(--progress plain)
+  "$(runtime)" image pull ${progress[@]+"${progress[@]}"} "${1}"
+}
