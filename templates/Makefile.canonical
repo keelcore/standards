@@ -113,6 +113,7 @@ export TZ := UTC
 .PHONY: install-hooks
 .PHONY: release-go
 .PHONY: release-npm
+.PHONY: wait-for-ci
 .PHONY: release-wait-published
 .PHONY: release-pypi
 .PHONY: release-sbom
@@ -128,6 +129,7 @@ export TZ := UTC
 .PHONY: dev-image-merge
 .PHONY: dev-image-sign
 .PHONY: dev-image-ref
+.PHONY: pull-dev-image
 .PHONY: dev-image-publish
 .PHONY: verify-go
 .PHONY: bootstrap-standards
@@ -360,6 +362,11 @@ release-npm:
 	bash scripts/dev/run.sh --writable bash scripts/release/npm-publish.sh
 
 ## release-wait-published ARGS=npm|pypi|go: wait until the registry serves all of the version just published
+## Wait for the GitHub Actions runs on this commit, then fail if any is red.
+wait-for-ci:
+	@echo "⏳ Waiting for CI on this commit..."
+	bash scripts/release/wait-ci.sh
+
 release-wait-published:
 	@echo "⏳ Waiting for the registry to finish publishing..."
 	bash scripts/dev/run.sh bash scripts/release/wait-published.sh $(ARGS)
@@ -410,7 +417,7 @@ create-release:
 ## scripts/release/update-pins.local.sh.
 update-pins:
 	@echo "📌 Refreshing pins..."
-	bash scripts/release/update-pins.sh $(if $(APPLY),--apply,) $(if $(DISCOVER),--discover-only,) $(if $(REPORT),--report $(REPORT),)
+	bash scripts/release/update-pins.sh $(if $(APPLY),--apply,) $(if $(DISCOVER),--discover-only,) $(if $(REPORT),--report $(REPORT),) $(foreach m,$(MAJOR),--major '$(m)')
 
 pins-doc:
 	@echo "📌 Writing docs/current_pins.md..."
@@ -442,6 +449,11 @@ dev-image-sign:
 dev-image-ref:
 	@echo "📌 Pinning published tool images by digest..."
 	bash scripts/dev/run.sh --writable bash scripts/dev/publish.sh ref
+
+## Fetch the pinned dev image onto this machine, outside any commit: a commit only uses what is here.
+pull-dev-image:
+	@echo "📥 Pulling the pinned dev image..."
+	bash scripts/dev/pull.sh
 
 dev-image-publish:
 	@echo "📦 Building, pushing and pinning unpublished tool images (Apple container)..."

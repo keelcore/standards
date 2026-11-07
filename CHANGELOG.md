@@ -14,8 +14,15 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
-- `make update-pins` prints progress every 30 seconds while it verifies (`UPDATE_PINS_PROGRESS_SECONDS`): elapsed time, pin,
-  image build step and latest log line for each running pin and the combined run, and a result line as each pin finishes.
+- `make wait-for-ci` (`scripts/release/wait-ci.sh`): waits, with progress, for the GitHub Actions runs on a commit to
+  finish, then fails if any is red. The tag's publish workflow runs it first, so a red commit is never published; the host
+  never waits for CI.
+- `make update-pins MAJOR='NAME ...'` (`--major NAME`): moves a named pin to its newest release of any major past the
+  cooldown, with the usual verification.
+- `make pull-dev-image` (`scripts/dev/pull.sh`): fetches the pinned dev image onto this machine.
+- `make update-pins` prints progress every 30 seconds while it verifies (`UPDATE_PINS_PROGRESS_SECONDS`): elapsed
+  time, pin, image build step and latest log line for each running pin and the combined run, and a result line as each
+  pin finishes.
 - Canonical image release, chart push, upload and self-verification: `make release-images`, `release-helm-push`,
   `release-upload`, `release-verify`, `release-metadata`, `release-ghcr-login`, driven by `config/release-images.local.txt`,
   `release-dockerfile.local.txt` and the workflow's repository; grype in the tool image.
@@ -37,6 +44,13 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- GitHub Actions move to a new major like any other update: `update-pins` writes new action and runner image majors past
+  the cooldown, for CI to prove. A `0.y.z` update is no longer treated as a major (semver.org: the major is the first
+  number).
+- A git commit never fetches or stops for the dev image: without it on the machine, or with no pin yet, the hook skips
+  those checks and says so, and CI runs them, so a new image can bootstrap.
+- `setup-helm.sh`, `setup-kubeconform.sh`, `setup-kubescape.sh`, `setup-zizmor.sh` and `setup-grype.sh` install in the
+  dev image only; their Homebrew paths are gone.
 - `make create-release` decides on the pin status committed in `docs/current_pins.md` (`update-pins --from-pins-doc`),
   with no network query, so an upstream change after the commit cannot block a commit that was current. A tree with
   pins and no such document, or a document out of step with the tree, blocks the release (`make pins-doc`).

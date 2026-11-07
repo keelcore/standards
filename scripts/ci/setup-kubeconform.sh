@@ -2,7 +2,6 @@
 # setup-kubeconform.sh
 # Install kubeconform for offline Kubernetes schema validation.
 # Linux: download the release tarball and verify its committed SHA-256.
-# macOS: Homebrew.
 # No-op if kubeconform is already present.
 
 # bash configuration:
@@ -32,12 +31,8 @@ function main() {
       log "Installing kubeconform ${KUBECONFORM_VERSION} (Linux)"
       install_linux
       ;;
-    Darwin)
-      log "Installing kubeconform via Homebrew"
-      install_macos
-      ;;
     *)
-      log "ERROR: setup-kubeconform.sh does not support OS: $(uname -s)"
+      log '❌ kubeconform installs in the dev image (Linux); run its targets through make'
       exit 1
       ;;
   esac
@@ -79,10 +74,6 @@ function install_linux() {
   as_root tar -xzf "${tmp}/kubeconform.tar.gz" -C /usr/local/bin kubeconform
   as_root chmod +x /usr/local/bin/kubeconform
   rm -rf "${tmp}"
-}
-
-function install_macos() {
-  brew install kubeconform
 }
 
 main "${@:-}"

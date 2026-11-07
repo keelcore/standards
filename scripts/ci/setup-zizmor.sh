@@ -2,7 +2,6 @@
 # setup-zizmor.sh
 # Install zizmor for GitHub Actions workflow security lint (scripts/lint/workflows.sh).
 # Linux (built into the dev image): pinned v1.30.1 release asset, SHA256-verified before install.
-# macOS: Homebrew.
 # No-op if zizmor is already present.
 #
 # Pinned version: v1.30.1
@@ -42,12 +41,8 @@ function main() {
       log "Installing zizmor v${ZIZMOR_VERSION} (Linux)"
       install_linux
       ;;
-    Darwin)
-      log "Installing zizmor via Homebrew"
-      install_macos
-      ;;
     *)
-      log "ERROR: setup-zizmor.sh does not support OS: $(uname -s)"
+      log '❌ zizmor installs in the dev image (Linux); run its targets through make'
       exit 1
       ;;
   esac
@@ -86,10 +81,6 @@ function stage_binary() {
   tar -xzf "${tmp}/${ZIZMOR_ASSET}" -C "${tmp}"
   find "${tmp}" -type f -name zizmor -perm -u+x -exec mv {} "${tmp}/zizmor.staged" \;
   [ -f "${tmp}/zizmor.staged" ] || { log "ERROR: no zizmor binary in ${ZIZMOR_ASSET}"; exit 1; }
-}
-
-function install_macos() {
-  brew install zizmor
 }
 
 main "${@:-}"

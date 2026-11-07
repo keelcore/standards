@@ -22,8 +22,19 @@ setup() {
   export CREATE_RELEASE_TTY="${T}/answer"
   export HOOK_ARGS_FILE="${T}/hook_args"
   printf 'y\n' > "${CREATE_RELEASE_TTY}"
+  export GITHUB_REPOSITORY='acme/widget'
+  ci_runs '{"workflow_runs":[{"id":1,"name":"CI","status":"completed","conclusion":"success","head_branch":"main"}]}'
   configure_git
   init_repos
+}
+
+# ci_runs JSON: GitHub's answer for the commit's workflow runs; gh records what it was asked.
+ci_runs() {
+  mkdir -p "${T}/bin"
+  printf '%s\n' "${1}" > "${T}/checks.json"
+  printf '#!/usr/bin/env bash\necho "gh $*" >> "%s/gh.calls"\ncat "%s/checks.json"\n' "${T}" "${T}" > "${T}/bin/gh"
+  chmod +x "${T}/bin/gh"
+  case ":${PATH}:" in *":${T}/bin:"*) ;; *) export PATH="${T}/bin:${PATH}" ;; esac
 }
 
 configure_git() {
@@ -636,4 +647,13 @@ devimage_pin() {
   [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "${head}" ]
   [ "$(cat CHANGELOG.md)" = "${before}" ]
   [ -z "$(git status --porcelain)" ]
+}
+
+@test "CI: the host tags without waiting: running or red runs are the tag's workflow to judge" {
+  ready_at v1.2.3
+  ci_runs '{"workflow_runs":[{"id":1,"name":"CI","status":"in_progress","conclusion":null,"head_branch":"main"}]}'
+  run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  [ "$(tag_count)" -eq 2 ]
+  [ ! -e "${T}/gh.calls" ] || [ -z "$(grep 'actions/runs' "${T}/gh.calls")" ]
 }

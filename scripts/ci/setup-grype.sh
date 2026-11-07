@@ -67,8 +67,7 @@ function is_pinned_version_installed() {
 
 function require_linux() {
   if [[ "$(uname -s)" != 'Linux' ]]; then
-    log "ERROR: setup-grype.sh only supports Linux CI runners"
-    log "  For macOS: brew install grype"
+    log '❌ grype installs in the dev image (Linux); run its targets through make'
     exit 1
   fi
 }

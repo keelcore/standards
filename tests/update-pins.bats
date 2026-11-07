@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # tests/update-pins.bats
 # update-pins.sh discovery: every pin kind is found and resolved, eligibility
-# (prerelease, cooldown, Go patch cooldown, major / 0.x minor report-only) is
+# (prerelease, cooldown, Go patch cooldown, major report-only unless named by --major) is
 # applied, unpinned inputs are reported, the project hook adds pins and holds,
 # and the working tree is left untouched.
 #
@@ -73,8 +73,7 @@ write_fixtures() {
     --arg old "$(iso 400)" --arg new "$(iso 30)" --arg pre "$(iso 20)" '[
       {tag_name: "v4.2.2", draft: false, prerelease: false, published_at: $old},
       {tag_name: "v4.4.0", draft: false, prerelease: false, published_at: $new},
-      {tag_name: "v4.5.0", draft: false, prerelease: true,  published_at: $pre},
-      {tag_name: "v7.0.0", draft: false, prerelease: false, published_at: $new}]')"
+      {tag_name: "v4.5.0", draft: false, prerelease: true,  published_at: $pre}]')"
   fixture 'https://api.github.com/repos/acme/foo/releases?per_page=100' "$(jq -n \
     --arg old "$(iso 400)" --arg fresh "$(iso 5)" '[
       {tag_name: "v1.2.0", draft: false, prerelease: false, published_at: $old},
@@ -100,9 +99,9 @@ row() {
   grep -E "^[a-z]+ +${1} " <<< "${output}"
 }
 
-@test "action: newest eligible release in the current major; prerelease skipped; new major report-only" {
+@test "action: newest eligible release; prerelease skipped" {
   pins
-  [[ "$(row 'actions/checkout')" == *'v4.4.0'*'stale'*'major v7.0.0 available (report-only)'* ]] || false
+  [[ "$(row 'actions/checkout')" == *'v4.4.0'*'stale'* ]] || false
 }
 
 @test "tool: a release inside the 14-day cooldown is not a candidate yet" {
@@ -115,9 +114,9 @@ row() {
   [[ "$(row 'example.com/bar/cmd/bar')" == *'v1.1.0'*'stale'* ]] || false
 }
 
-@test "gomod: direct requirement only; a 0.x minor bump is report-only" {
+@test "gomod: direct requirement only; a 0.x minor bump is an ordinary update" {
   pins
-  [[ "$(row 'example.com/lib')" == *'major'*'v0.4.0'* ]] || false
+  [[ "$(row 'example.com/lib')" == *'v0.4.0'*'stale'* ]] || false
   [ -z "$(row 'example.com/ind')" ]
 }
 
@@ -386,7 +385,7 @@ dependabot() {
     $'| x | `ubuntu-24.04` |\n| y | `ubuntu-26.04` |\n| z | `ubuntu-26.04-arm` |\n| m | `macos-26` |\n'
   commit
   pins
-  [[ "$(row 'ubuntu-24.04')" == *'ubuntu-26.04'*'major'*'(report-only)'* ]] || false
+  [[ "$(row 'ubuntu-24.04')" == *'ubuntu-26.04'*'stale'* ]] || false
   [[ "$(row 'macos-26')" == *'current'* ]] || false
   [[ "$(row 'windows-latest')" == *'unpinned'*'floats (runner image)'* ]] || false
 }
@@ -552,4 +551,143 @@ dependabot() {
   grep -qF '| action | `actions/checkout` | `v4.4.0` |' docs/current_pins.md
   run bash scripts/release/update-pins.sh --check-pins-doc docs/current_pins.md
   [ "${status}" -eq 0 ]
+}
+
+# zed_pin CURRENT VERSION:AGE_DAYS...: a tool pin at CURRENT whose releases are these.
+zed_pin() {
+  local -r current="${1}"
+  shift
+  printf '#!/usr/bin/env bash\nreadonly ZED_VERSION=%s\nurl="https://github.com/acme/zed/releases/download/v${ZED_VERSION}/zed"\n' \
+    "'${current}'" > scripts/ci/setup-zed.sh
+  printf 'setup-zed:\n\t@true scripts/ci/setup-zed.sh\n' >> Makefile
+  local spec json='[]'
+  for spec in "$@"; do
+    json="$(jq --arg v "${spec%%:*}" --arg t "$(iso "${spec##*:}")" \
+      '. + [{tag_name: $v, draft: false, prerelease: false, published_at: $t}]' <<< "${json}")"
+  done
+  fixture 'https://api.github.com/repos/acme/zed/releases?per_page=100' "${json}"
+  commit
+}
+
+@test "0.x: a minor bump is an ordinary update; the cooldown still applies" {
+  zed_pin '0.6.7' 'v0.6.7:400' 'v0.8.0:30' 'v0.9.0:5'
+  pins
+  [[ "$(row 'ZED')" == *'v0.8.0'*'stale'* ]] || false
+}
+
+@test "0.x: 1.0.0 is a major update, report-only" {
+  zed_pin '0.6.7' 'v0.6.7:400' 'v1.0.0:30'
+  pins
+  [[ "$(row 'ZED')" == *'v1.0.0'*'major'*'report-only'* ]] || false
+}
+
+@test "--major: a named pin moves to its newest major" {
+  zed_pin '1.2.0' 'v1.2.0:400' 'v2.0.0:60' 'v3.1.0:30'
+  run bash scripts/release/update-pins.sh --discover-only --major ZED
+  [ "${status}" -eq 0 ]
+  [[ "$(row 'ZED')" == *'v3.1.0'*'stale'* ]] || false
+}
+
+@test "--major: the cooldown still applies: the newest major past it is chosen" {
+  zed_pin '1.2.0' 'v1.2.0:400' 'v2.0.0:60' 'v3.1.0:5'
+  run bash scripts/release/update-pins.sh --discover-only --major ZED
+  [ "${status}" -eq 0 ]
+  [[ "$(row 'ZED')" == *'v2.0.0'*'stale'* ]] || false
+}
+
+@test "--major: a major only inside the cooldown stays reported as cooldown" {
+  zed_pin '1.2.0' 'v1.2.0:400' 'v2.0.0:5'
+  run bash scripts/release/update-pins.sh --discover-only --major ZED
+  [ "${status}" -eq 0 ]
+  [[ "$(row 'ZED')" == *'v2.0.0'*'cooldown'* ]] || false
+}
+
+@test "--major --apply: the named pin is verified and written" {
+  checkout_fixture
+  zed_pin '1.2.0' 'v1.2.0:400' 'v2.0.0:30'
+  fixture 'https://api.github.com/repos/acme/zed/releases/tags/1.2.0' '{"assets": []}'
+  fixture 'https://api.github.com/repos/acme/zed/releases/tags/v2.0.0' '{"assets": []}'
+  verify --apply --major ZED
+  grep -q "readonly ZED_VERSION='2.0.0'" scripts/ci/setup-zed.sh
+  [[ "$(result 'ZED')" == *'pass'*'make setup-zed'* ]] || false
+}
+
+@test "--major: an unknown name stops the run, before anything is verified" {
+  checkout_fixture
+  verify --major NOPE
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'NOPE'*'not a pin'* ]] || false
+  [[ "${output}" != *'verifying in'* ]] || false
+}
+
+@test "--major: a pin with no newer major stops the run, before anything is verified" {
+  zed_pin '1.2.0' 'v1.2.0:400' 'v1.3.0:30'
+  verify --major ZED
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'ZED'*'no newer major'* ]] || false
+  [[ "${output}" != *'verifying in'* ]] || false
+}
+
+@test "--major: a held pin stops the run, and says why" {
+  zed_pin '1.2.0' 'v1.2.0:400' 'v2.0.0:30'
+  mkdir -p .standards/scripts/ci
+  cp -p scripts/ci/setup-zed.sh .standards/scripts/ci/setup-zed.sh
+  commit
+  verify --major ZED
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'ZED'*'held'* ]] || false
+}
+
+@test "GitHub Actions: a new runner image is written, with CI left to verify it" {
+  printf 'jobs:\n  a:\n    runs-on: ubuntu-24.04\n' > .github/workflows/runner.yml
+  fixture 'https://raw.githubusercontent.com/actions/runner-images/main/README.md' \
+    $'| x | `ubuntu-24.04` |\n| y | `ubuntu-26.04` |\n'
+  checkout_fixture
+  commit
+  verify --apply
+  [[ "$(result 'ubuntu-24.04')" == *'verify-on-ci'* ]] || false
+  grep -q 'runs-on: ubuntu-26.04' .github/workflows/runner.yml
+}
+
+@test "brew: a real install is reported; a hint in a log message is not" {
+  printf '#!/usr/bin/env bash\nbrew install realtool\nlog "  For macOS: brew install hintone"\nlog %s\n' \
+    "'For macOS: brew install hinttwo'" > scripts/ci/setup-brewy.sh
+  commit
+  pins
+  [[ "${output}" == *'brew:realtool'* ]] || false
+  [[ "${output}" != *'hintone'* ]] || false
+  [[ "${output}" != *'hinttwo'* ]] || false
+}
+
+@test "make update-pins: MAJOR passes each name to --major" {
+  run make -n -f "${STANDARDS}/templates/Makefile.canonical" update-pins MAJOR='GRYPE actions/checkout'
+  [[ "${output}" == *"--major 'GRYPE' --major 'actions/checkout'"* ]] || false
+}
+
+# checkout_major AGE: actions/checkout has a v7.0.0 published AGE days ago.
+checkout_major() {
+  fixture 'https://api.github.com/repos/actions/checkout/releases?per_page=100' "$(jq -n \
+    --arg old "$(iso 400)" --arg new "$(iso 30)" --arg major "$(iso "${1}")" '[
+      {tag_name: "v4.2.2", draft: false, prerelease: false, published_at: $old},
+      {tag_name: "v4.4.0", draft: false, prerelease: false, published_at: $new},
+      {tag_name: "v7.0.0", draft: false, prerelease: false, published_at: $major}]')"
+}
+
+@test "GitHub Actions: a new major of an action is an ordinary update, with no --major" {
+  checkout_major 30
+  pins
+  [[ "$(row 'actions/checkout')" == *'v7.0.0'*'stale'* ]] || false
+}
+
+@test "GitHub Actions: the cooldown still applies to an action's new major" {
+  checkout_major 5
+  pins
+  [[ "$(row 'actions/checkout')" == *'v4.4.0'*'stale'* ]] || false
+}
+
+@test "GitHub Actions --apply: an action's new major is written after the local checks" {
+  checkout_major 30
+  fixture 'https://api.github.com/repos/actions/checkout/commits/v7.0.0' "{\"sha\":\"${SHA_CHECKOUT_NEW}\"}"
+  verify --apply
+  grep -q "actions/checkout@${SHA_CHECKOUT_NEW}  # v7.0.0" .github/workflows/ci.yml
 }

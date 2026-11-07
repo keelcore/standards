@@ -22,7 +22,24 @@ env:
   TZ: UTC
 
 jobs:
+  ci-passed:
+    name: CI passed on this commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+        with:
+          persist-credentials: false
+
+      - run: make wait-for-ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   publish-npm:
+    needs: ci-passed
     name: publish / npm
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -47,6 +64,7 @@ jobs:
           KEELCORE_DEV_ENV: INPUT_TAG
 
   publish-pypi:
+    needs: ci-passed
     name: publish / pypi
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -79,6 +97,7 @@ jobs:
           subject-path: "target/dist/*"
 
   publish-go:
+    needs: ci-passed
     name: publish / go (pkg.go.dev)
     runs-on: ubuntu-24.04
     timeout-minutes: 30

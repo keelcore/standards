@@ -154,6 +154,10 @@ The script will:
    update-pins APPLY=1`, checked by the pre-commit hook), and the release notes take the `CHANGELOG.md`
    `[Unreleased]` entries added since the previous tag.
 
+The host never waits for CI. The pushed tag starts its own workflow, whose first job waits for every earlier GitHub
+Actions run on that commit to finish, then fails if any is red (`make wait-for-ci`, `scripts/release/wait-ci.sh`), and
+nothing is published.
+
 A dry run prints the version and the full tag message without prompting, tagging or pushing, and reports failed
 preconditions and stale pins as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).
 
@@ -162,7 +166,8 @@ preconditions and stale pins as warnings. CI picks up the pushed tag and runs th
 ## Stale Pins
 
 A pin is stale when an eligible newer release exists (`governance/ci.md` "Pin Refresh": no prereleases, 14-day
-cooldown, majors report-only) and was not adopted. `create-release` reads the status recorded in
+cooldown) and was not adopted. Majors outside GitHub Actions stay report-only until named with `MAJOR=`.
+`create-release` reads the status recorded in
 `docs/current_pins.md` by the last `make update-pins APPLY=1` or `make pins-doc`, lists every stale pin with the
 consequence of staying on it, and refuses to tag. Upstream releases after that commit reach the next
 `make update-pins` run, never the tag. A tool-image pin (`containers/NAME/image.ref`) never blocks: `run.sh` builds an

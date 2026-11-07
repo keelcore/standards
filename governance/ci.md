@@ -324,8 +324,10 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
 1. **Discovery** finds every pin and every input that floats unpinned, and resolves each pin's newest eligible
    candidate from published metadata only (no binaries are downloaded).
 2. **Eligibility:** no prereleases; a **14-day cooldown** after publication (fresh releases are where supply-chain
-   compromises surface); **2 days** for a Go toolchain patch release in the same minor. A new major version — or a new
-   minor of a 0.x release — is report-only: adopted only when it works as a drop-in, by a deliberate change.
+   compromises surface); **2 days** for a Go toolchain patch release in the same minor. A new major version (the first
+   number: a `0.y.z` update stays in major 0) is report-only, adopted by naming the pin:
+   `make update-pins MAJOR='NAME'`. GitHub Actions (actions and runner images) move to a new major like any other
+   update: CI proves them, and a red commit is never published (`make wait-for-ci`).
 3. **Dependabot union:** open Dependabot PRs and alerts join the candidate set; the newer candidate wins, and the
    report's `SOURCE` column says which side proposed it.
 4. **Verification:** each stale pin is applied alone in a throwaway git worktree of the staged tree (HEAD plus the

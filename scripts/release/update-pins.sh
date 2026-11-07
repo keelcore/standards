@@ -51,8 +51,11 @@
 #
 # Eligibility of a candidate: not a prerelease; published at least 14 days ago
 # (COOLDOWN_DAYS), or 2 days for a Go toolchain patch release in the same minor
-# (GO_PATCH_COOLDOWN_DAYS). A newer major version is reported as `major`
-# (report-only); the newest eligible release in the current major is the candidate.
+# (GO_PATCH_COOLDOWN_DAYS). A newer major version (the first number: 0.y.z updates stay in major 0)
+# is reported as `major` (report-only); the newest eligible release in the current major is the
+# candidate. GitHub Actions (actions and runner images) move to a new major like any other update:
+# CI proves them, and wait-ci.sh keeps a red commit from being published. --major NAME (repeatable)
+# lets any other named pin move to its newest eligible release of any major.
 #
 # Status: current | stale (eligible candidate exists) | major | cooldown (newer
 # release still inside the cooldown) | unpinned | unresolved | hold.
@@ -78,7 +81,7 @@
 # throwaway worktree), UPDATE_PINS_PROGRESS_SECONDS (progress interval; default: 30),
 # GITHUB_TOKEN (else `gh auth token`).
 #
-# Usage: update-pins.sh [--apply | --discover-only | --from-pins-doc FILE] [--tsv FILE] [--report FILE]
+# Usage: update-pins.sh [--apply | --discover-only | --from-pins-doc FILE] [--major NAME] [--tsv FILE] [--report FILE]
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -99,6 +102,8 @@ readonly SEMVER_RE='^v?[0-9]+(\.[0-9]+)*$'
 NOW=0
 HOLDS=''
 PROGRESS_SECONDS="${UPDATE_PINS_PROGRESS_SECONDS:-30}"
+MAJOR_PINS=''
+ANY_MAJOR=''
 PROGRESS_DIR=''
 PROGRESS_PID=''
 ROOT=''
@@ -142,6 +147,7 @@ function main() {
   load_hook
   local resolved
   resolved="$(dependabot_union "$(resolve_all "$(group "$(discover)")")")"
+  check_major_pins "${resolved}"
   report "${resolved}"
   [ -z "${TSV_OUT}" ] || write_tsv "${resolved}" > "${TSV_OUT}"
   [ -z "${PINS_MD}" ] || write_pins_md "${resolved}" > "${PINS_MD}"
@@ -222,6 +228,10 @@ function validate_args() {
       '') ;;
       --discover-only) MODE='discover' ;;
       --apply) APPLY=1 ;;
+      --major)
+        [ -n "${2:-}" ] || { log '❌ Error: --major needs a pin name'; exit 1; }
+        MAJOR_PINS+="${2}"$'\n'
+        shift ;;
       --tsv)
         [ -n "${2:-}" ] || { log '❌ Error: --tsv needs a file'; exit 1; }
         TSV_OUT="${2}"
@@ -575,7 +585,7 @@ function discover_unpinned() {
     [ -n "${line}" ] || continue
     record unpinned "brew:$(sed -E "s/.*brew install[[:space:]]+([^;|&\"')]+).*/\1/" <<< "${line}" | xargs | tr ' ' ',')" \
       "$(cut -d: -f1-2 <<< "${line}")" 'no version' 'floats (Homebrew)'
-  done < <(files_of '*.sh' | grep_files 'brew install [a-z]' | grep -v "log '\|printf ")
+  done < <(files_of '*.sh' | grep_files 'brew install [a-z]' | grep -vE "log ['\"]|printf ")
   while IFS= read -r line; do
     [ -n "${line}" ] || continue
     record unpinned "$(awk '{print $2}' <<< "${line#*:*:}")" "$(cut -d: -f1-2 <<< "${line}")" 'no digest' 'floats'
@@ -780,7 +790,7 @@ function latest_first() {
   if [ "${v#v}" = "${current#v}" ] || ! newer "${v}" "${current}"; then
     return 0
   fi
-  if [ $(( (NOW - t) / DAY )) -ge "${COOLDOWN_DAYS}" ] && [ "$(major_of "${v}")" = "$(major_of "${current}")" ]; then
+  if [ $(( (NOW - t) / DAY )) -ge "${COOLDOWN_DAYS}" ] && same_line "${v}" "${current}"; then
     return 0
   fi
   recent_versions "${system}" "${name}"
@@ -928,17 +938,17 @@ function newer() {
   [ "${a}" != "${b}" ] && [ "$(printf '%s\n%s\n' "${a}" "${b}" | sort -V | tail -1)" = "${a}" ]
 }
 
-# major_of VERSION: the compatibility line — the major, or "0.<minor>" for 0.x
-# releases (semver: before 1.0 a minor bump may break).
+# major_of VERSION: the major (semver.org): the first number, so 0.y.z updates stay in major 0.
 function major_of() {
   local v="${1#v}"
   v="${v#go}"
-  if [ "${v%%.*}" = '0' ]; then
-    local rest="${v#0.}"
-    printf '0.%s' "${rest%%.*}"
-  else
-    printf '%s' "${v%%.*}"
-  fi
+  printf '%s' "${v%%.*}"
+}
+
+# same_line VERSION CURRENT: VERSION is a candidate for CURRENT: the same major, or any major for
+# a pin named by --major.
+function same_line() {
+  [ -n "${ANY_MAJOR}" ] || [ "$(major_of "${1}")" = "$(major_of "${2}")" ]
 }
 
 # choose CURRENT COOLDOWN_DAYS: reads "<version>\t<epoch>" lines; prints
@@ -951,7 +961,7 @@ function choose() {
     [ -n "${v}" ] && [ -n "${t}" ] || continue
     [[ "${v}" =~ ${SEMVER_RE} || "${v}" =~ ^go[0-9.]+$ ]] || continue
     newer "${v}" "${current}" || continue
-    if [ "$(major_of "${v}")" != "$(major_of "${current}")" ]; then
+    if ! same_line "${v}" "${current}"; then
       { [ -z "${major}" ] || newer "${v}" "${major}"; } && major="${v}"
       continue
     fi
@@ -967,6 +977,7 @@ function choose() {
   fi
   local note=''
   [ -n "${major}" ] && note="major ${major} available (report-only)"
+  [ -z "${ANY_MAJOR}" ] || [ -z "${fresh}" ] || note="${fresh} is inside the cooldown"
   if [ -n "${best}" ]; then
     age=$(( (NOW - best_t) / DAY ))
     printf 'stale\t%s\t%sd\t%s\n' "${best}" "${age}" "${note}"
@@ -1050,7 +1061,7 @@ function resolve_python() {
 }
 
 # resolve_runner LABEL: a newer image of the same family and shape (the labels
-# actions/runner-images lists) is report-only — an OS upgrade is never drop-in.
+# actions/runner-images lists), for CI to prove.
 function resolve_runner() {
   local -r current="${1}"
   local body labels shape label best=''
@@ -1067,7 +1078,7 @@ function resolve_runner() {
     newer "$(runner_version "${label}")" "$(runner_version "${best:-${current}}")" && best="${label}"
   done <<< "${labels}"
   if [ -n "${best}" ]; then
-    printf 'major\t%s\t-\tnewer image %s (report-only)\n' "${best}" "${best}"
+    printf 'stale\t%s\t-\tCI verifies it\n' "${best}"
   else
     printf 'current\t-\t-\t\n'
   fi
@@ -1244,10 +1255,50 @@ function resolve_all() {
   rm -rf "${tmp}"
 }
 
+# named_major NAME: NAME was given to --major.
+function named_major() {
+  grep -qxF -- "${1}" <<< "${MAJOR_PINS}"
+}
+
+# check_major_pins RESOLVED: every --major name is a pin with a newer major to move to; anything
+# else stops the run before verification.
+function check_major_pins() {
+  local name row current status cand note
+  while IFS= read -r name; do
+    [ -n "${name}" ] || continue
+    row="$(awk -F'\t' -v n="${name}" '$2 == n { print; exit }' <<< "${1}")"
+    if [ -z "${row}" ]; then
+      log "❌ --major ${name}: not a pin"
+      exit 1
+    fi
+    IFS=$'\t' read -r _ _ _ current _ status cand _ note _ <<< "${row}"
+    case "${status}" in
+      hold)
+        log "❌ --major ${name}: held: ${note}"
+        exit 1 ;;
+      cooldown) ;;
+      stale)
+        if [ "$(major_of "${cand}")" = "$(major_of "${current}")" ] && [[ "${note}" != *'inside the cooldown'* ]]; then
+          log "❌ --major ${name}: no newer major than ${current}"
+          exit 1
+        fi ;;
+      *)
+        log "❌ --major ${name}: no newer major than ${current}"
+        exit 1 ;;
+    esac
+  done <<< "${MAJOR_PINS}"
+}
+
 # resolve_row ROW: one discovered pin with its status, candidate, age and note.
 function resolve_row() {
   local kind name loc current source locs status cand age note reason
   IFS=$'\t' read -r kind name loc current source locs <<< "${1}"
+  ANY_MAJOR=''
+  case "${kind}" in
+    # GitHub Actions: CI proves them, and a red commit is never published (wait-ci.sh).
+    action | runner) ANY_MAJOR=1 ;;
+    *) ! named_major "${name}" || ANY_MAJOR=1 ;;
+  esac
   if reason="$(held "${name}")" || reason="$(canonical_owner "${locs:-${loc}}")"; then
     status='hold'
     cand='-'
@@ -1501,7 +1552,7 @@ function report_finished() {
 
 # elapsed_since EPOCH: the time since EPOCH, as 12m05s.
 function elapsed_since() {
-  local -r seconds=$(( $(date +%s) - ${1} ))
+  local -r seconds=$(( $(date -u +%s) - ${1} ))
   printf '%dm%02ds' "$(( seconds / 60 ))" "$(( seconds % 60 ))"
 }
 
@@ -1512,7 +1563,7 @@ function verify_in_own_worktree() {
     trap 'git -C "${ROOT}" worktree remove --force "${WT}" > /dev/null 2>&1; rm -rf "${TOOLS}"' EXIT
     add_worktree
     local result started
-    started="$(date +%s)"
+    started="$(date -u +%s)"
     progress_add "${1} ${2}" "${7}" "${started}"
     result="$(verify_pin "$@")" || result="$(printf 'fail\tverification error')"
     progress_done "${7}"
@@ -1576,7 +1627,7 @@ function combined_run() {
     return
   fi
   local -r clog="${LOGDIR}/combined.log"
-  progress_add 'combined' "${clog}" "$(date +%s)"
+  progress_add 'combined' "${clog}" "$(date -u +%s)"
   while IFS=$'\t' read -r -u 3 kind name current cand source locs result detail logf; do
     apply_pin "${WT}" "${kind}" "${name}" "${current}" "${cand}" "${source}" "${locs}" >> "${clog}" 2>&1 \
       || { printf 'fail\tapply of %s failed (log: %s)\n' "${name}" "${clog}"; progress_done "${clog}"; rollback_worktree; return; }
@@ -1872,13 +1923,14 @@ function apply_gomod() {
 # only when the combined run passed.
 function apply_passing() {
   local -r results="${1}" combined="${2}"
-  if [ "${combined%%$'\t'*}" != 'pass' ]; then
+  if [ "${combined%%$'\t'*}" = 'fail' ]; then
     log '⛔ --apply: nothing written — the combined run did not pass'
     return
   fi
   local kind name current cand source locs result detail logf
   while IFS=$'\t' read -r -u 3 kind name current cand source locs result detail logf; do
-    [ "${result}" = 'pass' ] || continue
+    # A pin left to CI (a runner image) is written: CI verifies it, and a red commit is never published.
+    [ "${result}" = 'pass' ] || [ "${result}" = 'verify-on-ci' ] || continue
     if apply_pin "${ROOT}" "${kind}" "${name}" "${current}" "${cand}" "${source}" "${locs}" >> "${LOGDIR}/apply.log" 2>&1; then
       log "✍️  applied ${kind} ${name} ${current} → ${cand}"
     else

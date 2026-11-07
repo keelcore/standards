@@ -57,7 +57,11 @@ function main() {
     exec "$@"
   fi
   local image
-  image="$(dev_image . "${name}")" || exit 1
+  if ! image="$(dev_image . "${name}")"; then
+    # A commit never stops for a missing image, so a new image can bootstrap; CI runs the check.
+    [ -z "${KEELCORE_DEV_IN_HOOK:-}" ] || { log "⚠️  skipped in this commit (CI runs it): $*"; exit 0; }
+    exit 1
+  fi
   run_in "${image}" "${mode}" "$@"
 }
 
@@ -73,15 +77,16 @@ function validate_args() {
   fi
 }
 
-function runtime() {
-  if [ "$(uname -s)" = 'Darwin' ]; then printf 'container'; else printf 'docker'; fi
-}
-
 # dev_image DIR NAME: the reference for DIR's NAME image — the pinned image.ref when it
 # matches the current build context, else the published image of that context (the
 # dev-image workflow publishes each context once), else a local build of it.
+# Inside a git hook: hook_image.
 function dev_image() {
   local -r dir="${1}" name="${2}"
+  if [ -n "${KEELCORE_DEV_IN_HOOK:-}" ]; then
+    hook_image "${dir}" "${name}"
+    return
+  fi
   local -r cf="$(dev_containerfile "${name}")"
   [ -f "${dir}/${cf}" ] || { log "❌ ${dir}/${cf} not found"; exit 1; }
   local base='' hash ref tag
@@ -96,24 +101,32 @@ function dev_image() {
     return 0
   fi
   if [ -s "${dir}/$(dev_ref_file "${name}")" ]; then
-    # A hook never builds: a commit that changes a build context is checked with the pinned
-    # image (the new one is published only after the commit).
-    if [ -n "${KEELCORE_DEV_IN_HOOK:-}" ]; then
-      ref="$(head -1 "${dir}/$(dev_ref_file "${name}")")"
-      log "ℹ️  ${dir}/$(dev_ref_file "${name}") pins another build context (ctx-${hash} is new); hook uses the pinned ${ref%@*}"
-      printf '%s' "${ref}"
-      return 0
-    fi
     log "ℹ️  ${dir}/$(dev_ref_file "${name}") pins another build context; building ctx-${hash} locally"
-  elif [ -n "${KEELCORE_DEV_IN_HOOK:-}" ]; then
-    log "❌ ${dir}/$(dev_ref_file "${name}") pins no image; a git hook never builds one (make dev-image-publish)"
-    exit 1
   fi
   tag="keelcore-${name}-$(dev_repo_name "${dir}"):ctx-${hash}"
   if ! "$(runtime)" image inspect "${tag}" > /dev/null 2>&1; then
     build_image "${dir}" "${cf}" "${tag}" "${base}" || { log "❌ building ${tag} failed"; exit 1; }
   fi
   printf '%s' "${tag}"
+}
+
+# hook_image DIR NAME: the pinned image, when it is on this machine. A commit never fetches or
+# builds, so a context the commit changes is checked with the pinned image (the new one is
+# published only after the commit). Without one, it says why and returns 1.
+function hook_image() {
+  local -r file="${1}/$(dev_ref_file "${2}")"
+  if [ ! -s "${file}" ]; then
+    log "⚠️  ${file} pins no image yet (make dev-image-publish)"
+    return 1
+  fi
+  local ref
+  ref="$(head -1 "${file}")"
+  if ! "$(runtime)" image inspect "${ref}" > /dev/null 2>&1; then
+    log "⚠️  ${ref} is not on this machine; to check commits here: make pull-dev-image"
+    return 1
+  fi
+  log "ℹ️  hook uses the pinned ${ref}"
+  printf '%s' "${ref}"
 }
 
 function build_image() {

@@ -148,3 +148,8 @@ function dev_published_ref() {
   [ -n "${digest}" ] || return 1
   printf '%s:ctx-%s@%s' "${repository}" "${hash}" "${digest}"
 }
+
+# runtime: the container runtime of this host.
+function runtime() {
+  if [ "$(uname -s)" = 'Darwin' ]; then printf 'container'; else printf 'docker'; fi
+}

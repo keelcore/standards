@@ -5,8 +5,7 @@
 # Linux: the release tarball from get.helm.sh, verified against the committed
 # SHA-256 for the runner's architecture (same version and sums as the toolbox
 # Containerfile; update-pins.local.sh keeps both in step).
-# macOS: Homebrew.
-# No-op if the pinned version (Linux) or any helm (macOS) is already present.
+# No-op if the pinned version is already present.
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -30,11 +29,8 @@ function main() {
     Linux)
       install_helm_linux
       ;;
-    Darwin)
-      install_helm_brew
-      ;;
     *)
-      log "ERROR: setup-helm.sh does not support OS: $(uname -s)"
+      log '❌ helm installs in the dev image (Linux); run its targets through make'
       exit 1
       ;;
   esac
@@ -50,16 +46,6 @@ function validate_args() {
     log '❌ Error: Unexpected argument'
     exit 1
   fi
-}
-
-function install_helm_brew() {
-  if command -v helm >/dev/null 2>&1; then
-    log "helm already installed: $(helm version --short)"
-    return 0
-  fi
-  log "Installing Helm via Homebrew"
-  brew install helm
-  log "Helm installed: $(helm version --short)"
 }
 
 function as_root() {
