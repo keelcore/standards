@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	standards "github.com/keelcore/standards"
 )
@@ -35,7 +36,10 @@ func materialize(target string) error {
 		if err != nil {
 			return err
 		}
-		dest := filepath.Join(target, path)
+		dest, err := destination(target, path)
+		if err != nil {
+			return err
+		}
 		if d.IsDir() {
 			return os.MkdirAll(dest, 0o755)
 		}
@@ -45,4 +49,16 @@ func materialize(target string) error {
 		}
 		return os.WriteFile(dest, data, 0o644)
 	})
+}
+
+// destination is where an embedded path is written under target; a path that would land outside
+// target is refused.
+func destination(target, path string) (string, error) {
+	root := filepath.Clean(target)
+	dest := filepath.Join(root, filepath.FromSlash(path))
+	rel, err := filepath.Rel(root, dest)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("%q is outside %q", path, target)
+	}
+	return dest, nil
 }

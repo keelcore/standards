@@ -84,3 +84,45 @@ fetch() {
   [ "${status}" -ne 0 ]
   [[ "${output}" == *'attestations'*'not found'* ]]
 }
+
+@test "stage_provenance: each GitHub build attestation's DSSE envelope lands in <file>.intoto.jsonl" {
+  source "${STANDARDS}/scripts/lib/scorecard-assets.sh"
+  local -r d="${WORK}/rel"
+  mkdir -p "${d}"
+  printf '{"attestations":[{"bundle":{"dsseEnvelope":{"payloadType":"application/vnd.in-toto+json","payload":"a"}}},{"bundle":{"dsseEnvelope":{"payloadType":"application/vnd.in-toto+json","payload":"b"}}}]}' \
+    > "${d}/p.whl.github-attestations.json"
+  printf '{"attestations":[]}' > "${d}/q.tgz.github-attestations.json"
+  run stage_provenance "${d}"
+  [ "${status}" -eq 0 ]
+  [ "$(wc -l < "${d}/p.whl.intoto.jsonl" | tr -d ' ')" -eq 2 ]
+  [ "$(jq -sr '.[1].payload' "${d}/p.whl.intoto.jsonl")" = 'b' ]
+  [ ! -e "${d}/q.tgz.intoto.jsonl" ]
+}
+
+@test "stage_sigstore_copies: every cosign bundle is also published as <file>.sigstore.json" {
+  source "${STANDARDS}/scripts/lib/scorecard-assets.sh"
+  local -r d="${WORK}/rel"
+  mkdir -p "${d}"
+  printf 'b1' > "${d}/p.whl.bundle"
+  printf 'b2' > "${d}/SHA256SUMS.bundle"
+  run stage_sigstore_copies "${d}"
+  [ "${status}" -eq 0 ]
+  cmp -s "${d}/p.whl.bundle" "${d}/p.whl.sigstore.json"
+  cmp -s "${d}/SHA256SUMS.bundle" "${d}/SHA256SUMS.sigstore.json"
+}
+
+@test "verify-release-blobs.sh: a .sigstore.json copy of a bundle is not itself a release file" {
+  local -r d="${WORK}/rel"
+  mkdir -p "${d}"
+  printf 'x' > "${d}/a.txt"
+  printf 'sig' > "${d}/a.txt.bundle"
+  cp "${d}/a.txt.bundle" "${d}/a.txt.sigstore.json"
+  (cd "${d}" && sha256sum a.txt > SHA256SUMS)
+  printf 'sig' > "${d}/SHA256SUMS.bundle"
+  cp "${d}/SHA256SUMS.bundle" "${d}/SHA256SUMS.sigstore.json"
+  load helpers-release
+  stub_cosign
+  GITHUB_REPOSITORY=o/r run bash "${STANDARDS}/scripts/release/verify-release-blobs.sh" "${d}"
+  [ "${status}" -eq 0 ] || { echo "${output}"; return 1; }
+  ! grep -q 'sigstore.json' "${WORK}/cosign.log"
+}

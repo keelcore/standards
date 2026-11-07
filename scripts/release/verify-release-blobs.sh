@@ -27,7 +27,7 @@ function main() {
   local f n=0
   for f in "${dir}"/*; do
     [ -f "${f}" ] || continue
-    case "${f}" in *.bundle) continue ;; esac
+    case "${f}" in *.bundle | *.sigstore.json) continue ;; esac
     [ -f "${f}.bundle" ] || { log "❌ no signature for $(basename "${f}")"; exit 1; }
     cosign verify-blob --bundle "${f}.bundle" \
       --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \

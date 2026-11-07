@@ -2,8 +2,10 @@
 
 ## Reporting a Vulnerability
 
-Report vulnerabilities through GitHub Security Advisories: the repository's **Security** tab, then **Report a
-vulnerability**. Reports stay private until a fix is available.
+Report vulnerabilities privately through GitHub Security Advisories:
+[Report a vulnerability](../../security/advisories/new) (the repository's **Security** tab). Reports stay private
+until a fix is available. GitHub's guide:
+[privately reporting a security vulnerability](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability).
 
 ## Supported Versions
 

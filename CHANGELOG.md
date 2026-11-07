@@ -132,6 +132,21 @@ Corrections, clarifications, metadata: patch bump.
 - `run.sh` `sync_back` passes over submodule entries, so a writable run from a worktree of a repo with submodules no
   longer fails after copying its edits back.
 
+### Security
+
+- Releases also publish each signature as `<file>.sigstore.json` and each GitHub build attestation's provenance as
+  `<file>.intoto.jsonl` (`scripts/lib/scorecard-assets.sh`), the names OpenSSF Scorecard's Signed-Releases check reads;
+  `verify-release-blobs.sh` treats the `.sigstore.json` copies as signatures, not release files.
+- `SECURITY.md` and `templates/SECURITY.md` link the private reporting route and GitHub's guide; private vulnerability
+  reporting is enabled for this repository.
+- `go/cmd/materialize` refuses an embedded path that would land outside the target directory, and `FuzzDestination`
+  fuzzes that check.
+- `markdownlint-cli` 0.50.0, with npm overrides for `katex` 0.18.2 and `re2js` 2.8.8, fixes the `js-yaml`, `smol-toml`,
+  `katex` and `re2js` advisories in its lockfile. `osv-scanner.toml` accepts the `minimatch` advisory until 2027-01-07:
+  its first fixed release is still inside the pin cooldown.
+- `main` is protected by rulesets kept as code (`.github/rulesets/`): no one deletes or force-pushes it, and only a
+  repository admin pushes to it without a reviewed pull request.
+
 ## [0.10.9] - 2026-11-04
 
 ### Added

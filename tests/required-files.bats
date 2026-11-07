@@ -38,3 +38,13 @@ setup() {
   [ -f "${STANDARDS}/.github/CODEOWNERS" ]
   [ -f "${STANDARDS}/.github/dependabot.yml" ]
 }
+
+@test "SECURITY.md and its template link the private reporting route" {
+  local f
+  for f in "${BATS_TEST_DIRNAME}/../SECURITY.md" "${BATS_TEST_DIRNAME}/../templates/SECURITY.md"; do
+    grep -qE '\]\([^)]*security/advisories/new\)' "${f}" || { echo "${f}: no advisory link"; return 1; }
+    grep -qE '\]\(https://docs\.github\.com/[^)]+\)' "${f}" || { echo "${f}: no documentation link"; return 1; }
+  done
+  grep -qE '\(https://github\.com/keelcore/standards/security/advisories/new\)' "${BATS_TEST_DIRNAME}/../SECURITY.md"
+  grep -qE '\(mailto:[^)]+\)' "${BATS_TEST_DIRNAME}/../SECURITY.md"
+}
