@@ -250,7 +250,7 @@ checkout_fixture() {
   perl -0pi -e 's/lint-workflows:\n\t\@true\n/lint-workflows:\n\t\@echo "#33 [linux\/arm64 stage-1 26\/45] RUN x"; echo "downloading things"; sleep 3\n/' Makefile
   commit
   UPDATE_PINS_PROGRESS_SECONDS=1 verify
-  grep -qE '^⏳ [0-9]+m[0-9]{2}s action actions/checkout: image step 26/45: downloading things$' <<< "${output}"
+  grep -qE '^⏳ [0-9]+m[0-9]{2}s action actions/checkout: step 26/45: downloading things$' <<< "${output}"
 }
 
 @test "verify: each pin prints its result and elapsed time when it finishes" {
@@ -751,6 +751,90 @@ RUN
   verify
   [[ "${output}" != *'📥'* ]] || false
   [[ "$(result 'actions/checkout')" == *'pass'* ]] || false
+}
+
+@test "verify: a pin whose log is still empty prints that it is starting" {
+  checkout_fixture
+  perl -0pi -e 's/lint-workflows:\n\t\@true\n/lint-workflows:\n\t\@sleep 3\n/' Makefile
+  commit
+  UPDATE_PINS_PROGRESS_SECONDS=1 verify
+  grep -qE '^⏳ [0-9]+m[0-9]{2}s action actions/checkout: starting…$' <<< "${output}"
+}
+
+readonly ZED_OLD_AMD64="$(printf '1%.0s' {1..64})"
+readonly ZED_OLD_ARM64="$(printf '2%.0s' {1..64})"
+readonly ZED_NEW_AMD64="$(printf '3%.0s' {1..64})"
+readonly ZED_NEW_ARM64="$(printf '4%.0s' {1..64})"
+
+# checksum_pin RELEASES_JSON: a tool pinned by version and two checksums, at 1.2.0.
+checksum_pin() {
+  printf '#!/usr/bin/env bash\nreadonly ZED_VERSION=%s\nreadonly ZED_SHA256_AMD64=%s\nreadonly ZED_SHA256_ARM64=%s\nurl="https://github.com/acme/zed/releases/download/v${ZED_VERSION}/zed-linux-${arch}.tar.gz"\n' \
+    "'1.2.0'" "'${ZED_OLD_AMD64}'" "'${ZED_OLD_ARM64}'" > scripts/ci/setup-zed.sh
+  printf 'setup-zed:\n\t@true scripts/ci/setup-zed.sh\n' >> Makefile
+  fixture 'https://api.github.com/repos/acme/zed/releases?per_page=100' "${1}"
+  commit
+}
+
+# release_row TAG AGE DIGEST: a release whose one asset has DIGEST (null, or a value).
+release_row() {
+  jq -n --arg t "${1}" --arg at "$(iso "${2}")" --argjson d "${3}" \
+    '{tag_name: $t, draft: false, prerelease: false, published_at: $at, assets: [{name: "zed.tar.gz", digest: $d}]}'
+}
+
+@test "checksummed pin: the candidate is the newest eligible release publishing digests" {
+  checksum_pin "$(jq -s '.' <<< "$(release_row v1.2.0 400 null) $(release_row v1.3.0 60 '"sha256:ab"') $(release_row v1.4.0 30 null)")"
+  pins
+  [[ "$(row 'ZED')" == *'v1.3.0'*'stale'* ]] || false
+}
+
+@test "checksummed pin: with no newer release publishing digests, it is current" {
+  checksum_pin "$(jq -s '.' <<< "$(release_row v1.2.0 400 null) $(release_row v1.4.0 30 null)")"
+  pins
+  [[ "$(row 'ZED')" == *'current'* ]] || false
+}
+
+@test "pin without checksums: a release with no digests is still its candidate" {
+  zed_pin '1.2.0' 'v1.2.0:400' 'v1.4.0:30'
+  pins
+  [[ "$(row 'ZED')" == *'v1.4.0'*'stale'* ]] || false
+}
+
+# zed_assets TAG JSON: the assets of release TAG.
+zed_assets() {
+  fixture "https://api.github.com/repos/acme/zed/releases/tags/${1}" "{\"assets\": ${2}}"
+}
+
+@test "an old release with no digests: the checksums move to the new release's, by architecture" {
+  checkout_fixture
+  checksum_pin "$(jq -s '.' <<< "$(release_row v1.2.0 400 null) $(release_row v2.0.0 30 '"sha256:ab"')")"
+  zed_assets 1.2.0 '[{"name":"zed-linux-amd64.tar.gz","digest":null}]'
+  zed_assets v2.0.0 "[
+    {\"name\":\"zed-darwin-amd64.tar.gz\",\"digest\":\"sha256:$(printf 'f%.0s' {1..64})\"},
+    {\"name\":\"zed-linux-amd64.tar.gz\",\"digest\":\"sha256:${ZED_NEW_AMD64}\"},
+    {\"name\":\"zed-linux-amd64.tar.gz.sig\",\"digest\":\"sha256:$(printf 'e%.0s' {1..64})\"},
+    {\"name\":\"zed-linux-arm64.tar.gz\",\"digest\":\"sha256:${ZED_NEW_ARM64}\"}]"
+  verify --apply --major ZED
+  [[ "$(result 'ZED')" == *'pass'* ]] || false
+  grep -q "ZED_VERSION='2.0.0'" scripts/ci/setup-zed.sh
+  grep -q "ZED_SHA256_AMD64='${ZED_NEW_AMD64}'" scripts/ci/setup-zed.sh
+  grep -q "ZED_SHA256_ARM64='${ZED_NEW_ARM64}'" scripts/ci/setup-zed.sh
+}
+
+@test "an old release with digests that do not match the committed checksum still fails" {
+  checkout_fixture
+  checksum_pin "$(jq -s '.' <<< "$(release_row v1.2.0 400 null) $(release_row v1.3.0 30 '"sha256:ab"')")"
+  zed_assets 1.2.0 "[{\"name\":\"zed-linux-amd64.tar.gz\",\"digest\":\"sha256:$(printf 'd%.0s' {1..64})\"}]"
+  zed_assets v1.3.0 "[{\"name\":\"zed-linux-amd64.tar.gz\",\"digest\":\"sha256:${ZED_NEW_AMD64}\"}]"
+  verify
+  [[ "$(result 'ZED')" == *'fail'* ]] || false
+}
+
+@test "verify: progress leaves out the build's step number and timer" {
+  checkout_fixture
+  perl -0pi -e 's/lint-workflows:\n\t\@true\n/lint-workflows:\n\t\@echo "#43 [linux\/arm64 stage-1 36\/45] RUN x"; echo "#43 0.030 Installing kubescape"; sleep 3\n/' Makefile
+  commit
+  UPDATE_PINS_PROGRESS_SECONDS=1 verify
+  grep -qE '^⏳ [0-9]+m[0-9]{2}s action actions/checkout: step 36/45: Installing kubescape$' <<< "${output}"
 }
 
 @test "verify: the end of a run does not wait out the progress interval" {

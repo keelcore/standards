@@ -104,6 +104,7 @@ HOLDS=''
 PROGRESS_SECONDS="${UPDATE_PINS_PROGRESS_SECONDS:-30}"
 MAJOR_PINS=''
 ANY_MAJOR=''
+CHECKSUM_PIN=''
 PROGRESS_DIR=''
 PROGRESS_PID=''
 ROOT=''
@@ -670,19 +671,21 @@ function github_releases() {
   fi
   local query body
   query="$(jq -n --arg o "${repo%%/*}" --arg n "${repo#*/}" --argjson c "${count}" '{
-    query: "query($o: String!, $n: String!, $c: Int!) { repository(owner: $o, name: $n) { releases(first: $c, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { tagName publishedAt isDraft isPrerelease } } } }",
+    query: "query($o: String!, $n: String!, $c: Int!) { repository(owner: $o, name: $n) { releases(first: $c, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { tagName publishedAt isDraft isPrerelease releaseAssets(first: 100) { nodes { digest } } } } } }",
     variables: {o: $o, n: $n, c: $c}}')"
   body="$(curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 --max-time 60 -X POST \
     -H "Authorization: Bearer $(github_token)" -d "${query}" https://api.github.com/graphql)" || return 1
   jq -e '[.data.repository.releases.nodes[] | {tag_name: .tagName, published_at: .publishedAt,
-           draft: .isDraft, prerelease: .isPrerelease}]' <<< "${body}"
+           draft: .isDraft, prerelease: .isPrerelease, assets: .releaseAssets.nodes}]' <<< "${body}"
 }
 
 # versions_github O/R: "<tag>\t<epoch>" for every published, non-draft release.
 function versions_github() {
   local body
   body="$(github_releases "${1}")" || { failed_lookup; return 0; }
-  jq -r '.[] | select(.draft | not) | select(.prerelease | not)
+  # A pin holding checksums moves only to a release that publishes digests for them.
+  jq -r --arg digests "${CHECKSUM_PIN}" '.[] | select(.draft | not) | select(.prerelease | not)
+         | select($digests == "" or ((.assets // []) | length) == 0 or any(.assets[]; .digest != null))
          | "\(.tag_name)\t\(.published_at | sub("\\.[0-9]+"; "") | fromdateiso8601)"' <<< "${body}" 2>/dev/null \
     || failed_lookup
 }
@@ -1293,6 +1296,8 @@ function check_major_pins() {
 function resolve_row() {
   local kind name loc current source locs status cand age note reason
   IFS=$'\t' read -r kind name loc current source locs <<< "${1}"
+  CHECKSUM_PIN=''
+  [ "${kind}" != 'tool' ] || ! grep -qE '[A-Z0-9_]*SHA256[A-Z0-9_]*=' "${loc%%:*}" 2> /dev/null || CHECKSUM_PIN=1
   ANY_MAJOR=''
   case "${kind}" in
     # GitHub Actions: CI proves them, and a red commit is never published (wait-ci.sh).
@@ -1606,8 +1611,8 @@ function print_progress() {
     [ -f "${entry}" ] || continue
     IFS=$'\t' read -r label logf started < "${entry}" || continue
     step="$(sed -nE 's/^#[0-9]+ \[.* ([0-9]+\/[0-9]+)\].*/\1/p' "${logf}" 2> /dev/null | tail -n 1)"
-    latest="$(awk 'NF { line = $0 } END { print line }' "${logf}" 2> /dev/null | cut -c1-100)"
-    log "⏳ $(elapsed_since "${started}") ${label}: ${step:+image step ${step}: }${latest}"
+    latest="$(awk 'NF { line = $0 } END { print line }' "${logf}" 2> /dev/null | sed -E 's/^#[0-9]+ [0-9.]+ //' | cut -c1-100)"
+    log "⏳ $(elapsed_since "${started}") ${label}: ${step:+step ${step}: }${latest:-starting…}"
   done
 }
 
@@ -1871,29 +1876,56 @@ function apply_action() {
     || { printf 'no %s pin at %s was rewritten\n' "${ref}" "${current}"; return 1; }
 }
 
+# asset_for_checksum VAR ASSETS: the one Linux archive for VAR's architecture (..._AMD64, ..._ARM64) among
+# ASSETS ("<name>\t<digest>"), that publishes a digest.
+function asset_for_checksum() {
+  local -r var="${1}" assets="${2}"
+  local arch names
+  case "${var}" in
+    *AMD64*) arch='(amd64|x86_64)' ;;
+    *ARM64*) arch='(arm64|aarch64)' ;;
+    *) return 1 ;;
+  esac
+  names="$(awk -F'\t' '$2 ~ /^sha256:/ { print $1 }' <<< "${assets}" | grep -E "linux.*${arch}|${arch}.*linux" \
+    | grep -vE '\.(sig|sigstore|pem|asc|sbom|json|txt|sha256)$' || true)"
+  [ -n "${names}" ] && [ "$(wc -l <<< "${names}" | tr -d ' ')" -eq 1 ] || return 1
+  printf '%s' "${names}"
+}
+
 # refresh_checksums ROOT LOCS REPO CURRENT CAND: every committed SHA-256 in the
 # pin's files is mapped to the release asset it verifies (by the digest GitHub
 # publishes for each asset), and replaced by the digest of the same asset in the
 # CAND release. No binary is downloaded.
 function refresh_checksums() {
   local -r root="${1}" locs="${2}" repo="${3}" current="${4}" cand="${5}"
-  local old_assets new_assets loc file hex asset new_asset new_hex all=()
+  local old_assets new_assets loc file line var hex asset new_asset new_hex all=()
   old_assets="$(release_assets "${repo}" "${current}")" || { printf 'no release %s for %s\n' "${current}" "${repo}"; return 1; }
   new_assets="$(release_assets "${repo}" "${cand}")" || { printf 'no release %s for %s\n' "${cand}" "${repo}"; return 1; }
   IFS=',' read -r -a all <<< "${locs}"
   for loc in "${all[@]}"; do
     file="${loc%%:*}"
-    while IFS= read -r hex; do
-      [ -n "${hex}" ] || continue
+    while IFS= read -r line; do
+      [ -n "${line}" ] || continue
+      var="${line%%=*}"
+      hex="${line: -64}"
       asset="$(awk -F'\t' -v h="sha256:${hex}" '$2 == h { print $1; exit }' <<< "${old_assets}")"
-      [ -n "${asset}" ] || { printf '%s: %s matches no asset of %s %s\n' "${file}" "${hex}" "${repo}" "${current}"; return 1; }
-      new_asset="${asset//${current#v}/${cand#v}}"
+      if [ -n "${asset}" ]; then
+        new_asset="${asset//${current#v}/${cand#v}}"
+      elif grep -q 'sha256:' <<< "${old_assets}"; then
+        printf '%s: %s matches no asset of %s %s\n' "${file}" "${hex}" "${repo}" "${current}"
+        return 1
+      else
+        # The old release publishes no digests: find the asset by the checksum's architecture.
+        new_asset="$(asset_for_checksum "${var}" "${new_assets}")" \
+          || { printf '%s: no single asset of %s %s for %s\n' "${file}" "${repo}" "${cand}" "${var}"; return 1; }
+        asset="${var}"
+      fi
       new_hex="$(awk -F'\t' -v a="${new_asset}" '$1 == a { sub(/^sha256:/, "", $2); print $2; exit }' <<< "${new_assets}")"
       [[ "${new_hex}" =~ ^[0-9a-f]{64}$ ]] \
         || { printf '%s: no published digest for %s in %s %s\n' "${file}" "${new_asset}" "${repo}" "${cand}"; return 1; }
       OLD="${hex}" NEW="${new_hex}" perl -pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/g' "${root}/${file}"
       printf '%s: %s → %s (%s)\n' "${file}" "${asset}" "${new_asset}" "${new_hex}"
-    done < <(grep -oE '[A-Z0-9_]*SHA256[A-Z0-9_]*=["'"'"']?[0-9a-f]{64}' "${root}/${file}" | grep -oE '[0-9a-f]{64}$' | sort -u)
+    done < <(grep -oE '[A-Z0-9_]*SHA256[A-Z0-9_]*=["'"'"']?[0-9a-f]{64}' "${root}/${file}" | sort -u)
   done
 }
 

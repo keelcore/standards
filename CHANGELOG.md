@@ -48,6 +48,11 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- `update-pins` moves a pin holding checksums only to a release that publishes digests, the newest eligible one. When
+  the pinned release publishes none, its checksums move by architecture to the new release's published digests.
+- `update-pins` progress lines are shorter: `step N/M` and the latest log line, or `starting…` before there is one.
+- Pins refreshed: `actions/checkout` v7.0.1, `actions/setup-go` v7.0.0, the `ubuntu-26.04` runner, `gosec` 2.30.0,
+  `grype` 0.121.0, `kubeconform` v0.8.0, `markdownlint-cli` 0.49.1, and the `dev` and `pypi` tool images.
 - `update-pins` fetches each tool image once: pins name the image they need, the names are made unique and fetched in
   parallel, and the checks start only when every fetch has finished. `run.sh` gains `--image-ref` and `--fetch-image`.
 - GitHub Actions move to a new major like any other update: `update-pins` writes new action and runner image majors past

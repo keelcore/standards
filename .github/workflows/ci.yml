@@ -33,12 +33,12 @@ jobs:
 
   audit:
     name: audit / makefile
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     needs: dev-image
     if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - run: make audit
@@ -46,7 +46,7 @@ jobs:
 
   pr-policy:
     name: policy / pr
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     needs: dev-image
     if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.dev-image.result != 'failure' }}
@@ -56,7 +56,7 @@ jobs:
       PR_BODY: ${{ github.event.pull_request.body }}
       PR_AUTHOR: ${{ github.event.pull_request.user.login }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 2
@@ -65,12 +65,12 @@ jobs:
 
   check-governance:
     name: check / governance metadata
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     needs: dev-image
     if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - run: make check-adr-metadata
@@ -80,12 +80,12 @@ jobs:
 
   lint-markdown:
     name: lint / markdown
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     needs: dev-image
     if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
 
@@ -95,12 +95,12 @@ jobs:
 
   lint-bash:
     name: lint / bash
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     needs: dev-image
     if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - run: make lint-bash
@@ -108,12 +108,12 @@ jobs:
 
   integration-test:
     name: test / bats
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: dev-image
     if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - run: make test-integration
@@ -121,12 +121,12 @@ jobs:
 
   verify-go:
     name: verify / go module
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: dev-image
     if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
 

@@ -3,6 +3,6 @@
   "private": true,
   "description": "Pinned markdownlint (markdownlint-cli) for scripts/lint/markdown.sh; installed with npm ci from package-lock.json by scripts/ci/setup-markdownlint.sh.",
   "dependencies": {
-    "markdownlint-cli": "0.44.0"
+    "markdownlint-cli": "0.49.1"
   }
 }

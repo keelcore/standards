@@ -14,10 +14,10 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
-readonly KUBECONFORM_VERSION='v0.6.7'
+readonly KUBECONFORM_VERSION='v0.8.0'
 # Published in the release's CHECKSUMS file.
-readonly KUBECONFORM_SHA256_AMD64='95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73'
-readonly KUBECONFORM_SHA256_ARM64='dc82f79bb03c5479b1ae5fd4af221e4b5a3111f62bf01a2795d9c5c20fa96644'
+readonly KUBECONFORM_SHA256_AMD64='9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883'
+readonly KUBECONFORM_SHA256_ARM64='1f53fc8e81258197a35e8603054162a5af1de8c5af13746c71ab680d9534ed87'
 
 function main() {
   exec 5>&1
