@@ -3,6 +3,8 @@
 # Publishes @keelcore/standards to the npm registry.
 # Version is derived from the git tag (GITHUB_REF_NAME or INPUT_TAG).
 # Uses OIDC trusted publishing — no token required in CI.
+# Project hook: publish-npm.local.sh runs first, when present, with this script's arguments
+# (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -14,8 +16,12 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
+# shellcheck source=../lib/local-hook.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/local-hook.sh"
+
 function main() {
   exec 5>&1
+  run_local_hook "${BASH_SOURCE[0]}" "${@:-}"
   validate_env
   local tag version
   tag="$(resolve_tag)"

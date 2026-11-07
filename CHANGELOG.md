@@ -14,6 +14,19 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- Every canonical script has a project hook: it calls `run_local_hook` (`scripts/lib/local-hook.sh`) first, so
+  `<script>.local.sh` at the same path in the repository it runs in, when present, runs with the script's arguments,
+  and a failing hook stops it. Each header states its hook; audit Rule 10 fails a canonical script without one. The
+  rule is in `governance/ci.md`.
+- `lint-gosec.sh` accepts findings reviewed as false positives one site at a time, from
+  `config/gosec-sites.local.txt` (`RULE<TAB>PATH<TAB>CODE<TAB>REASON`); any other finding, and a listed site gosec no
+  longer reports, fails. It never scans `.standards/` or another submodule.
+- CI runs `make lint-gosec` (`lint / gosec`). `make update-pins` verifies a tool pin with its scan target as well as
+  its setup target when the project has one (`scripts/lib/pin-targets.sh`): a gosec bump is verified by scanning.
+- `lint-bash.sh` checks BATS files: a `[[ … ]]` that is a test's own statement, but not its last, must end with
+  `|| false`, because bash does not always fail a test on it. The existing tests are fixed.
+- `templates/removed-scripts.txt`: canonical scripts deleted with no new name; `refresh-governance` removes a
+  consumer's copy.
 - README badges: CI, CodeQL, release, npm, PyPI, license, security policy and SBOM.
 - `make wait-for-ci` (`scripts/release/wait-for-ci.sh`): waits, with progress, for the GitHub Actions runs on a commit
   to finish, then fails if any is red. The tag's publish workflow runs it first, so a red commit is never published;
@@ -49,6 +62,12 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- `refresh-governance` moves a consumer's tracked copy of a renamed canonical script with `git mv`, keeping its
+  history, and rewrites references to the old path in the consumer's tracked text files (`scripts/lib/rewrite-paths.pl`),
+  outside `.standards/`, vendored trees and released `CHANGELOG.md` sections.
+- `run.sh` uses a local build of the image's context before asking the registry, and says it builds only when it does.
+- `setup-apple-container.sh` leaves a running container system as it is, so its image builder and build cache survive;
+  only a stopped system is started.
 - CI lints the workflows (`make lint-workflows`), and `.github/actionlint.yaml` declares the `ubuntu-26.04` runner,
   which the pinned actionlint does not list yet.
 - No run can hang: image builds, pulls and builder commands print progress every 30 seconds
@@ -108,6 +127,11 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `refresh-governance` removes an old canonical copy whose staged content differs from both the tree and `HEAD`
+  (`git rm -f`), instead of stopping.
+- `scripts/ci/setup-bats.sh` names itself on line 2; a test checks every canonical script and library does.
+- `go/cmd/materialize` writes its files after walking the embedded tree, not inside the walk, with directories `0o750`
+  and files `0o600`: gosec 2.30.0 finds nothing in `.standards`.
 - `run.sh --fetch-image` and `make pull-dev-image` show Apple `container` pull progress without a terminal, so
   `update-pins` reports it while it fetches.
 - `test-coverage-go.sh` succeeds and reports 0 files when there is nothing to report: no coverage data, or only ignored

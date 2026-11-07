@@ -1,67 +1,63 @@
 #!/usr/bin/env bats
 # tests/local-hooks.bats
-# *.local.sh hooks are owned by the repo that holds them: verify-canonical and
-# refresh-governance must neither compare nor sync them, even though the
-# standards repo keeps hooks of its own under scripts/.
-#
-# Each test builds a throwaway consumer under BATS_TEST_TMPDIR whose
-# .standards is a symlink to this repo and whose scripts/ holds byte-identical
-# copies of every canonical script.
-
-bats_require_minimum_version 1.5.0
+# Every canonical script has a project hook: <script>.local.sh beside it, when present, runs first with the
+# script's arguments (scripts/lib/local-hook.sh), and audit Rule 10 enforces that every canonical script has one.
 
 setup() {
-  STANDARDS="$(cd "${BATS_TEST_DIRNAME}/.." && pwd -P)"
-  CONSUMER="${BATS_TEST_TMPDIR}/consumer"
-  mkdir -p "${CONSUMER}"
-  cd "${CONSUMER}"
-  git init --quiet
-  ln -s "${STANDARDS}" .standards
+  load helpers-consumer
+  consumer_setup
   printf 'include .standards/templates/Makefile.canonical\n' > Makefile
-  copy_canonical_scripts
+  mkdir -p .github
+  touch SECURITY.md .github/CODEOWNERS .github/dependabot.yml
 }
 
-copy_canonical_scripts() {
-  local f
-  while IFS= read -r f; do
-    mkdir -p "$(dirname "${f}")"
-    cp -p "${STANDARDS}/${f}" "${f}"
-  done < <(cd "${STANDARDS}" && find scripts -type f \( -path 'scripts/hooks/*' -o -name '*.sh' ! -name '*.local.sh' \))
-  mkdir -p .github/workflows
-  cp -p "${STANDARDS}/.github/workflows/scorecard.yml" "${STANDARDS}/.github/workflows/codeql.yml" .github/workflows/
-}
-
-consumer_hook() {
-  mkdir -p scripts/release
-  cp "${STANDARDS}/tests/fixtures/create-release/hook.sh" scripts/release/create-release.local.sh
-}
-
-@test "the standards repo carries hooks of its own (precondition)" {
-  [ -f "${STANDARDS}/scripts/release/create-release.local.sh" ]
-  [ -f "${STANDARDS}/scripts/test-integration.local.sh" ]
-}
-
-@test "verify-canonical passes when the consumer's hook differs from the standards hook" {
-  consumer_hook
-  run bash scripts/ci/verify-canonical.sh "${CONSUMER}"
+@test "run_local_hook: runs the hook beside the script with its arguments; none is no-op" {
+  mkdir -p "${WORK}/s"
+  printf 'printf "%%s|" "$@" > "%s/ran"\n' "${WORK}" > "${WORK}/s/thing.local.sh"
+  source "${STANDARDS}/scripts/lib/local-hook.sh"
+  run run_local_hook "${WORK}/s/thing.sh" a 'b c'
   [ "${status}" -eq 0 ]
-  [[ "${output}" != *'.local.sh'* ]] || false
+  [ "$(cat "${WORK}/ran")" = 'a|b c|' ]
+  run run_local_hook "${WORK}/s/other.sh" x
+  [ "${status}" -eq 0 ]
 }
 
-@test "verify-canonical passes when the consumer has no hooks" {
-  run bash scripts/ci/verify-canonical.sh "${CONSUMER}"
-  [ "${status}" -eq 0 ]
-  [[ "${output}" != *'.local.sh'* ]] || false
+@test "run_local_hook: a failing hook fails the caller" {
+  mkdir -p "${WORK}/s"
+  printf 'exit 3\n' > "${WORK}/s/thing.local.sh"
+  source "${STANDARDS}/scripts/lib/local-hook.sh"
+  run run_local_hook "${WORK}/s/thing.sh"
+  [ "${status}" -eq 3 ]
 }
 
-@test "refresh-governance neither overwrites nor adds hooks" {
-  consumer_hook
-  run bash scripts/refresh-governance.sh --dry-run
-  [ "${status}" -eq 0 ]
-  [[ "${output}" == *'nothing to refresh'* ]] || false
-  [[ "${output}" != *'.local.sh'* ]] || false
-  run bash scripts/refresh-governance.sh
-  [ "${status}" -eq 0 ]
-  cmp "${STANDARDS}/tests/fixtures/create-release/hook.sh" scripts/release/create-release.local.sh
-  [ ! -e scripts/test-integration.local.sh ]
+@test "a canonical script runs its project hook first, with its arguments" {
+  printf 'printf "hook:%%s\\n" "$*"\n' > scripts/lint/lint-newlines.local.sh
+  run bash scripts/lint/lint-newlines.sh
+  [[ "${lines[0]}" == 'hook:'* ]] || { echo "${output}"; return 1; }
+}
+
+@test "a failing project hook stops the canonical script" {
+  printf 'echo hook-failed; exit 4\n' > scripts/lint/lint-newlines.local.sh
+  run bash scripts/lint/lint-newlines.sh
+  [ "${status}" -eq 4 ]
+  [[ "${output}" != *'Newlines OK'* ]]
+}
+
+@test "every canonical script has its project hook" {
+  run bash scripts/ci/audit.sh
+  [[ "${output}" != *'Rule 10'* ]] || { echo "${output}" | grep 'Rule 10'; return 1; }
+}
+
+@test "audit: a canonical script without its project hook fails and is named" {
+  grep -v 'run_local_hook' scripts/lint/lint-newlines.sh > scripts/lint/lint-newlines.sh.new
+  mv scripts/lint/lint-newlines.sh.new scripts/lint/lint-newlines.sh
+  run bash scripts/ci/audit.sh
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'Rule 10'*'scripts/lint/lint-newlines.sh'* ]] || false
+}
+
+@test "run from .standards/, a canonical script runs the consumer's hook (the git toplevel), not one in .standards" {
+  printf 'printf "consumer-hook\\n"\n' > scripts/lint/lint-newlines.local.sh
+  run bash .standards/scripts/lint/lint-newlines.sh
+  [[ "${lines[0]}" == 'consumer-hook' ]] || { echo "${output}"; return 1; }
 }

@@ -56,7 +56,7 @@ fetch() {
   export ATTEST_404S=2
   run fetch
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *'✅ npm @acme/p@1.2.3'* ]]
+  [[ "${output}" == *'✅ npm @acme/p@1.2.3'* ]] || false
   grep -q 'attestations' "${WORK}/out/p-1.2.3.tgz.npm-attestations.json"
   [ "$(cat "${COUNTS}/attest")" -eq 3 ]
 }
@@ -65,7 +65,7 @@ fetch() {
   export TARBALL_404S=2
   run fetch
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *'✅ npm @acme/p@1.2.3'* ]]
+  [[ "${output}" == *'✅ npm @acme/p@1.2.3'* ]] || false
   [ "$(cat "${COUNTS}/tarball")" -eq 3 ]
   [ "$(cat "${WORK}/out/p-1.2.3.tgz")" = 'tarball' ]
 }
@@ -74,7 +74,7 @@ fetch() {
   export TARBALL_404S=99
   run fetch
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *'p-1.2.3.tgz not available yet'* ]]
+  [[ "${output}" == *'p-1.2.3.tgz not available yet'* ]] || false
   [[ "${output}" == *'tarball not found'* ]]
 }
 

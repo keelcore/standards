@@ -15,6 +15,7 @@ setup() {
   mkdir -p "${WORK}/scripts/release" "${WORK}/scripts/lib" "${WORK}/dist" "${WORK}/bin" "${STATE}/started"
   cp "${REPO_ROOT}/scripts/release/sign-release.sh" "${WORK}/scripts/release/"
   cp "${REPO_ROOT}/scripts/lib/parallel.sh" "${WORK}/scripts/lib/"
+  cp "${REPO_ROOT}/scripts/lib/local-hook.sh" "${WORK}/scripts/lib/"
   cat > "${WORK}/bin/stub-lib" <<'LIB'
 record() { printf '%s\n' "$*" >> "${STATE}/calls"; }
 maybe_fail() { if [ -n "${FAIL_ON:-}" ] && [[ "$*" =~ ${FAIL_ON} ]]; then exit 1; fi; }

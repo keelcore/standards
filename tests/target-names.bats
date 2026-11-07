@@ -42,7 +42,7 @@ audit_output() {
 @test "old target names are gone" {
   run make --no-print-directory -f Makefile release-sign
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *'No rule'* ]]
+  [[ "${output}" == *'No rule'* ]] || false
   [ ! -e "${STANDARDS}/scripts/ci/renamed-target.sh" ]
 }
 
@@ -61,7 +61,7 @@ audit_output() {
 
 @test "test runs the Go runner, the project's unit hook and the integration entry point" {
   local -r got="$(make -n -f Makefile test 2> /dev/null)"
-  [[ "${got}" == *'scripts/test/test-unit-go.sh'* ]]
-  [[ "${got}" == *'scripts/test-unit-local.sh'* ]]
+  [[ "${got}" == *'scripts/test/test-unit-go.sh'* ]] || false
+  [[ "${got}" == *'scripts/test-unit-local.sh'* ]] || false
   [[ "${got}" == *'scripts/test-integration.sh'* ]]
 }

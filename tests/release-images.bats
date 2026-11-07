@@ -224,7 +224,7 @@ verify_env() {
   verify_env
   run bash scripts/release/verify-release.sh
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *'Release v1.2.3 verified'* ]]
+  [[ "${output}" == *'Release v1.2.3 verified'* ]] || false
   [ "$(call_count 'cosign\.sh verify-attestation .*--type openvex ')" -eq 3 ]
   [ "$(call_count 'gh attestation verify oci://')" -eq 3 ]
   [ "$(call_count 'cosign\.sh verify-attestation .*spdx\.dev')" -eq 6 ]

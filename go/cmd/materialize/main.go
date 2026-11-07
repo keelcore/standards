@@ -31,24 +31,48 @@ func main() {
 	}
 }
 
+// materialize writes every embedded governance file under target. The walk only lists the entries; the
+// directories and files are written after it, outside the walk's callback.
 func materialize(target string) error {
-	return fs.WalkDir(standards.Governance, "governance", func(path string, d fs.DirEntry, err error) error {
+	type entry struct {
+		path string
+		dir  bool
+	}
+	var entries []entry
+	err := fs.WalkDir(standards.Governance, "governance", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		dest, err := destination(target, path)
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return os.MkdirAll(dest, 0o755)
-		}
-		data, err := standards.Governance.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(dest, data, 0o644)
+		entries = append(entries, entry{path: path, dir: d.IsDir()})
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		dest, err := destination(target, e.path)
+		if err != nil {
+			return err
+		}
+		if e.dir {
+			err = os.MkdirAll(dest, 0o750)
+		} else {
+			err = writeEmbedded(e.path, dest)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeEmbedded copies the embedded file at path to dest, readable by its owner only.
+func writeEmbedded(path, dest string) error {
+	data, err := standards.Governance.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dest, data, 0o600)
 }
 
 // destination is where an embedded path is written under target; a path that would land outside

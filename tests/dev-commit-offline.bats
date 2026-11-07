@@ -49,21 +49,21 @@ only_local_inspect() {
 @test "hook: the image this context names, on this machine, is used, with nothing fetched or built" {
   hook_image_with "${REF}"
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *"${REF}" ]]
+  [[ "${output}" == *"${REF}" ]] || false
   only_local_inspect
 }
 
 @test "hook: an absent image is reported with the fetch command, and nothing is fetched" {
   hook_image_with 0
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *'make pull-dev-image'* ]]
+  [[ "${output}" == *'make pull-dev-image'* ]] || false
   only_local_inspect
 }
 
 @test "hook: an image built locally for this tree is used" {
   hook_image_with 'keelcore-x-x:ctx-abc'
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *'keelcore-x-x:ctx-abc' ]]
+  [[ "${output}" == *'keelcore-x-x:ctx-abc' ]] || false
   [ -z "$(grep -E ' (pull|build) |^curl|^build_image' "${CALLS}")" ]
 }
 
@@ -87,7 +87,7 @@ run_sh_in_hook() {
   cp "${WORK}/image.ref" "${WORK}/repo/containers/dev/image.ref"
   run_sh_in_hook
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *'skipped'* ]]
+  [[ "${output}" == *'skipped'* ]] || false
   [ ! -e "${WORK}/ran" ]
   ! grep -qE ' (pull|build) |^curl ' "${CALLS}"
 }
@@ -95,7 +95,7 @@ run_sh_in_hook() {
 @test "commit: a new image with no ref yet lets the commit proceed, skipping the check visibly" {
   run_sh_in_hook
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *'skipped'* ]]
+  [[ "${output}" == *'skipped'* ]] || false
   [ ! -e "${WORK}/ran" ]
   ! grep -qE ' (pull|build) |^curl ' "${CALLS}"
 }

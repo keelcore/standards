@@ -9,6 +9,8 @@ setup() {
   STATE="${BATS_TEST_TMPDIR}/state"
   export WORK STATE
   mkdir -p "${WORK}/scripts/release" "${WORK}/bin" "${WORK}/target/dist" "${STATE}"
+  mkdir -p "${WORK}/scripts/lib"
+  cp "${STANDARDS}/scripts/lib/local-hook.sh" "${WORK}/scripts/lib/"
   cp "${STANDARDS}/scripts/release/wait-for-publish.sh" "${WORK}/scripts/release/"
   cat > "${WORK}/bin/curl" <<'STUB'
 #!/usr/bin/env bash

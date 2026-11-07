@@ -16,6 +16,7 @@ setup() {
   git init --quiet
   cp "${STANDARDS}/scripts/dev/update-dev-image-ref.sh" scripts/dev/
   cp "${STANDARDS}/scripts/lib/dev-image.sh" scripts/lib/
+  cp "${STANDARDS}/scripts/lib/local-hook.sh" scripts/lib/
   cp "${STANDARDS}/scripts/lib/progress.sh" scripts/lib/
   printf 'FROM scratch\nCOPY scripts/ci/setup-x.sh /x\n' > containers/dev/Containerfile
   printf 'one\n' > scripts/ci/setup-x.sh

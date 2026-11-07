@@ -1,0 +1,4 @@
+# templates/removed-scripts.txt
+# Canonical scripts deleted from .standards, with no new name. refresh-governance removes a consumer's copy;
+# a renamed script is in renamed-scripts.txt instead, and moves with git mv.
+scripts/ci/renamed-target.sh

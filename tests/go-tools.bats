@@ -43,8 +43,8 @@ setup() {
   run bash scripts/lint/lint-licenses.sh
   [ "${status}" -eq 0 ]
   local -r got="$(calls_of go-licenses)"
-  [[ "${got}" == *'WTFPL'* ]]
-  [[ "${got}" == *'Apache-2.0'* ]]
+  [[ "${got}" == *'WTFPL'* ]] || false
+  [[ "${got}" == *'Apache-2.0'* ]] || false
   [[ "${got}" != *'ISC'* ]]
 }
 

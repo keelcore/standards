@@ -51,9 +51,9 @@ calls() {
   run bash "${SCRIPT}" abc123
   [ "${status}" -eq 0 ]
   [ "$(calls)" -eq 3 ]
-  [[ "${output}" == *'⏳'*'0 of 2 finished'*'CI'*'CodeQL'* ]]
-  [[ "${output}" == *'⏳'*'1 of 2 finished'*'CodeQL'* ]]
-  [[ "${output}" == *'✅'*'abc123'* ]]
+  [[ "${output}" == *'⏳'*'0 of 2 finished'*'CI'*'CodeQL'* ]] || false
+  [[ "${output}" == *'⏳'*'1 of 2 finished'*'CodeQL'* ]] || false
+  [[ "${output}" == *'✅'*'abc123'* ]] || false
   grep -qF 'repos/acme/widget/actions/runs?head_sha=abc123' "${T}/calls"
 }
 
@@ -63,7 +63,7 @@ calls() {
   run bash "${SCRIPT}" abc123
   [ "${status}" -eq 1 ]
   [ "$(calls)" -eq 2 ]
-  [[ "${output}" == *'❌'*'CI'* ]]
+  [[ "${output}" == *'❌'*'CI'* ]] || false
   [[ "${output}" != *'❌'*'CodeQL'* ]]
 }
 

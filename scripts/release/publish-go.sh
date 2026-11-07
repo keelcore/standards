@@ -3,6 +3,8 @@
 # Validates the Go module and notifies the Go module proxy to index the new tag.
 # Go modules are published by tagging a commit on GitHub; pkg.go.dev crawls the proxy.
 # This script verifies the build and triggers proxy indexing for fast availability.
+# Project hook: publish-go.local.sh runs first, when present, with this script's arguments
+# (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -14,10 +16,14 @@ set -o errexit
 # 3) Use the error status of the first failure, rather than that of the last item in a pipeline.
 set -o pipefail
 
+# shellcheck source=../lib/local-hook.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/local-hook.sh"
+
 readonly MODULE='github.com/keelcore/standards'
 
 function main() {
   exec 5>&1
+  run_local_hook "${BASH_SOURCE[0]}" "${@:-}"
   validate_env
   local tag
   tag="$(resolve_tag)"

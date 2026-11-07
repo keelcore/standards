@@ -19,6 +19,7 @@ setup() {
   git init --quiet
   cp -p "${STANDARDS}/scripts/lint/lint-suppressions.sh" scripts/lint/
   cp -p "${STANDARDS}/scripts/lib/paths.sh" scripts/lib/
+  cp -p "${STANDARDS}/scripts/lib/local-hook.sh" scripts/lib/
   printf 'package main\n\nfunc main() {}\n' > main.go
 }
 

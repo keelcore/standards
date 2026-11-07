@@ -149,6 +149,11 @@ the ones in `keelcore/standards` itself. `verify-canonical` and `refresh-governa
 consumer's hook is never overwritten. A canonical script that calls a hook resolves it from the git toplevel of the repo
 it runs in: inside a consumer it calls the consumer's hook, never the copy in `.standards`.
 
+Every canonical script SHALL have a project hook. Unless it documents a hook of its own, a canonical script calls
+`run_local_hook` (`scripts/lib/local-hook.sh`) first, after checking its arguments: `<script>.local.sh` at the same path
+runs, when present, with the script's arguments, and a failing hook stops the script. Each script's header states its
+hook. Audit Rule 10 fails a canonical script without one.
+
 A consumer may opt out of canonical scripts it never runs by listing them, one repo-relative path per line, in
 `.canonical-exclude` at its root (`#` comments allowed). Excluded scripts are neither synced nor verified, and audit
 Rule 5 (`make audit`) accepts their canonical targets pointing at a missing file. Exclude only scripts that no target

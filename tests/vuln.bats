@@ -8,6 +8,7 @@ setup() {
   mkdir -p "${WORK}/scripts/lint" "${WORK}/scripts/lib" "${WORK}/bin"
   cp "${STANDARDS}/scripts/lint/lint-vuln.sh" "${WORK}/scripts/lint/"
   cp "${STANDARDS}/scripts/lib/paths.sh" "${WORK}/scripts/lib/"
+  cp "${STANDARDS}/scripts/lib/local-hook.sh" "${WORK}/scripts/lib/"
   CALLS="${BATS_TEST_TMPDIR}/calls"
   export CALLS
   cat > "${WORK}/bin/govulncheck" <<'STUB'
@@ -68,13 +69,14 @@ track_modules() {
 }
 
 @test "setup-govulncheck.sh: installs only while the tool image is built" {
-  cp "${STANDARDS}/scripts/ci/setup-govulncheck.sh" "${WORK}/"
+  mkdir -p "${WORK}/scripts/ci"
+  cp "${STANDARDS}/scripts/ci/setup-govulncheck.sh" "${WORK}/scripts/ci/"
   rm -f "${WORK}/bin/govulncheck"
   printf '#!/usr/bin/env bash\nexit 0\n' > "${WORK}/bin/go"
   chmod +x "${WORK}/bin/go"
-  run env -u KEELCORE_IMAGE_BUILD bash setup-govulncheck.sh
+  run env -u KEELCORE_IMAGE_BUILD bash scripts/ci/setup-govulncheck.sh
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *'not in this tool image'* ]]
-  KEELCORE_IMAGE_BUILD=1 run bash setup-govulncheck.sh
+  [[ "${output}" == *'not in this tool image'* ]] || false
+  KEELCORE_IMAGE_BUILD=1 run bash scripts/ci/setup-govulncheck.sh
   [ "${status}" -eq 0 ]
 }

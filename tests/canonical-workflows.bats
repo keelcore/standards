@@ -26,7 +26,7 @@ setup() {
 @test "verify-canonical: identical workflows pass" {
   run bash scripts/ci/verify-canonical.sh "${CONSUMER}"
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *'PASS  .github/workflows/scorecard.yml'* ]]
+  [[ "${output}" == *'PASS  .github/workflows/scorecard.yml'* ]] || false
   [[ "${output}" == *'PASS  .github/workflows/codeql.yml'* ]]
 }
 
@@ -35,7 +35,7 @@ setup() {
   rm .github/workflows/scorecard.yml
   run bash scripts/ci/verify-canonical.sh "${CONSUMER}"
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *'FAIL  .github/workflows/codeql.yml'* ]]
+  [[ "${output}" == *'FAIL  .github/workflows/codeql.yml'* ]] || false
   [[ "${output}" == *'FAIL  .github/workflows/scorecard.yml'* ]]
 }
 

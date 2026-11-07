@@ -55,12 +55,26 @@ release_json() {
     "${LATEST}" "${LATEST}" "${2}" "${1}" "${LATEST}" "${2}" > "${RELEASE}"
 }
 
-# have_container VERSION [DIR]: a container CLI at VERSION, in DIR (default: the stub directory).
+# have_container VERSION [DIR]: a container CLI at VERSION, in DIR (default: the stub directory). Its system
+# is running once ${STUBS}/running exists: system start creates it (unless FAKE_START_RC fails it), system stop
+# removes it, and system status reports it.
 have_container() {
   local -r dir="${2:-${STUBS}}"
   mkdir -p "${dir}"
   echo "${1}" > "${INSTALLED}"
-  printf '#!/usr/bin/env bash\ncase "${1}" in\n  --version) echo "container CLI version $(cat "${INSTALLED}") (build: release, commit: abc)" ;;\n  *) echo "container $*" >> "${CALLS}"; [ "${*}" != "system start --enable-kernel-install" ] || exit "${FAKE_START_RC:-0}" ;;\nesac\n' > "${dir}/container"
+  cat > "${dir}/container" <<STUB
+#!/usr/bin/env bash
+case "\${1}" in
+  --version) echo "container CLI version \$(cat "${INSTALLED}") (build: release, commit: abc)" ;;
+  *)
+    echo "container \$*" >> "${CALLS}"
+    case "\$*" in
+      'system status') [ -f "${STUBS}/running" ] ;;
+      'system start --enable-kernel-install') [ "\${FAKE_START_RC:-0}" = 0 ] || exit "\${FAKE_START_RC}"; touch "${STUBS}/running" ;;
+      'system stop') rm -f "${STUBS}/running" ;;
+    esac ;;
+esac
+STUB
   chmod +x "${dir}/container"
 }
 
@@ -76,11 +90,20 @@ started_with_kernel_after_install() {
   [ "${start}" -gt "$(grep -n '^installer ' "${CALLS}" | cut -d: -f1)" ]
 }
 
-@test "setup-apple-container: the latest release already installed changes nothing" {
+@test "setup-apple-container: the latest release already installed and running changes nothing" {
+  have_container "${LATEST}"
+  touch "${STUBS}/running"
+  run bash "${SCRIPT}"
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"${LATEST} already installed"* ]] || false
+  nothing_replaced
+  ! grep -q '^container system start' "${CALLS}"
+}
+
+@test "setup-apple-container: the latest release installed but stopped is started, with its kernel" {
   have_container "${LATEST}"
   run bash "${SCRIPT}"
   [ "${status}" -eq 0 ]
-  [[ "${output}" == *"${LATEST} already installed"* ]]
   nothing_replaced
   grep -qx 'container system start --enable-kernel-install' "${CALLS}"
 }
@@ -102,7 +125,7 @@ started_with_kernel_after_install() {
   run bash "${SCRIPT}"
   [ "${status}" -eq 0 ]
   [ "$(grep -nE '^container system stop' "${CALLS}" | cut -d: -f1)" -lt "$(grep -n '^installer ' "${CALLS}" | cut -d: -f1)" ]
-  [[ "${output}" == *"${LATEST} installed"* ]]
+  [[ "${output}" == *"${LATEST} installed"* ]] || false
   started_with_kernel_after_install
 }
 
@@ -126,7 +149,7 @@ started_with_kernel_after_install() {
   have_container '0.0.1' "${BATS_TEST_TMPDIR}/opt/homebrew/bin"
   PATH="${BATS_TEST_TMPDIR}/opt/homebrew/bin:${PATH}" run bash "${SCRIPT}"
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *"brew uninstall container"* ]]
+  [[ "${output}" == *"brew uninstall container"* ]] || false
   [ ! -s "${CALLS}" ]
 }
 
@@ -142,7 +165,7 @@ started_with_kernel_after_install() {
   release_json "sha256:${DIGEST}" 'container-other.pkg'
   run bash "${SCRIPT}"
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *"container-${LATEST}-installer-signed.pkg"* ]]
+  [[ "${output}" == *"container-${LATEST}-installer-signed.pkg"* ]] || false
   [ ! -s "${CALLS}" ]
 }
 
@@ -166,7 +189,7 @@ started_with_kernel_after_install() {
   have_container '0.0.1'
   FAKE_SIGNER='Developer ID Installer: Someone Else (AAAAAAAAAA)' run bash "${SCRIPT}"
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *"signature"* ]]
+  [[ "${output}" == *"signature"* ]] || false
   [ -z "$(grep '^installer ' "${CALLS}")" ]
 }
 

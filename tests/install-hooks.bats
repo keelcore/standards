@@ -23,6 +23,8 @@ hooked_repo() {
   mkdir -p "${1}/scripts/hooks"
   cp "${STANDARDS}/scripts/hooks/pre-commit" "${1}/scripts/hooks/pre-commit"
   cp "${STANDARDS}/scripts/install-hooks.sh" "${1}/scripts/install-hooks.sh"
+  mkdir -p "${1}/scripts/lib"
+  cp "${STANDARDS}/scripts/lib/local-hook.sh" "${1}/scripts/lib/"
   printf '#!/usr/bin/env bash\ngit rev-parse --show-toplevel >> "${HOOK_LOG}"\n' > "${1}/scripts/run-pre-commit.sh"
   (cd "${1}" && git init --quiet && git add --all && git commit --quiet --no-verify -m init)
 }

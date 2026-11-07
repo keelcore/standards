@@ -119,6 +119,19 @@ jobs:
       - run: make lint-bash
       - run: make check-clean-tree
 
+  lint-gosec:
+    name: lint / gosec
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    needs: dev-image
+    if: ${{ !cancelled() && needs.dev-image.result != 'failure' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - run: make lint-gosec
+      - run: make check-clean-tree
+
   integration-test:
     name: test / bats
     runs-on: ubuntu-26.04

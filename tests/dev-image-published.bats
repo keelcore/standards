@@ -77,7 +77,7 @@ standards_ref_with() {
 @test "publish.sh: an unpublished .standards context stops the publish, and says so" {
   standards_ref_with 0
   [ "${status}" -ne 0 ]
-  [[ "${output}" == *'ctx-abc'* ]]
+  [[ "${output}" == *'ctx-abc'* ]] || false
   [[ "${output}" == *'not published'* ]]
 }
 
@@ -186,7 +186,7 @@ ref_repo() {
   chmod +x "${WORK}/fake/curl"
   PATH="${WORK}/fake:${PATH}" run --separate-stderr bash "${STANDARDS}/scripts/dev/run.sh" --image-ref
   [ "${status}" -eq 0 ]
-  [[ "${output}" == keelcore-dev-*:ctx-* ]]
+  [[ "${output}" == keelcore-dev-*:ctx-* ]] || false
   [ -z "$(grep -E ' build|^build' "${WORK}/calls" 2> /dev/null)" ]
 }
 
@@ -297,4 +297,14 @@ slow_runtime() {
     [[ "${line}" == *'--connect-timeout'* || "${line}" == *'--max-time'* ]] || { echo "unbounded: ${line}"; false; }
     [[ "${line}" == *'--speed-time'* || "${line}" == *'--max-time'* ]] || { echo "no stall limit: ${line}"; false; }
   done < <(cd "${STANDARDS}" && grep -rnE '^\s*[^#]*\bcurl (-|--)' scripts --include='*.sh' | grep -v 'curl()' )
+}
+
+@test "run.sh: a local build of the context is used without asking the registry or saying it builds" {
+  load helpers-dev-image
+  local_build_repo
+  PATH="${WORK}/fake:${PATH}" run --separate-stderr bash "${STANDARDS}/scripts/dev/run.sh" --fetch-image
+  [ "${status}" -eq 0 ] || { echo "${stderr}"; return 1; }
+  [ ! -e "${WORK}/curl-calls" ] || { echo "registry asked: $(cat "${WORK}/curl-calls")"; return 1; }
+  [[ "${stderr}" != *'building it locally'* ]] || false
+  ! grep -qE '(^| )build ' "${WORK}/calls"
 }

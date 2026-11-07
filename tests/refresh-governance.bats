@@ -59,3 +59,56 @@ refresh() {
   [ "$(cat scripts/test-integration.local.sh)" = "$(printf '#!/usr/bin/env bash\necho mine')" ]
   git diff --cached -M --name-status | grep -qE '^R[0-9]*	scripts/integration-test.local.sh	scripts/test-integration.local.sh$'
 }
+
+@test "refresh: a renamed canonical script the consumer tracks moves with git mv" {
+  mkdir -p scripts/ci
+  printf 'old\n' > scripts/ci/dco-check.sh
+  git add -A
+  git commit --quiet -m old
+  refresh
+  [ "${status}" -eq 0 ] || { echo "${output}"; return 1; }
+  git diff --cached -M --name-status | grep -qE '^R[0-9]*	scripts/ci/dco-check.sh	scripts/ci/check-dco.sh$'
+}
+
+@test "refresh: an old copy with staged edits, beside its new name, is removed" {
+  mkdir -p scripts/ci
+  printf 'old\n' > scripts/ci/dco-check.sh
+  cp .standards/scripts/ci/check-dco.sh scripts/ci/check-dco.sh
+  git add -A
+  git commit --quiet -m old
+  printf 'staged edit\n' > scripts/ci/dco-check.sh
+  git add scripts/ci/dco-check.sh
+  printf 'unstaged edit\n' > scripts/ci/dco-check.sh
+  refresh
+  [ "${status}" -eq 0 ] || { echo "${output}"; return 1; }
+  [ ! -e scripts/ci/dco-check.sh ]
+  ! git ls-files --error-unmatch scripts/ci/dco-check.sh > /dev/null 2>&1
+}
+
+@test "refresh: a canonical script removed from .standards is removed from the consumer" {
+  local -r gone="$(grep -vE '^[[:space:]]*(#|$)' .standards/templates/removed-scripts.txt | head -1)"
+  [ -n "${gone}" ]
+  mkdir -p "$(dirname "${gone}")"
+  printf 'gone\n' > "${gone}"
+  git add -A
+  git commit --quiet -m gone
+  refresh
+  [ "${status}" -eq 0 ] || { echo "${output}"; return 1; }
+  [ ! -e "${gone}" ]
+  ! git ls-files --error-unmatch "${gone}" > /dev/null 2>&1
+}
+
+@test "refresh: references to a renamed script are rewritten, except in .standards, vendor/ and released notes" {
+  mkdir -p docs vendor/x
+  printf 'Run `bash scripts/ci/dco-check.sh` (or ./scripts/ci/dco-check.sh).\n' > docs/howto.md
+  printf 'see scripts/ci/dco-check.sh\n' > vendor/x/notes.md
+  printf '# Changelog\n\n## [Unreleased]\n\n- scripts/ci/dco-check.sh now X\n\n## [1.0.0] - 2026-01-01\n\n- scripts/ci/dco-check.sh added\n' > CHANGELOG.md
+  git add -A
+  git commit --quiet -m refs
+  refresh
+  [ "${status}" -eq 0 ] || { echo "${output}"; return 1; }
+  [ "$(cat docs/howto.md)" = 'Run `bash scripts/ci/check-dco.sh` (or ./scripts/ci/check-dco.sh).' ]
+  grep -qx 'see scripts/ci/dco-check.sh' vendor/x/notes.md
+  grep -qx -- '- scripts/ci/check-dco.sh now X' CHANGELOG.md
+  grep -qx -- '- scripts/ci/dco-check.sh added' CHANGELOG.md
+}

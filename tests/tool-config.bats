@@ -19,9 +19,9 @@ setup() {
   mkdir config
   printf '# ours\nWTFPL\n-MIT\n\n' > config/go-licenses.local.txt
   run config_list go-licenses
-  [[ "${output}" == *'WTFPL'* ]]
-  [[ "${output}" == *'Apache-2.0'* ]]
-  [[ "${output}" != *'MIT'* ]]
+  [[ "${output}" == *'WTFPL'* ]] || false
+  [[ "${output}" == *'Apache-2.0'* ]] || false
+  [[ "${output}" != *'MIT'* ]] || false
   [[ "${output}" != *'#'* ]]
 }
 
@@ -42,7 +42,7 @@ setup() {
 @test "config_replace: the local file replaces the default whole" {
   mkdir config
   run config_replace kubeconform
-  [[ "${output}" == *'1.28.0'* ]]
+  [[ "${output}" == *'1.28.0'* ]] || false
   printf '1.30.0\n' > config/kubeconform.local.txt
   run config_replace kubeconform
   [ "${output}" = '1.30.0' ]

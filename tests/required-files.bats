@@ -19,9 +19,9 @@ setup() {
 
 @test "audit: names each missing file, and passes when they exist" {
   run bash scripts/ci/audit.sh
-  [[ "${output}" == *'Rule 7'*'SECURITY.md'* ]]
-  [[ "${output}" == *'.github/CODEOWNERS'* ]]
-  [[ "${output}" == *'.github/dependabot.yml'* ]]
+  [[ "${output}" == *'Rule 7'*'SECURITY.md'* ]] || false
+  [[ "${output}" == *'.github/CODEOWNERS'* ]] || false
+  [[ "${output}" == *'.github/dependabot.yml'* ]] || false
   touch SECURITY.md .github/CODEOWNERS .github/dependabot.yml
   run bash scripts/ci/audit.sh
   [[ "${output}" != *'Rule 7'* ]]

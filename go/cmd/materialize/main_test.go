@@ -1,9 +1,13 @@
 package main
 
 import (
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	standards "github.com/keelcore/standards"
 )
 
 // within reports whether dest is target itself or a path below it.
@@ -53,4 +57,28 @@ func FuzzDestination(f *testing.F) {
 			t.Fatalf("destination(%q, %q) = %q: outside the target", target, path, dest)
 		}
 	})
+}
+
+// TestMaterialize: every embedded governance file lands under the target with its content.
+func TestMaterialize(t *testing.T) {
+	target := t.TempDir()
+	if err := materialize(target); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	err := fs.WalkDir(standards.Governance, "governance", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		want, _ := standards.Governance.ReadFile(path)
+		got, rerr := os.ReadFile(filepath.Join(target, path))
+		if rerr != nil || string(got) != string(want) {
+			t.Errorf("%s: not materialized as embedded (%v)", path, rerr)
+		}
+		n++
+		return nil
+	})
+	if err != nil || n == 0 {
+		t.Fatalf("walk: %v, %d files", err, n)
+	}
 }
