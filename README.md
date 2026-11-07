@@ -1,5 +1,14 @@
 # keelcore/standards
 
+[![CI](https://img.shields.io/github/actions/workflow/status/keelcore/standards/ci.yml?branch=main)](https://github.com/keelcore/standards/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/keelcore/standards/codeql.yml?branch=main&label=CodeQL)](https://github.com/keelcore/standards/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/keelcore/standards)](https://github.com/keelcore/standards/releases)
+[![npm](https://img.shields.io/npm/v/%40keelcore%2Fstandards)](https://www.npmjs.com/package/@keelcore/standards)
+[![PyPI](https://img.shields.io/pypi/v/keelcore-standards)](https://pypi.org/project/keelcore-standards/)
+[![License](https://img.shields.io/github/license/keelcore/standards)](./LICENSE)
+[![Security](https://img.shields.io/badge/security-SECURITY.md-blue)](./SECURITY.md)
+[![SBOM](https://img.shields.io/badge/SBOM-in%20every%20release-brightgreen)](https://github.com/keelcore/standards/releases)
+
 Engineering standards for keelcore projects. Single source of truth for coding, CI, and bash. Consumed by AI coding
 tools (Claude, Cursor, Copilot) and human contributors alike.
 

@@ -14,6 +14,7 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- README badges: CI, CodeQL, release, npm, PyPI, license, security policy and SBOM.
 - `make wait-for-ci` (`scripts/release/wait-ci.sh`): waits, with progress, for the GitHub Actions runs on a commit to finish,
   then fails if any is red. The tag's publish workflow runs it first, so a red commit is never published; the host never
   waits for CI.
