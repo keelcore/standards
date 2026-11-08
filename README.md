@@ -2,6 +2,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/keelcore/standards/ci.yml?branch=main)](https://github.com/keelcore/standards/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/keelcore/standards/codeql.yml?branch=main&label=CodeQL)](https://github.com/keelcore/standards/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/keelcore/standards/badge)](https://scorecard.dev/viewer/?uri=github.com/keelcore/standards)
 [![Release](https://img.shields.io/github/v/release/keelcore/standards)](https://github.com/keelcore/standards/releases)
 [![npm](https://img.shields.io/npm/v/%40keelcore%2Fstandards)](https://www.npmjs.com/package/@keelcore/standards)
 [![PyPI](https://img.shields.io/pypi/v/keelcore-standards)](https://pypi.org/project/keelcore-standards/)

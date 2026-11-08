@@ -14,6 +14,7 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- README badge: OpenSSF Scorecard.
 - Every canonical script has a project hook: it calls `run_local_hook` (`scripts/lib/local-hook.sh`) first, so
   `<script>.local.sh` at the same path in the repository it runs in, when present, runs with the script's arguments,
   and a failing hook stops it. Each header states its hook; audit Rule 10 fails a canonical script without one. The
