@@ -81,7 +81,8 @@ CI alike. Names are fixed; projects may not rename or skip them. Language-specif
 | Secret scan            | `make check-secrets`        | `scripts/ci/check-secrets.sh`               | gitleaks scan; required on every PR and default-branch push.       |
 | DCO check              | `make check-dco`            | `scripts/ci/check-dco.sh`                   | Signed-off-by trailer on every commit in the PR.                   |
 | Trailing newlines      | `make lint-newlines`        | `scripts/lint/lint-newlines.sh`             | Every `.md`, `.sh`, `.go` ends with `\n`.                          |
-| Legal drift check      | `make check-legal-drift`    | `scripts/check-legal-drift.sh`              | Copied legal files (LICENSE, TRADEMARK) match the source of truth. |
+| Legal drift check      | `make check-legal-drift`    | `scripts/check-legal-drift.sh`              | Listed legal-file copies match their sources; in `make audit`.     |
+| Write legal copies     | `make ensure-legal-notices` | `scripts/ensure-legal-notices.sh`           | Write each copy `config/legal-copies.local.txt` lists.             |
 
 ### Required for projects with releases
 
@@ -182,7 +183,9 @@ from the standards repo to verify compliance.
 | `scripts/lint/lint-newlines.sh`             | `make lint-newlines`        | Trailing newline enforcement for `.md`, `.sh`, `.go` files.        | keelcore/standards |
 | `scripts/test/generate-coverage-profile.sh` | `make test-coverage`        | Coverage report: total %, uncovered statements, total lines.       | keelcore/standards |
 | `scripts/test/check-coverage-delta.sh`      | `make check-coverage-delta` | PR coverage delta gate (fails if drop exceeds threshold).          | keelcore/standards |
-| `scripts/check-legal-drift.sh`              | `make check-legal-drift`    | Verify copied legal files match the source of truth.               | project-specific   |
+| `scripts/check-legal-drift.sh`              | `make check-legal-drift`    | Verify the copies `config/legal-copies.local.txt` lists.           | keelcore/standards |
+| `scripts/ensure-legal-notices.sh`           | `make ensure-legal-notices` | Write each listed legal-file copy from its source.                 | keelcore/standards |
+| `scripts/lib/legal-copies.sh`               | _(sourced; no target)_      | Reads `config/legal-copies.local.txt` (`SOURCE<TAB>COPY` lines).   | keelcore/standards |
 | `scripts/lib/paths.sh`                      | _(sourced; no target)_      | Shared path-filter helpers; sourced by other scripts.              | keelcore/standards |
 
 ### Required for projects with releases

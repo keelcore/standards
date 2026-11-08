@@ -67,6 +67,7 @@ export TZ := UTC
 .PHONY: check-clean-tree
 .PHONY: check-pins-doc
 .PHONY: check-legal-drift
+.PHONY: ensure-legal-notices
 .PHONY: setup-apple-container
 .PHONY: ensure-container
 .PHONY: setup-bats
@@ -168,7 +169,7 @@ clean:
 
 ## Audit
 
-audit: | ensure-container
+audit: check-legal-drift | ensure-container
 	@echo "🔍 Running CI/Makefile audit..."
 	bash scripts/dev/run.sh bash scripts/ci/audit.sh
 
@@ -222,9 +223,15 @@ check-pins-doc: | ensure-container
 	@echo "📌 Checking docs/current_pins.md against the pins in the tree..."
 	bash scripts/dev/run.sh bash scripts/release/update-pins.sh --check-pins-doc docs/current_pins.md
 
+## The legal-file copies config/legal-copies.local.txt lists match their sources (also in audit and the pre-commit check)
 check-legal-drift: | ensure-container
 	@echo "⚖️  Checking legal file drift..."
 	bash scripts/dev/run.sh bash scripts/check-legal-drift.sh
+
+## Write each legal-file copy config/legal-copies.local.txt lists from its source
+ensure-legal-notices: | ensure-container
+	@echo "⚖️  Writing legal file copies from their sources..."
+	bash scripts/dev/run.sh --writable bash scripts/ensure-legal-notices.sh
 
 ## CI gate targets
 

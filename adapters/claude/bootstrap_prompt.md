@@ -32,17 +32,16 @@ Claude stages; the human commits. The prompt forbids `git commit`, `git push`, a
 A single invocation of `bash .standards/scripts/bootstrap-standards.sh` materializes everything below — no file
 authoring required:
 
-1. **Canonical scripts** (overwritten to guarantee byte-identical with .standards):
-   - `scripts/ci/{audit-make-targets,dco-check,pr-policy,secret-scan,setup-bats, setup-markdownlint,setup-shellcheck,setup-syft,verify-canonical-scripts}.sh`
-   - `scripts/check/{adr-metadata,governance-metadata,rfc-metadata}.sh`
-   - `scripts/{format,lint,git_precommit,install-hooks,check-legal-drift}.sh`
-   - `scripts/lib/paths.sh`
-   - `scripts/lint/{markdown,newlines,shellcheck}.sh`
-   - `scripts/test/{coverage,coverage-delta}.sh`
-   - `scripts/release/create-release.sh` — release tagging (`make create-release`); the bump level comes from your own
-     `scripts/release/create-release.local.sh` (see step 3)
+1. **Canonical scripts** (overwritten to guarantee byte-identical with .standards), copied by
+   `refresh-governance.sh`:
+   - every `*.sh` under `.standards/scripts/`, libraries (`scripts/lib/`) included, at the same path
+   - the versioned git hooks under `scripts/hooks/`
+   - the canonical workflows `.github/workflows/scorecard.yml` and `.github/workflows/codeql.yml`
 
-   `*.local.sh` hooks are never copied or overwritten: they belong to the repo that holds them.
+   `*.local.sh` hooks are never copied or overwritten: they belong to the repo that holds them. A script listed in
+   `.canonical-exclude` (one repo-relative path per line) is never copied either. `make help` lists the targets the
+   scripts back; release tagging (`make create-release`) takes its bump level from your own
+   `scripts/release/create-release.local.sh`.
 2. **Starter templates** (created ONLY if the target file doesn't exist; never overwrites operator customizations on
    re-run):
    - `Makefile` — thin seed from `.standards/templates/Makefile.consumer`. The seed `include`s
@@ -67,10 +66,9 @@ authoring required:
        `@.local-claude.md`-includes it, so content survives)
    - `.github/copilot-instructions.md` — symlinked
    - `.cursor/rules/*.mdc` — copied and path-adjusted
-5. **Tooling installation** (idempotent; no-op if already installed):
-   - shellcheck, markdownlint-cli, syft
-6. **Pre-commit hook**:
-   - `.git/hooks/pre-commit → ../../scripts/run-pre-commit.sh` (via install-hooks.sh)
+5. **Pre-commit hook**:
+   - `core.hooksPath` set to `scripts/hooks` (via install-hooks.sh); `scripts/hooks/pre-commit` runs
+     `scripts/run-pre-commit.sh`
 
 ## Non-greenfield repos
 
@@ -105,10 +103,10 @@ You may stage; you may not commit. The human owns every commit.
    This materializes every canonical script (scripts/**/*.sh), copies starter
    templates (Makefile, tests/canonical/smoke.bats, tests/integrity.bats,
    tests/fixtures/, .gitleaks.toml, .markdownlintignore, .prettierrc,
-   .local-claude.md) ONLY if their target doesn't already exist, installs tooling
-   (shellcheck, markdownlint, syft), copies .markdownlint.json, symlinks the AI
+   .local-claude.md) ONLY if their target doesn't already exist, copies
+   .markdownlint.json, symlinks the AI
    adapters (CLAUDE.md, .github/copilot-instructions.md, .cursor/rules/*.mdc),
-   and wires the pre-commit hook (.git/hooks/pre-commit).
+   and wires the pre-commit hook (core.hooksPath scripts/hooks).
    Idempotent: safe to re-run. Templates are NEVER overwritten on subsequent runs;
    canonical scripts ARE always overwritten to maintain byte-identical guarantee.
    Stage and pause for review.

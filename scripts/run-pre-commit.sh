@@ -15,7 +15,9 @@
 #   4. update-pins.sh --check-pins-doc — when the repository has docs/current_pins.md, the pins
 #      it lists match the pins in the tree (local, no network): updated pins are committed with
 #      their table.
-# Install: ln -sf ../../scripts/run-pre-commit.sh .git/hooks/pre-commit
+#   5. check-legal-drift.sh — the legal-file copies config/legal-copies.local.txt lists match their
+#      sources.
+# Install: make install-hooks (core.hooksPath scripts/hooks, whose pre-commit runs this script).
 # Project hook: run-pre-commit.local.sh runs first, when present, with this script's arguments
 # (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
@@ -47,7 +49,7 @@ function main() {
   exec 5>&1
   run_local_hook "${BASH_SOURCE[0]}" "${@:-}"
   require_container_system
-  log 'Pre-commit: image name + format + lint + governance-gate + pins table'
+  log 'Pre-commit: image name + format + lint + governance-gate + pins table + legal copies'
   [ ! -f scripts/dev/update-dev-image-ref.sh ] || bash scripts/dev/update-dev-image-ref.sh
   bash scripts/dev/run.sh --writable bash scripts/format.sh
   bash scripts/dev/run.sh bash scripts/lint-all.sh
@@ -55,6 +57,7 @@ function main() {
   if [ -f docs/current_pins.md ]; then
     bash scripts/dev/run.sh bash scripts/release/update-pins.sh --check-pins-doc docs/current_pins.md
   fi
+  bash scripts/dev/run.sh bash scripts/check-legal-drift.sh
   log '✅ Pre-commit checks passed'
 }
 
