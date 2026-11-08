@@ -39,41 +39,60 @@ WORKDIR /opt/keelcore
 # The setup scripts install only while the image is built (build-time only: an ARG never reaches
 # the image); anywhere else they check the baked tool. One COPY + RUN per tool: a changed script
 # rebuilds only its tool's layer and those after it.
+# Largest layer first (each tool's compressed layer size, measured from a built image): a change to a small
+# tool rebuilds only the small layers after it, and the big downloads stay cached.
 ARG KEELCORE_IMAGE_BUILD=1
-COPY scripts/ci/setup-shellcheck.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-shellcheck.sh
-COPY scripts/ci/setup-bats.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-bats.sh
-COPY scripts/ci/setup-markdownlint.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-markdownlint.sh
-COPY scripts/ci/setup-staticcheck.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-staticcheck.sh
-COPY scripts/ci/setup-gitleaks.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-gitleaks.sh
-COPY scripts/ci/setup-syft.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-syft.sh
-COPY scripts/ci/setup-cosign.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-cosign.sh
-COPY scripts/ci/setup-govulncheck.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-govulncheck.sh && go clean -modcache -cache
-COPY scripts/ci/setup-gotestsum.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-gotestsum.sh
-COPY scripts/ci/setup-actionlint.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-actionlint.sh
-COPY scripts/ci/setup-helm.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-helm.sh
-COPY scripts/ci/setup-kubeconform.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-kubeconform.sh
-COPY scripts/ci/setup-zizmor.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-zizmor.sh
+# layer: 107.2 MB
 COPY scripts/ci/setup-kubescape.sh /opt/keelcore/scripts/ci/
 RUN bash scripts/ci/setup-kubescape.sh
+# layer: 53.5 MB
+COPY scripts/ci/setup-cosign.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-cosign.sh
+# layer: 32.2 MB
 COPY scripts/ci/setup-gosec.sh /opt/keelcore/scripts/ci/
 RUN bash scripts/ci/setup-gosec.sh
-COPY scripts/ci/setup-go-licenses.sh /opt/keelcore/scripts/ci/
-RUN bash scripts/ci/setup-go-licenses.sh && go clean -modcache -cache
+# layer: 28.4 MB
 COPY scripts/ci/setup-grype.sh /opt/keelcore/scripts/ci/
 RUN bash scripts/ci/setup-grype.sh
+# layer: 27.3 MB
+COPY scripts/ci/setup-syft.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-syft.sh
+# layer: 17.6 MB
+COPY scripts/ci/setup-helm.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-helm.sh
+# layer: 11.3 MB
+COPY scripts/ci/setup-shellcheck.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-shellcheck.sh
+# layer: 9.3 MB
+COPY scripts/ci/setup-go-licenses.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-go-licenses.sh && go clean -modcache -cache
+# layer: 8.8 MB
+COPY scripts/ci/setup-zizmor.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-zizmor.sh
+# layer: 8.3 MB
+COPY scripts/ci/setup-staticcheck.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-staticcheck.sh
+# layer: 7.9 MB
+COPY scripts/ci/setup-markdownlint.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-markdownlint.sh
+# layer: 7.9 MB
+COPY scripts/ci/setup-govulncheck.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-govulncheck.sh && go clean -modcache -cache
+# layer: 7.3 MB
+COPY scripts/ci/setup-gitleaks.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-gitleaks.sh
+# layer: 6.6 MB
+COPY scripts/ci/setup-kubeconform.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-kubeconform.sh
+# layer: 2.3 MB
+COPY scripts/ci/setup-gotestsum.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-gotestsum.sh
+# layer: 2.0 MB
+COPY scripts/ci/setup-actionlint.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-actionlint.sh
+# layer: 0.0 MB
+COPY scripts/ci/setup-bats.sh /opt/keelcore/scripts/ci/
+RUN bash scripts/ci/setup-bats.sh
 
 # The repository is mounted from the host (another owner); git trusts it.
 RUN git config --system safe.directory '*'

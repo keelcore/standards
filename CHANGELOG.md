@@ -63,6 +63,12 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- **Breaking:** the PyPI wheel installs its data inside the distribution's own package: `governance/` and the dev
+  image pin are `site-packages/keelcore_standards/governance/` and
+  `site-packages/keelcore_standards/containers/dev/image.ref`, read with `importlib.resources.files("keelcore_standards")`;
+  nothing lands at the top of `site-packages/`. The package needs Python 3.10 or newer.
+- The tool image installs its largest layer first: each tool's `COPY` + `RUN` pair in `containers/dev/Containerfile`
+  carries its measured layer size, and a test keeps them in descending order.
 - `refresh-governance` moves a consumer's tracked copy of a renamed canonical script with `git mv`, keeping its
   history, and rewrites references to the old path in the consumer's tracked text files (`scripts/lib/rewrite-paths.pl`),
   outside `.standards/`, vendored trees and released `CHANGELOG.md` sections.
