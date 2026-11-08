@@ -21,6 +21,9 @@ Corrections, clarifications, metadata: patch bump.
   `make ensure-container`. `ensure` joins the target verbs, and `governance/ci.md` states that every target ensures
   its prerequisites. The runtime and system start live once, in `scripts/lib/container-system.sh`.
 - README badge: OpenSSF Scorecard.
+- `.github/scorecard.yml`: Scorecard maintainer annotations. Fuzzing is not applicable (no application of its own to
+  fuzz); the one unpinned npm command is remediated (it regenerates the hash-pinned lockfile). Annotations explain a
+  check; they do not change its score.
 - Every canonical script has a project hook: it calls `run_local_hook` (`scripts/lib/local-hook.sh`) first, so
   `<script>.local.sh` at the same path in the repository it runs in, when present, runs with the script's arguments,
   and a failing hook stops it. Each header states its hook; audit Rule 10 fails a canonical script without one. The

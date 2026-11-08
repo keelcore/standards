@@ -1,0 +1,15 @@
+# OpenSSF Scorecard maintainer annotations: why a check reads as it does. They are shown with the
+# results (--show-annotations) and do not change a score.
+annotations:
+  # This repository is governance documents and a script library; it ships no application of its own
+  # to fuzz (#18).
+  - checks:
+      - fuzzing
+    reasons:
+      - reason: not-applicable
+  # The one unpinned npm command (scripts/release/update-pins.sh relock_npm) regenerates the
+  # package-lock.json that pins every npm dependency by hash (#19).
+  - checks:
+      - pinned-dependencies
+    reasons:
+      - reason: remediated
