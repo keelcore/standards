@@ -14,6 +14,12 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- `make ensure-container` (`scripts/ci/ensure-container.sh`), an order-only prerequisite of every canonical target
+  that runs in a tool image: on a Mac it installs Apple container when missing (`setup-apple-container.sh`) and starts
+  its system when stopped, so `make lint`, `audit`, `test` and the rest no longer fail on a stopped runtime. The commit
+  hook uses no network: a missing or stopped runtime fails the commit, naming `make setup-apple-container` or
+  `make ensure-container`. `ensure` joins the target verbs, and `governance/ci.md` states that every target ensures
+  its prerequisites. The runtime and system start live once, in `scripts/lib/container-system.sh`.
 - README badge: OpenSSF Scorecard.
 - Every canonical script has a project hook: it calls `run_local_hook` (`scripts/lib/local-hook.sh`) first, so
   `<script>.local.sh` at the same path in the repository it runs in, when present, runs with the script's arguments,
@@ -163,6 +169,12 @@ Corrections, clarifications, metadata: patch bump.
   appears; a release no longer fails with only "no published artifacts found" while they propagate.
 - `run.sh` `sync_back` passes over submodule entries, so a writable run from a worktree of a repo with submodules no
   longer fails after copying its edits back.
+- `bootstrap-standards.sh` bootstraps a new repository: it runs `.standards/scripts/refresh-governance.sh`, which moves
+  `.standards` to its latest release tag and copies every canonical script, libraries included, and it installs no tools
+  on the host (they come from the dev image), so the adapters and the pre-commit hook are always created (#16).
+- `create-release.sh` makes a repository's first release: with no previous tag the current version is `0.0.0`,
+  `--force vX.Y.Z` sets the version under the pre-1.0 rules, the hook is not called, and the tag subject is
+  `initial release`; without `--force` it asks for `make create-release FORCE=vX.Y.Z` (#17).
 
 ### Security
 

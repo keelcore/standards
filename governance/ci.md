@@ -620,6 +620,8 @@ pre-release identifiers (`-alpha.1`) and build metadata (`+sha`) are not support
 
 - **Pre-1.0 (major = 0):** Only versions in the `0.x.y` range or exactly `v1.0.0` are accepted. Forcing `v1.1.0` or
   `v2.0.0` from a `0.x` base is rejected.
+- **First release (no previous tag):** the current version is `0.0.0` and `--force` is required, under the pre-1.0
+  rules. The hook is not called; the tag subject is `initial release`.
 - **Post-1.0 (major ≥ 1):** `--force` is restricted to exact single-step increments:
   - Patch: `cur_maj.cur_min.(cur_pat+1)` — always allowed.
   - Minor: `cur_maj.(cur_min+1).0` — always allowed (e.g. internal improvements).
@@ -650,9 +652,14 @@ pre-release identifiers (`-alpha.1`) and build metadata (`+sha`) are not support
 Every target is verb-first: `<verb>-<object>[-<qualifier>]` (`test-unit`, `lint-go`, `sign-release`, `push-dev-image`).
 A project hook is the canonical target's name plus `-local`. There is one target per job, with no aliases.
 
-- **Verbs**, each with one meaning: apply, bootstrap, build, check, clean, create, deploy, detect, format, generate,
-  help, install, lint, load, login, merge, migrate, publish, pull, push, refresh, report, run, set, setup, sign,
-  teardown, test, update, upload, verify, wait.
+- **Verbs**, each with one meaning: apply, bootstrap, build, check, clean, create, deploy, detect, ensure, format,
+  generate, help, install, lint, load, login, merge, migrate, publish, pull, push, refresh, report, run, set, setup,
+  sign, teardown, test, update, upload, verify, wait.
+- **Prerequisites:** every target ensures what it needs before it runs. `ensure-<object>` makes a prerequisite
+  present and running, installing it when missing; a target names it as an order-only prerequisite
+  (`lint-go: | ensure-container`). Every target that runs in a tool image (`scripts/dev/run.sh`) has
+  `| ensure-container`. A commit's hook uses no network and installs nothing: a missing or stopped prerequisite fails
+  the commit, naming the target that fixes it.
 - **Single-word aggregates:** `audit`, `build`, `clean`, `format`, `help`, `lint`, `test`.
 - **Scripts** are named after the target that runs them (`make check-dco` runs `scripts/ci/check-dco.sh`); a script
   several targets share is named after its main one. A project hook is its script's name with `.local`

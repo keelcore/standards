@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # scripts/run-pre-commit.sh
-# Pre-commit hook entry point. Runs:
+# Pre-commit hook entry point. Uses no network: a missing or stopped container runtime fails the commit,
+# naming the make target that fixes it (require_container_system, scripts/lib/container-system.sh). Runs:
 #   0. update-dev-image-ref.sh — containers/NAME/image.ref names the image built from this commit.
 #   1. format.sh  — auto-fix what's auto-fixable
 #   2. lint-all.sh    — fail on remaining lint issues
@@ -39,9 +40,13 @@ source "$(dirname "${BASH_SOURCE[0]}")/./lib/local-hook.sh"
 . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")/lib/paths-ensure.sh"
 paths_ensure_standard
 
+# shellcheck source=lib/container-system.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/container-system.sh"
+
 function main() {
   exec 5>&1
   run_local_hook "${BASH_SOURCE[0]}" "${@:-}"
+  require_container_system
   log 'Pre-commit: image name + format + lint + governance-gate + pins table'
   [ ! -f scripts/dev/update-dev-image-ref.sh ] || bash scripts/dev/update-dev-image-ref.sh
   bash scripts/dev/run.sh --writable bash scripts/format.sh

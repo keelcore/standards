@@ -68,6 +68,7 @@ export TZ := UTC
 .PHONY: check-pins-doc
 .PHONY: check-legal-drift
 .PHONY: setup-apple-container
+.PHONY: ensure-container
 .PHONY: setup-bats
 .PHONY: setup-cosign
 .PHONY: setup-gitleaks
@@ -142,7 +143,7 @@ export TZ := UTC
 
 ## Universal canonical targets (language-independent; mandated by CI standards)
 
-build:
+build: | ensure-container
 	@echo "🔨 Running build..."
 	bash scripts/dev/run.sh bash scripts/build.sh
 
@@ -153,11 +154,11 @@ test: test-unit test-integration
 test-unit: test-unit-go test-unit-local
 
 ## The project's own unit tests (scripts/test-unit-local.local.sh)
-test-unit-local:
+test-unit-local: | ensure-container
 	@echo "🧪 Running the project's unit tests..."
 	bash scripts/dev/run.sh bash scripts/test-unit-local.sh
 
-test-integration:
+test-integration: | ensure-container
 	@echo "🧪 Running integration tests..."
 	bash scripts/dev/run.sh bash scripts/test-integration.sh
 
@@ -167,47 +168,47 @@ clean:
 
 ## Audit
 
-audit:
+audit: | ensure-container
 	@echo "🔍 Running CI/Makefile audit..."
 	bash scripts/dev/run.sh bash scripts/ci/audit.sh
 
 ## Lint targets
 
-lint-newlines:
+lint-newlines: | ensure-container
 	@echo "🔍 Checking trailing newlines..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-newlines.sh
 
-lint-utc:
+lint-utc: | ensure-container
 	@echo "🕛 Checking timestamps are UTC..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-utc.sh
 
-lint-bash:
+lint-bash: | ensure-container
 	@echo "🔍 Running shellcheck..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-bash.sh
 
-lint-markdown:
+lint-markdown: | ensure-container
 	@echo "🔍 Running markdown lint (markdownlint-cli2)..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-markdown.sh
 
-lint-go:
+lint-go: | ensure-container
 	@echo "🔍 Running gofmt check + go vet + staticcheck..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-go.sh
 
-lint-suppressions:
+lint-suppressions: | ensure-container
 	@echo "🔍 Checking for lint-suppression directives..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-suppressions.sh
 
 ## Check targets
 
-check-adr-metadata:
+check-adr-metadata: | ensure-container
 	@echo "🔍 Checking ADR metadata..."
 	bash scripts/dev/run.sh bash scripts/check/check-adr-metadata.sh
 
-check-governance-metadata:
+check-governance-metadata: | ensure-container
 	@echo "🔍 Checking governance metadata..."
 	bash scripts/dev/run.sh bash scripts/check/check-governance-metadata.sh
 
-check-rfc-metadata:
+check-rfc-metadata: | ensure-container
 	@echo "🔍 Checking RFC metadata..."
 	bash scripts/dev/run.sh bash scripts/check/check-rfc-metadata.sh
 
@@ -217,33 +218,33 @@ check-clean-tree:
 	bash scripts/ci/check-clean-tree.sh
 
 ## The pins docs/current_pins.md lists match the pins in the tree (local, no network; also a pre-commit check)
-check-pins-doc:
+check-pins-doc: | ensure-container
 	@echo "📌 Checking docs/current_pins.md against the pins in the tree..."
 	bash scripts/dev/run.sh bash scripts/release/update-pins.sh --check-pins-doc docs/current_pins.md
 
-check-legal-drift:
+check-legal-drift: | ensure-container
 	@echo "⚖️  Checking legal file drift..."
 	bash scripts/dev/run.sh bash scripts/check-legal-drift.sh
 
 ## CI gate targets
 
-check-pr-policy:
+check-pr-policy: | ensure-container
 	@echo "🔍 Running PR policy check..."
 	bash scripts/dev/run.sh bash scripts/ci/check-pr-policy.sh
 
-check-secrets:
+check-secrets: | ensure-container
 	@echo "🔍 Running secret scan..."
 	bash scripts/dev/run.sh bash scripts/ci/check-secrets.sh
 
-check-dco:
+check-dco: | ensure-container
 	@echo "🔍 Running DCO sign-off check..."
 	bash scripts/dev/run.sh bash scripts/ci/check-dco.sh
 
-check-coverage-delta:
+check-coverage-delta: | ensure-container
 	@echo "📊 Checking coverage delta..."
 	bash scripts/dev/run.sh bash scripts/test/check-coverage-delta.sh
 
-check-governance:
+check-governance: | ensure-container
 	@echo "🚦 Governance CI gate (refresh-governance --dry-run)..."
 	bash scripts/dev/run.sh bash scripts/ci/check-governance.sh
 
@@ -251,23 +252,23 @@ check-governance:
 
 test-coverage: test-coverage-go test-coverage-rust merge-coverage
 
-test-coverage-go:
+test-coverage-go: | ensure-container
 	@echo "📊 Go coverage..."
 	bash scripts/dev/run.sh bash scripts/test/test-coverage-go.sh
 
-test-coverage-rust:
+test-coverage-rust: | ensure-container
 	@echo "📊 Rust coverage (cargo-llvm-cov)..."
 	bash scripts/dev/run.sh bash scripts/test/test-coverage-rust.sh
 
-merge-coverage:
+merge-coverage: | ensure-container
 	@echo "📊 Coverage aggregate (merge per-language LCOV, bucket by extension)..."
 	bash scripts/dev/run.sh bash scripts/test/merge-coverage.sh
 
-check-coverage-regression:
+check-coverage-regression: | ensure-container
 	@echo "🚦 coverage-no-regression (per-file)..."
 	bash scripts/dev/run.sh bash scripts/test/check-coverage-regression.sh
 
-generate-coverage-baseline:
+generate-coverage-baseline: | ensure-container
 	@echo "🪴 coverage-baseline-init (capture current LCOV)..."
 	bash scripts/dev/run.sh --writable bash scripts/test/generate-coverage-baseline.sh
 
@@ -279,40 +280,44 @@ setup-apple-container:
 	@echo "🔧 Installing Apple container..."
 	bash scripts/ci/setup-apple-container.sh
 
-setup-bats:
+## The container runtime of every tool-image target (order-only prerequisite): Apple container installed and started on a Mac.
+ensure-container:
+	bash scripts/ci/ensure-container.sh
+
+setup-bats: | ensure-container
 	@echo "🔧 Installing bats-core test harness..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-bats.sh
 
-setup-cosign:
+setup-cosign: | ensure-container
 	@echo "🔧 Installing cosign..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-cosign.sh
 
-setup-gitleaks:
+setup-gitleaks: | ensure-container
 	@echo "🔧 Installing gitleaks..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-gitleaks.sh
 
-setup-markdownlint:
+setup-markdownlint: | ensure-container
 	@echo "🔧 Installing markdownlint-cli..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-markdownlint.sh
 
-setup-shellcheck:
+setup-shellcheck: | ensure-container
 	@echo "🔧 Installing shellcheck..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-shellcheck.sh
 
-setup-staticcheck:
+setup-staticcheck: | ensure-container
 	@echo "🔧 Installing staticcheck..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-staticcheck.sh
 
-setup-syft:
+setup-syft: | ensure-container
 	@echo "🔧 Installing syft..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-syft.sh
 
-setup-govulncheck:
+setup-govulncheck: | ensure-container
 	@echo "🔧 Installing govulncheck..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-govulncheck.sh
 
 ## Dependency vulnerability gate: reachable vulnerabilities in every repo-owned Go module
-lint-vuln:
+lint-vuln: | ensure-container
 	@echo "🔍 Running govulncheck..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-vuln.sh
 
@@ -331,17 +336,17 @@ install-hooks:
 ## Canonical script verification (compares a downstream repo's scripts/ against
 ## this canonical set; consumers usually do not invoke this).
 
-verify-canonical:
+verify-canonical: | ensure-container
 	@echo "🔍 Verifying canonical scripts are byte-identical (REPO=<path>, default: this repo)…"
 	bash scripts/dev/run.sh bash scripts/ci/verify-canonical.sh $(REPO)
 
 ## Utility targets
 
-format:
+format: | ensure-container
 	@echo "🖊️  Formatting repository..."
 	bash scripts/dev/run.sh --writable bash scripts/format.sh
 
-lint-all:
+lint-all: | ensure-container
 	@echo "🔍 Running all linters (full suite)..."
 	bash scripts/dev/run.sh bash scripts/lint-all.sh
 
@@ -363,11 +368,11 @@ migrate-makefile:
 	bash scripts/migrate-makefile.sh
 
 ## Per-language publish targets — scripts shipped byte-identical (Rule A).
-publish-go:
+publish-go: | ensure-container
 	@echo "🚀 Publishing Go module..."
 	bash scripts/dev/run.sh bash scripts/release/publish-go.sh
 
-publish-npm:
+publish-npm: | ensure-container
 	@echo "🚀 Publishing npm package..."
 	bash scripts/dev/run.sh --writable bash scripts/release/publish-npm.sh
 
@@ -377,20 +382,20 @@ wait-for-ci:
 	@echo "⏳ Waiting for CI on this commit..."
 	bash scripts/release/wait-for-ci.sh
 
-wait-for-publish:
+wait-for-publish: | ensure-container
 	@echo "⏳ Waiting for the registry to finish publishing..."
 	bash scripts/dev/run.sh bash scripts/release/wait-for-publish.sh $(ARGS)
 
-publish-pypi:
+publish-pypi: | ensure-container
 	@echo "🚀 Publishing PyPI package..."
 	bash scripts/dev/run.sh --image pypi bash scripts/release/publish-pypi.sh
 
 ## Release provenance — SBOM (ARGS="--out-dir DIR") and keyless signing (ARGS="<artifact> ...").
-generate-sbom:
+generate-sbom: | ensure-container
 	@echo "🧾 Generating SBOM..."
 	bash scripts/dev/run.sh bash scripts/release/generate-sbom.sh $(ARGS)
 
-sign-release:
+sign-release: | ensure-container
 	@echo "🔏 Signing release artifacts..."
 	bash scripts/dev/run.sh bash scripts/release/sign-release.sh $(ARGS)
 
@@ -398,15 +403,15 @@ sign-release:
 ## the published files in target/release with per-artifact SBOMs, build-environment SBOMs of
 ## the pinned tool images, current_pins.md, SHA256SUMS and cosign bundles; release-github
 ## creates the Release with notes and every asset; release-verify-blobs checks them all.
-build-release-assets:
+build-release-assets: | ensure-container
 	@echo "📦 Assembling release assets for $(TAG)..."
 	bash scripts/dev/run.sh bash scripts/release/build-release-assets.sh $(TAG) target/release
 
-publish-github-release:
+publish-github-release: | ensure-container
 	@echo "🚀 Publishing the GitHub Release for $(TAG)..."
 	bash scripts/dev/run.sh bash scripts/release/publish-github-release.sh $(TAG) target/release
 
-verify-release-blobs:
+verify-release-blobs: | ensure-container
 	@echo "🔍 Verifying release assets..."
 	bash scripts/dev/run.sh bash scripts/release/verify-release-blobs.sh target/release
 
@@ -429,7 +434,7 @@ update-pins:
 	@echo "📌 Refreshing pins..."
 	bash scripts/release/update-pins.sh $(if $(APPLY),--apply,) $(if $(DISCOVER),--discover-only,) $(if $(REPORT),--report $(REPORT),) $(foreach m,$(MAJOR),--major '$(m)')
 
-generate-pins-doc:
+generate-pins-doc: | ensure-container
 	@echo "📌 Writing docs/current_pins.md..."
 	bash scripts/release/update-pins.sh --discover-only --pins-md docs/current_pins.md
 
@@ -440,7 +445,7 @@ generate-pins-doc:
 ## dev-image-sign REF=<repository@digest> signs one. update-dev-image-ref names the image this commit
 ## builds in containers/NAME/image.ref, as the pre-commit hook does. publish-dev-image
 ## (macOS) builds and pushes every unpublished image.
-run-dev-shell:
+run-dev-shell: | ensure-container
 	@echo "🐚 Shell in the dev image (repository read-only; target/ writable)..."
 	bash scripts/dev/run.sh bash
 
@@ -452,7 +457,7 @@ merge-dev-image:
 	@echo "📦 Publishing multi-arch tool images..."
 	bash scripts/dev/publish.sh merge
 
-sign-dev-image:
+sign-dev-image: | ensure-container
 	@echo "🔏 Signing $(REF)..."
 	bash scripts/dev/run.sh bash scripts/dev/sign-dev-image.sh $(REF)
 
@@ -470,7 +475,7 @@ publish-dev-image:
 	bash scripts/dev/publish.sh local
 
 ## Per-language verify.
-verify-go:
+verify-go: | ensure-container
 	@echo "🔍 Verifying Go module..."
 	bash scripts/dev/run.sh bash scripts/verify/verify-go.sh
 
@@ -487,95 +492,95 @@ help:
 
 ## Workflow, Go and Helm checks, tests and release steps (each does nothing without its trait)
 
-setup-actionlint:
+setup-actionlint: | ensure-container
 	@echo "🔧 Installing actionlint..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-actionlint.sh
 
-setup-zizmor:
+setup-zizmor: | ensure-container
 	@echo "🔧 Installing zizmor..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-zizmor.sh
 
-setup-gosec:
+setup-gosec: | ensure-container
 	@echo "🔧 Installing gosec..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-gosec.sh
 
-setup-go-licenses:
+setup-go-licenses: | ensure-container
 	@echo "🔧 Installing go-licenses..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-go-licenses.sh
 
-setup-gotestsum:
+setup-gotestsum: | ensure-container
 	@echo "🔧 Installing gotestsum..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-gotestsum.sh
 
-setup-helm:
+setup-helm: | ensure-container
 	@echo "🔧 Installing helm..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-helm.sh
 
-setup-kubeconform:
+setup-kubeconform: | ensure-container
 	@echo "🔧 Installing kubeconform..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-kubeconform.sh
 
-setup-kubescape:
+setup-kubescape: | ensure-container
 	@echo "🔧 Installing kubescape..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-kubescape.sh
 
-lint-workflows:
+lint-workflows: | ensure-container
 	@echo "🔍 Linting workflows (actionlint, zizmor)..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-workflows.sh
 
-lint-gosec:
+lint-gosec: | ensure-container
 	@echo "🔍 Running gosec..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-gosec.sh
 
-lint-licenses:
+lint-licenses: | ensure-container
 	@echo "🔍 Checking dependency licenses..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-licenses.sh
 
-lint-helm:
+lint-helm: | ensure-container
 	@echo "🔍 Running Helm lint..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-helm.sh
 
-lint-helm-validate:
+lint-helm-validate: | ensure-container
 	@echo "🔍 Validating Helm templates against the Kubernetes schema..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-helm-validate.sh
 
-lint-helm-policy:
+lint-helm-policy: | ensure-container
 	@echo "🔍 Scanning chart policy (kubescape)..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-helm-policy.sh
 
-lint-vex:
+lint-vex: | ensure-container
 	@echo "🔍 Validating the generated OpenVEX document..."
 	bash scripts/dev/run.sh bash scripts/lint/lint-vex.sh
 
-test-unit-go:
+test-unit-go: | ensure-container
 	@echo "🧪 Running Go unit tests..."
 	bash scripts/dev/run.sh bash scripts/test/test-unit-go.sh
 
-test-fuzz:
+test-fuzz: | ensure-container
 	@echo "🧪 Running fuzz targets..."
 	bash scripts/dev/run.sh bash scripts/test/test-fuzz.sh
 
-generate-coverage-profile:
+generate-coverage-profile: | ensure-container
 	@echo "📊 Generating the Go coverage profile (target/coverage.txt)..."
 	bash scripts/dev/run.sh bash scripts/test/generate-coverage-profile.sh
 
-generate-vex:
+generate-vex: | ensure-container
 	@echo "🧾 Generating OpenVEX (govulncheck)..."
 	bash scripts/dev/run.sh bash scripts/release/generate-vex.sh $(ARGS)
 
-generate-release-checksums:
+generate-release-checksums: | ensure-container
 	@echo "🔐 Generating SHA256SUMS..."
 	bash scripts/dev/run.sh bash scripts/release/generate-release-checksums.sh
 
-verify-release-checksums:
+verify-release-checksums: | ensure-container
 	@echo "🔐 Verifying SHA256SUMS..."
 	bash scripts/dev/run.sh bash scripts/release/generate-release-checksums.sh --verify
 
-set-dist-permissions:
+set-dist-permissions: | ensure-container
 	@echo "🔑 Making dist binaries executable..."
 	DIST_OWNER='$(DIST_OWNER)' KEELCORE_DEV_ENV=DIST_OWNER bash scripts/dev/run.sh bash scripts/build/set-dist-permissions.sh
 
-build-native:
+build-native: | ensure-container
 	@echo "🔨 Cross-building native test binaries for $(OS)/$(ARCH)..."
 	bash scripts/dev/run.sh bash scripts/test/build-native.sh $(OS) $(ARCH)
 
@@ -590,11 +595,11 @@ test-native-integrity:
 # Who owns dist/ after a tool-image step on Linux (root runs the image there): the invoking user.
 DIST_OWNER := $(shell [ "$$(uname -s)" = Linux ] && printf '%s:%s' "$$(id -u)" "$$(id -g)")
 
-setup-grype:
+setup-grype: | ensure-container
 	@echo "🔧 Installing grype..."
 	bash scripts/dev/run.sh bash scripts/ci/setup-grype.sh
 
-generate-release-metadata:
+generate-release-metadata: | ensure-container
 	@echo "🧾 Generating release metadata..."
 	TAG='$(TAG)' KEELCORE_DEV_ENV='$(KEELCORE_DEV_ENV) TAG' bash scripts/dev/run.sh bash scripts/release/generate-release-metadata.sh
 
@@ -602,7 +607,7 @@ publish-release-images:
 	@echo "🐳 Building and pushing container images..."
 	bash scripts/release/publish-release-images.sh
 
-push-helm-chart:
+push-helm-chart: | ensure-container
 	@echo "⎈ Packaging and pushing the Helm chart..."
 	bash scripts/dev/run.sh bash scripts/release/push-helm-chart.sh
 
@@ -610,7 +615,7 @@ login-ghcr:
 	@echo "🔑 Logging in to GHCR..."
 	bash scripts/release/login-ghcr.sh
 
-run-cosign:
+run-cosign: | ensure-container
 	@echo "🔏 cosign (GHCR, dev image) $(ARGS)..."
 	bash scripts/dev/run.sh bash scripts/release/run-cosign.sh $(ARGS)
 

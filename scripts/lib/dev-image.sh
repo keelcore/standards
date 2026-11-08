@@ -13,6 +13,9 @@
 # shellcheck source=progress.sh
 . "$(dirname "${BASH_SOURCE[0]}")/progress.sh"
 
+# shellcheck source=container-system.sh
+. "$(dirname "${BASH_SOURCE[0]}")/container-system.sh"
+
 # Inside a git hook, git exports the hook's repository layout (GIT_INDEX_FILE=.git/index, and
 # GIT_DIR / GIT_WORK_TREE in some cases) as paths relative to that repository. These scripts run
 # git in other repositories too (the .standards submodule, snapshots under /tmp), where those
@@ -171,11 +174,6 @@ function dev_published_ref() {
     | tr -d '\r' | sed -nE 's/^[Dd]ocker-[Cc]ontent-[Dd]igest: (sha256:[0-9a-f]{64})$/\1/p')" || return 1
   [ -n "${digest}" ] || return 1
   printf '%s:ctx-%s' "${repository}" "${hash}"
-}
-
-# runtime: the container runtime of this host.
-function runtime() {
-  if [ "$(uname -s)" = 'Darwin' ]; then printf 'container'; else printf 'docker'; fi
 }
 
 # pull_image REF: fetch REF. Apple container's default progress prints nothing without a terminal, so

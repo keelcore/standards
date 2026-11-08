@@ -229,6 +229,69 @@ remote_lacks_tag() {
   [[ "${output}" == *'no tags found'* ]] || false
 }
 
+@test "no tags at all: without --force it stops and asks for FORCE" {
+  run bash "${DRIVER}"
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'make create-release FORCE=vX.Y.Z'* ]] || false
+  [ "$(tag_count)" -eq 0 ]
+}
+
+@test "no tags at all: --force makes the first release, signed, annotated, pushed, subject 'initial release'" {
+  run bash "${DRIVER}" --force v0.1.0
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *'v0.0.0  ->  v0.1.0'* ]] || false
+  [ "$(git cat-file -t v0.1.0)" = 'tag' ]
+  git tag -v v0.1.0
+  remote_has_tag v0.1.0
+  [ "$(git tag -l --format='%(contents:subject)' v0.1.0)" = 'initial release' ]
+  run git tag -l --format='%(contents:body)' v0.1.0
+  [[ "${output}" == *'New version: v0.1.0'* ]] || false
+  [[ "${output}" == *'Generated-by: scripts/release/create-release.sh'* ]] || false
+}
+
+@test "no tags at all: the project hook is not called" {
+  install_hook "${FIXTURE_HOOK}"
+  run bash "${DRIVER}" --force v0.1.0
+  [ "${status}" -eq 0 ]
+  [ ! -e "${HOOK_ARGS_FILE}" ]
+  remote_has_tag v0.1.0
+}
+
+@test "no tags at all: the approval prompt still decides" {
+  printf 'n\n' > "${CREATE_RELEASE_TTY}"
+  run bash "${DRIVER}" --force v0.1.0
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *'Release cancelled.'* ]] || false
+  [ "$(tag_count)" -eq 0 ]
+}
+
+@test "no tags at all: preconditions still apply" {
+  printf 'dirty\n' >> README.md
+  run bash "${DRIVER}" --force v0.1.0
+  [ "${status}" -eq 1 ]
+  [[ "${output}" == *'working tree is not clean'* ]] || false
+  [ "$(tag_count)" -eq 0 ]
+}
+
+@test "no tags at all: --dry-run --force previews the first release and tags nothing" {
+  run bash "${DRIVER}" --dry-run --force v0.1.0
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *'v0.0.0  ->  v0.1.0'* ]] || false
+  [[ "${output}" == *'Tag message (dry run):'* ]] || false
+  [[ "${output}" == *'initial release'* ]] || false
+  [ "$(tag_count)" -eq 0 ]
+  remote_lacks_tag v0.1.0
+}
+
+@test "no tags at all: --force follows the pre-1.0 rules" {
+  force_row patch v0.0.1 0
+  force_row patch v0.9.0 0
+  force_row patch v1.0.0 0
+  force_row patch v1.1.0 1
+  force_row patch v2.0.0 1
+  force_row patch v0.0.0 1
+}
+
 # ---------------------------------------------------------------------------
 # --force matrix (governance/ci.md "--force Override Rules")
 # ---------------------------------------------------------------------------
