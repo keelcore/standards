@@ -127,6 +127,7 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- The `osv-scanner.toml` test reads the file with `awk`: the tool image has no `yq`, so CI failed it.
 - `refresh-governance` removes an old canonical copy whose staged content differs from both the tree and `HEAD`
   (`git rm -f`), instead of stopping.
 - `scripts/ci/setup-bats.sh` names itself on line 2; a test checks every canonical script and library does.

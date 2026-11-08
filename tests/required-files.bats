@@ -55,7 +55,9 @@ setup() {
     n=$(( n + 1 ))
     jq -e '[.packages | keys[] | select(startswith("node_modules/"))] | length > 0' "$(dirname "${f}")/package-lock.json" > /dev/null \
       || { echo "${f}: no lockfile with dependencies beside it"; return 1; }
-    yq -p toml -o json '.' "${f}" | jq -e '.IgnoredVulns | length > 0 and all(.ignoreUntil and .reason)' > /dev/null \
+    awk '/^\[\[IgnoredVulns\]\]/ { if (n && !(u && r)) bad = 1; n++; u = r = 0; next }
+      /^ignoreUntil[[:space:]]*=/ { u = 1 } /^reason[[:space:]]*=/ { r = 1 }
+      END { if (n && !(u && r)) bad = 1; exit !(n > 0 && !bad) }' "${f}" \
       || { echo "${f}: an entry without ignoreUntil or reason"; return 1; }
   done < <(cd "${BATS_TEST_DIRNAME}/.." && git ls-files -co --exclude-standard '*osv-scanner.toml' | sed "s#^#${BATS_TEST_DIRNAME}/../#")
   [ "${n}" -gt 0 ]
