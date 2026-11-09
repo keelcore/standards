@@ -23,6 +23,10 @@
 # `ARG BASE_DEV_IMAGE` gets the .standards dev image as that argument.
 # Runtime: Apple `container` on macOS, docker on Linux.
 # Inside the image (KEELCORE_DEV_IMAGE set) the command runs directly.
+# Environment: KEELCORE_DEV_ENV (default empty).
+# Environment: DOCKER_CONFIG (default empty).
+# Environment: KEELCORE_DEV_BUILD_TIMEOUT (default 3600).
+# Environment: KEELCORE_DEV_MEMORY (default 4g).
 # Project hook: run.local.sh runs first, when present, with this script's arguments
 # (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
@@ -45,11 +49,16 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/dev-image.sh"
 # Environment passed into the container: every GITHUB_*, RUNNER_* and ACTIONS_* variable (the
 # Actions context: npm and cosign build provenance from it; the OIDC token request), plus CI,
 # PR metadata, coverage settings, and any names a project lists in KEELCORE_DEV_ENV.
+declare -rx KEELCORE_DEV_MEMORY="${KEELCORE_DEV_MEMORY:-4g}"
+declare -rx KEELCORE_DEV_BUILD_TIMEOUT="${KEELCORE_DEV_BUILD_TIMEOUT:-3600}"
+declare -rx DOCKER_CONFIG="${DOCKER_CONFIG:-}"
+declare -rx KEELCORE_DEV_ENV="${KEELCORE_DEV_ENV:-}"
+
 SNAPSHOT=''
 
 readonly PASS_ENV="TZ CI PR_TITLE PR_BODY PR_AUTHOR BASE_SHA HEAD_SHA COVERAGE_DIR COVERAGE_THRESHOLD COVERAGE_BASE_FILE COVERAGE_PR_FILE
   GO_COVERAGE_IGNORE_REGEX CARGO_COVERAGE_FEATURES CARGO_COVERAGE_IGNORE_REGEX
-  ${KEELCORE_DEV_ENV:-}"
+  ${KEELCORE_DEV_ENV}"
 
 function main() {
   local mode='ro' name='dev'
@@ -159,7 +168,7 @@ function build_image() {
     while IFS= read -r opt; do args+=("${opt}"); done < <(dev_builder_args)
   fi
   log "🔨 Building image ${tag}..."
-  dev_watch "building ${tag}" "${KEELCORE_DEV_BUILD_TIMEOUT:-3600}" "$(runtime)" "${args[@]}" "${dir}"
+  dev_watch "building ${tag}" "${KEELCORE_DEV_BUILD_TIMEOUT}" "$(runtime)" "${args[@]}" "${dir}"
 }
 
 # fetch_image NAME: NAME's image on this machine, built or pulled, ready for runs that follow.
@@ -269,11 +278,11 @@ function run_in() {
   args+=(-e "KEELCORE_DEV_REPO=$(dev_repo_name "${here}")")
   # The job's registry login (DOCKER_CONFIG, one login per job), read-only: tools in the image reuse
   # it instead of logging in themselves.
-  if [ -n "${DOCKER_CONFIG:-}" ] && [ -d "${DOCKER_CONFIG}" ]; then
+  if [ -n "${DOCKER_CONFIG}" ] && [ -d "${DOCKER_CONFIG}" ]; then
     args+=(-v "${DOCKER_CONFIG}:/run/keelcore-docker-config:ro" -e 'DOCKER_CONFIG=/run/keelcore-docker-config')
   fi
   # Apple container caps a container at 1 GB unless told otherwise (docker does not cap).
-  [ "$(runtime)" = 'container' ] && args+=(-m "${KEELCORE_DEV_MEMORY:-4g}")
+  [ "$(runtime)" = 'container' ] && args+=(-m "${KEELCORE_DEV_MEMORY}")
   local out
   if [ "${mode}" = 'ro' ]; then
     while IFS= read -r out; do

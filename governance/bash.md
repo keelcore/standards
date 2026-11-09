@@ -139,8 +139,18 @@ across machines and CI (the generic policy: see coding.md, "Locale and Reproduci
   declare -rx SOME_VAR="${SOME_VAR:-default_value}"
   ```
 
+  Every environment variable a file reads (an uppercase `${NAME…}` or `$NAME` that neither the file nor a
+  file it sources assigns) is imported this way exactly once in its sourcing chain, at file scope before
+  `function main`, with the same name on both sides. The default may be empty; test it with `-z` or `-n`.
+  A default the file can only compute later (from a function's locals) is empty, and the file resolves it
+  where it is used. The header lists each import as `NAME (default <default>)`, or `NAME (default empty)`.
+  An import is read-only: nothing assigns the name afterwards. Exempt are the names the shell or the OS sets
+  for every process (`PATH`, `HOME`, `PWD`, `TMPDIR`, `IFS`, `BASH_SOURCE`, `PIPESTATUS`, …, listed in
+  `scripts/lib/env-imports.sh`) and `BATS_*`. `make lint-bash` checks every repo-owned `*.sh` and `*.bash`.
+
 - **R38.** Global names SHALL be uppercase.
 - **R39.** Never declare a global inside a function scope.
+- **R47.** Source a file with `source`, never `.`. `make lint-bash` checks it.
 
 ## Standard `log` Function Pattern
 

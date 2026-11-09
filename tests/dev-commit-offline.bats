@@ -78,7 +78,7 @@ run_sh_in_hook() {
   done
   cd "${WORK}/repo"
   git init --quiet
-  GIT_INDEX_FILE=x KEELCORE_DEV_IMAGE= PATH="${WORK}/bin:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" touch "${WORK}/ran"
+  KEELCORE_DEV_IN_HOOK=1 KEELCORE_DEV_IMAGE= PATH="${WORK}/bin:${PATH}" run bash "${STANDARDS}/scripts/dev/run.sh" touch "${WORK}/ran"
 }
 
 @test "commit: an absent image lets the commit proceed, skipping the check visibly, fetching nothing" {

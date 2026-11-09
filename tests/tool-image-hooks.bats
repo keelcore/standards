@@ -56,13 +56,24 @@ hash_in() {
   [ "${hooked}" = "${plain}" ]
 }
 
-@test "hook: the hook context is recorded (run.sh never builds there); outside a hook it is not" {
-  run bash -c "GIT_INDEX_FILE=.git/index; export GIT_INDEX_FILE; source '${STANDARDS}/scripts/lib/dev-image.sh'; \
-    printf '%s|%s' \"\${KEELCORE_DEV_IN_HOOK:-}\" \"\${GIT_INDEX_FILE:-}\""
-  [ "${output}" = '1|' ]
-  run env -u GIT_INDEX_FILE -u KEELCORE_DEV_IN_HOOK bash -c \
-    "source '${STANDARDS}/scripts/lib/dev-image.sh'; printf '%s' \"\${KEELCORE_DEV_IN_HOOK:-none}\""
-  [ "${output}" = 'none' ]
+@test "hook: the versioned pre-commit hook records the hook context for run.sh" {
+  mkdir -p "${WORK}/hooked/scripts/hooks"
+  cp "${STANDARDS}/scripts/hooks/pre-commit" "${WORK}/hooked/scripts/hooks/"
+  printf 'printf "%%s" "${KEELCORE_DEV_IN_HOOK:-none}"\n' > "${WORK}/hooked/scripts/run-pre-commit.sh"
+  cd "${WORK}/hooked"
+  git init --quiet
+  run env -u KEELCORE_DEV_IN_HOOK bash scripts/hooks/pre-commit
+  [ "${output}" = 1 ]
+}
+
+@test "hook: dev-image.sh drops the hook's GIT_INDEX_FILE, unless its caller imported it, and infers no hook" {
+  run bash -c "export GIT_INDEX_FILE=.git/index; source '${STANDARDS}/scripts/lib/dev-image.sh'; \
+    printf '%s|%s' \"\${GIT_INDEX_FILE:-unset}\" \"\${KEELCORE_DEV_IN_HOOK:-none}\""
+  [ "${output}" = 'unset|none' ]
+  run bash -c "declare -rx GIT_INDEX_FILE=/x/index; source '${STANDARDS}/scripts/lib/dev-image.sh'; \
+    printf '%s' \"\${GIT_INDEX_FILE}\""
+  [ "${status}" -eq 0 ]
+  [ "${output}" = /x/index ]
 }
 
 # audit_fixture: a repository whose workflows the Rule 6 functions read.

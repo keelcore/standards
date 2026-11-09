@@ -6,6 +6,10 @@
 #
 # Usage: wait-for-publish.sh npm|pypi|go   (make wait-for-publish ARGS=...)
 # Tag: GITHUB_REF_NAME, else INPUT_TAG.
+# Environment: INPUT_TAG (default empty).
+# Environment: WAIT_INTERVAL (default 15).
+# Environment: WAIT_TIMEOUT (default 1800).
+# Environment: GITHUB_REF_NAME (default empty).
 # Project hook: wait-for-publish.local.sh runs first, when present, with this script's arguments
 # (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
@@ -22,8 +26,12 @@ set -o pipefail
 # shellcheck source=../lib/local-hook.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/local-hook.sh"
 
-readonly INTERVAL="${WAIT_INTERVAL:-15}"
-readonly TIMEOUT="${WAIT_TIMEOUT:-1800}"
+declare -rx GITHUB_REF_NAME="${GITHUB_REF_NAME:-}"
+declare -rx WAIT_TIMEOUT="${WAIT_TIMEOUT:-1800}"
+declare -rx WAIT_INTERVAL="${WAIT_INTERVAL:-15}"
+declare -rx INPUT_TAG="${INPUT_TAG:-}"
+readonly INTERVAL="${WAIT_INTERVAL}"
+readonly TIMEOUT="${WAIT_TIMEOUT}"
 readonly PYPI_ACCEPT='Accept: application/vnd.pypi.integrity.v1+json'
 
 function main() {
@@ -51,7 +59,8 @@ function validate_args() {
 }
 
 function resolve_tag() {
-  local -r tag="${GITHUB_REF_NAME:-${INPUT_TAG:-}}"
+  local tag="${GITHUB_REF_NAME}"
+  [ -n "${tag}" ] || tag="${INPUT_TAG}"
   [ -n "${tag}" ] || { log '❌ Cannot resolve tag: GITHUB_REF_NAME and INPUT_TAG are both unset'; exit 1; }
   printf '%s' "${tag}"
 }

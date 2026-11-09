@@ -39,7 +39,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/./lib/local-hook.sh"
 # ~/.zshrc, so without this every downstream tool (shellcheck, node,
 # markdownlint-cli2, syft, ...) looks "missing" when it isn't.
 # shellcheck source=lib/paths-ensure.sh
-. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")/lib/paths-ensure.sh"
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")/lib/paths-ensure.sh"
 paths_ensure_standard
 
 # shellcheck source=lib/container-system.sh

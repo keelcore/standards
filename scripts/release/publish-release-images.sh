@@ -26,6 +26,9 @@
 #
 # Image targets (each a linux/amd64 + linux/arm64 index): ghcr.io/<repo>:<tag><suffix>, and vX.Y, vX
 # and latest for the primary variant. Per-arch images behind each index: <primary tag>-amd64, -arm64.
+# Environment: GITHUB_TOKEN (default empty).
+# Environment: GITHUB_ACTOR (default empty).
+# Environment: GITHUB_OUTPUT (default empty).
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.
@@ -45,6 +48,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/parallel.sh"
 # shellcheck source=../lib/tool-config.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/tool-config.sh"
 
+declare -rx GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
+declare -rx GITHUB_ACTOR="${GITHUB_ACTOR:-}"
+declare -rx GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 readonly REGISTRY='ghcr.io'
 IMAGE="${REGISTRY}/$(release_repo)"
 readonly IMAGE
@@ -288,7 +294,7 @@ function push_aliases() {
 function record_digest() {
   local -r flavor="${1}"
   local -r digest="${2}"
-  [ -n "${GITHUB_OUTPUT:-}" ] || return 0
+  [ -n "${GITHUB_OUTPUT}" ] || return 0
   printf '%s_digest=%s\n' "${flavor}" "${digest##*@}" >> "${GITHUB_OUTPUT}"
 }
 

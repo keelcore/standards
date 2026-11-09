@@ -4,6 +4,8 @@
 # throwaway repos by tests/create-release.bats. Prints HOOK_STDOUT to stdout
 # (backslash escapes expanded), HOOK_STDERR to stderr, then exits HOOK_EXIT.
 # Records its arguments in HOOK_ARGS_FILE when set.
+# Environment: HOOK_STDOUT (default patch\n), HOOK_STDERR (default empty), HOOK_EXIT (default 0),
+# HOOK_ARGS_FILE (default empty).
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.

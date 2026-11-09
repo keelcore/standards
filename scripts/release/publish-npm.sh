@@ -3,6 +3,8 @@
 # Publishes @keelcore/standards to the npm registry.
 # Version is derived from the git tag (GITHUB_REF_NAME or INPUT_TAG).
 # Uses OIDC trusted publishing — no token required in CI.
+# Environment: GITHUB_REF_NAME (default empty).
+# Environment: INPUT_TAG (default empty).
 # Project hook: publish-npm.local.sh runs first, when present, with this script's arguments
 # (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
@@ -18,6 +20,9 @@ set -o pipefail
 
 # shellcheck source=../lib/local-hook.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/local-hook.sh"
+
+declare -rx INPUT_TAG="${INPUT_TAG:-}"
+declare -rx GITHUB_REF_NAME="${GITHUB_REF_NAME:-}"
 
 function main() {
   exec 5>&1
@@ -38,9 +43,9 @@ function main() {
 }
 
 function resolve_tag() {
-  if [ -n "${GITHUB_REF_NAME:-}" ]; then
+  if [ -n "${GITHUB_REF_NAME}" ]; then
     printf '%s' "${GITHUB_REF_NAME}"
-  elif [ -n "${INPUT_TAG:-}" ]; then
+  elif [ -n "${INPUT_TAG}" ]; then
     printf '%s' "${INPUT_TAG}"
   else
     log '❌ Cannot resolve tag: GITHUB_REF_NAME and INPUT_TAG are both unset'

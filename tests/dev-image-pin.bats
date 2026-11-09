@@ -40,7 +40,7 @@ committed_ref() {
 # context_of: the expected reference for what the index holds now.
 expected_ref() {
   local hash
-  hash="$(bash -c "DEV_CONTEXT_STAGED=1; source scripts/lib/dev-image.sh; dev_context_hash . dev")"
+  hash="$(bash -c "source scripts/lib/dev-image.sh; dev_context_hash . dev '' staged")"
   printf 'ghcr.io/keelcore/standards-dev:ctx-%s' "${hash}"
 }
 
@@ -106,4 +106,17 @@ expected_ref() {
 
 @test "make update-dev-image-ref runs the same script" {
   grep -qxF "$(printf '\tbash scripts/dev/update-dev-image-ref.sh')" "${STANDARDS}/templates/Makefile.canonical"
+}
+
+@test "outside a commit, without GIT_INDEX_FILE, it fails naming the manual form, and writes nothing" {
+  run env -u GIT_INDEX_FILE bash scripts/dev/update-dev-image-ref.sh
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'GIT_INDEX_FILE=.git/index make update-dev-image-ref'* ]] || false
+  [ ! -e containers/dev/image.ref ]
+}
+
+@test "outside a commit, GIT_INDEX_FILE=.git/index names what the index holds" {
+  GIT_INDEX_FILE=.git/index run bash scripts/dev/update-dev-image-ref.sh
+  [ "${status}" -eq 0 ]
+  [ "$(cat containers/dev/image.ref)" = "$(expected_ref)" ]
 }

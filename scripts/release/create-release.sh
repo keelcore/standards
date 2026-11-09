@@ -43,7 +43,7 @@
 #                     recorded.
 #
 # Env (testing only):
-#   CREATE_RELEASE_TTY  file the approval answer is read from (default /dev/tty)
+#   CREATE_RELEASE_TTY (default /dev/tty): the file the approval answer is read from
 
 # bash configuration:
 # 1) Exit script if you try to use an uninitialized variable.

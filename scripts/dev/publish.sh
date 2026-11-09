@@ -16,6 +16,9 @@
 # Env: GITHUB_TOKEN and GITHUB_ACTOR (registry login for push and merge; GitHub Actions sets
 # GITHUB_ACTOR).
 #
+# Environment: DOCKER_CONFIG (default empty).
+# Environment: GITHUB_ACTOR (default empty).
+# Environment: GITHUB_STEP_SUMMARY (default empty).
 # Project hook: after each mode, `bash scripts/dev/publish.local.sh MODE` runs when the repository
 # holds it (resolved from the repository root, never canonical) — e.g. to check the published
 # packages. In local mode GITHUB_TOKEN is exported only when the login needs it (the developer's gh
@@ -34,6 +37,9 @@ set -o pipefail
 # shellcheck source=../lib/dev-image.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/dev-image.sh"
 
+declare -rx GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-}"
+declare -rx GITHUB_ACTOR="${GITHUB_ACTOR:-}"
+declare -rx DOCKER_CONFIG="${DOCKER_CONFIG:-}"
 readonly LOCAL_HOOK='scripts/dev/publish.local.sh'
 
 function main() {
@@ -73,7 +79,7 @@ function validate_args() {
 }
 
 function registry_login() {
-  [ -z "${DOCKER_CONFIG:-}" ] || mkdir -p "${DOCKER_CONFIG}"
+  [ -z "${DOCKER_CONFIG}" ] || mkdir -p "${DOCKER_CONFIG}"
   printf '%s' "${GITHUB_TOKEN:?GITHUB_TOKEN is required}" \
     | docker login "$(dev_registry | cut -d/ -f1)" -u "${GITHUB_ACTOR:?GITHUB_ACTOR is required}" --password-stdin
 }
@@ -138,7 +144,7 @@ function merge_image() {
   [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || { log "❌ no digest for ${tag}"; exit 1; }
   KEELCORE_DEV_ENV='GITHUB_ACTOR' bash scripts/dev/run.sh bash scripts/dev/sign-dev-image.sh "${tag%:*}@${digest}"
   log "✅ ${tag}@${digest}"
-  [ -z "${GITHUB_STEP_SUMMARY:-}" ] || printf '`%s`: `%s@%s`\n' "$(dev_ref_file "${name}")" "${tag}" "${digest}" \
+  [ -z "${GITHUB_STEP_SUMMARY}" ] || printf '`%s`: `%s@%s`\n' "$(dev_ref_file "${name}")" "${tag}" "${digest}" \
     >> "${GITHUB_STEP_SUMMARY}"
 }
 

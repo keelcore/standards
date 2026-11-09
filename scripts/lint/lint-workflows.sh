@@ -4,6 +4,7 @@
 # zizmor (template injection, credential persistence, cache poisoning, pin/version drift).
 # zizmor runs online audits when GH_TOKEN is set, offline otherwise.
 # Install with: make setup-actionlint setup-zizmor
+# Environment: GH_TOKEN (default empty).
 # Project hook: lint-workflows.local.sh runs first, when present, with this script's arguments
 # (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
@@ -20,6 +21,7 @@ set -o pipefail
 # shellcheck source=../lib/local-hook.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/local-hook.sh"
 
+declare -rx GH_TOKEN="${GH_TOKEN:-}"
 readonly WORKFLOWS='.github/workflows'
 readonly ZIZMOR_CONFIG='config/zizmor.local.yml'
 
@@ -54,7 +56,7 @@ function validate_args() {
 
 function run_zizmor() {
   local -a mode=('--offline')
-  [ -z "${GH_TOKEN:-}" ] || mode=()
+  [ -z "${GH_TOKEN}" ] || mode=()
   [ ! -f "${ZIZMOR_CONFIG}" ] || mode+=(--config "${ZIZMOR_CONFIG}")
   zizmor ${mode[@]+"${mode[@]}"} "${WORKFLOWS}"
 }
