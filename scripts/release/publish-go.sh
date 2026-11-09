@@ -3,8 +3,6 @@
 # Validates the Go module and notifies the Go module proxy to index the new tag.
 # Go modules are published by tagging a commit on GitHub; pkg.go.dev crawls the proxy.
 # This script verifies the build and triggers proxy indexing for fast availability.
-# Environment: GITHUB_REF_NAME (default empty).
-# Environment: INPUT_TAG (default empty).
 # Project hook: publish-go.local.sh runs first, when present, with this script's arguments
 # (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
@@ -20,9 +18,9 @@ set -o pipefail
 
 # shellcheck source=../lib/local-hook.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/local-hook.sh"
+# shellcheck source=../lib/release-tag.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/release-tag.sh"
 
-declare -rx INPUT_TAG="${INPUT_TAG:-}"
-declare -rx GITHUB_REF_NAME="${GITHUB_REF_NAME:-}"
 readonly MODULE='github.com/keelcore/standards'
 
 function main() {
@@ -30,7 +28,7 @@ function main() {
   run_local_hook "${BASH_SOURCE[0]}" "${@:-}"
   validate_env
   local tag
-  tag="$(resolve_tag)"
+  tag="$(release_tag)"
   verify_build
   notify_proxy "${tag}"
 }
@@ -42,17 +40,6 @@ function validate_env() {
     exit 1
   fi
   log '✅ Environment valid'
-}
-
-function resolve_tag() {
-  if [ -n "${GITHUB_REF_NAME}" ]; then
-    printf '%s' "${GITHUB_REF_NAME}"
-  elif [ -n "${INPUT_TAG}" ]; then
-    printf '%s' "${INPUT_TAG}"
-  else
-    log '❌ Cannot resolve tag: GITHUB_REF_NAME and INPUT_TAG are both unset'
-    exit 1
-  fi
 }
 
 function verify_build() {

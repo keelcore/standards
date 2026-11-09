@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # scripts/release/publish-npm.sh
 # Publishes @keelcore/standards to the npm registry.
-# Version is derived from the git tag (GITHUB_REF_NAME or INPUT_TAG).
+# Version is derived from the git tag (release_tag, scripts/lib/release-tag.sh: INPUT_TAG, else the pushed tag).
 # Uses OIDC trusted publishing — no token required in CI.
-# Environment: GITHUB_REF_NAME (default empty).
-# Environment: INPUT_TAG (default empty).
 # Project hook: publish-npm.local.sh runs first, when present, with this script's arguments
 # (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
@@ -20,16 +18,16 @@ set -o pipefail
 
 # shellcheck source=../lib/local-hook.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/local-hook.sh"
+# shellcheck source=../lib/release-tag.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/release-tag.sh"
 
-declare -rx INPUT_TAG="${INPUT_TAG:-}"
-declare -rx GITHUB_REF_NAME="${GITHUB_REF_NAME:-}"
 
 function main() {
   exec 5>&1
   run_local_hook "${BASH_SOURCE[0]}" "${@:-}"
   validate_env
   local tag version
-  tag="$(resolve_tag)"
+  tag="$(release_tag)"
   version="${tag#v}"
   log "Publishing @keelcore/standards@${version}..."
   npm version "${version}" --no-git-tag-version
@@ -40,17 +38,6 @@ function main() {
   tarball="$(npm pack --pack-destination target/dist | tail -1)"
   npm publish "target/dist/${tarball}" --access public
   log '✅ Published to npm'
-}
-
-function resolve_tag() {
-  if [ -n "${GITHUB_REF_NAME}" ]; then
-    printf '%s' "${GITHUB_REF_NAME}"
-  elif [ -n "${INPUT_TAG}" ]; then
-    printf '%s' "${INPUT_TAG}"
-  else
-    log '❌ Cannot resolve tag: GITHUB_REF_NAME and INPUT_TAG are both unset'
-    exit 1
-  fi
 }
 
 function validate_env() {

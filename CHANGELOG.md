@@ -176,6 +176,12 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- The release scripts resolve their tag with one function, `release_tag` (`scripts/lib/release-tag.sh`): `INPUT_TAG`
+  when set, else `GITHUB_REF_NAME` when `GITHUB_REF_TYPE` is `tag`, else fail, naming both. A manual
+  (`workflow_dispatch`) release from a branch used the branch name as the version: `wait-for-publish.sh go` polled
+  `@v/main.zip` until its deadline (#25). `publish-go.sh`, `publish-npm.sh` and `wait-for-publish.sh` use it;
+  `wait-for-publish.sh` now stops when no tag resolves instead of going on with an empty one. `publish.yml` no
+  longer sets `GITHUB_REF_NAME`, which GitHub ignores.
 - Every canonical bash file imports the environment variables it reads per `governance/bash.md` R37
   (`declare -rx NAME="${NAME:-<default>}"`, once per sourcing chain, at file scope, listed in its header), and sources
   with `source`, not `.` (R47). `make lint-bash` checks both over every repo-owned `*.sh` and `*.bash`

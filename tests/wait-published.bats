@@ -10,7 +10,7 @@ setup() {
   export WORK STATE
   mkdir -p "${WORK}/scripts/release" "${WORK}/bin" "${WORK}/target/dist" "${STATE}"
   mkdir -p "${WORK}/scripts/lib"
-  cp "${STANDARDS}/scripts/lib/local-hook.sh" "${WORK}/scripts/lib/"
+  cp "${STANDARDS}/scripts/lib/local-hook.sh" "${STANDARDS}/scripts/lib/release-tag.sh" "${WORK}/scripts/lib/"
   cp "${STANDARDS}/scripts/release/wait-for-publish.sh" "${WORK}/scripts/release/"
   cat > "${WORK}/bin/curl" <<'STUB'
 #!/usr/bin/env bash
@@ -36,7 +36,7 @@ esac
 STUB
   chmod +x "${WORK}/bin/curl"
   export PATH="${WORK}/bin:${PATH}"
-  export WAIT_INTERVAL=0 GITHUB_REF_NAME=v1.2.3
+  export WAIT_INTERVAL=0 GITHUB_REF_NAME=v1.2.3 GITHUB_REF_TYPE=tag
   cd "${WORK}"
   printf '{"name":"@acme/p"}\n' > package.json
   printf '[project]\nname = "acme-p"\n' > pyproject.toml
@@ -132,4 +132,17 @@ calls_to() { grep -c -F "${1}" "${STATE}/calls"; }
   [ "${status}" -ne 0 ]
   [ $(( SECONDS - started )) -lt 15 ]
   [[ "${output}" == *'gave up'* ]]
+}
+
+@test "a manual run on a branch waits for INPUT_TAG, not the branch" {
+  GITHUB_REF_TYPE=branch GITHUB_REF_NAME=main INPUT_TAG=v1.2.3 run bash scripts/release/wait-for-publish.sh go
+  [ "${status}" -eq 0 ]
+  ! grep -q 'main' "${STATE}/calls"
+  grep -q '@v/v1.2.3' "${STATE}/calls"
+}
+
+@test "a branch run without INPUT_TAG fails at once, polling nothing" {
+  GITHUB_REF_TYPE=branch GITHUB_REF_NAME=main run env -u INPUT_TAG bash scripts/release/wait-for-publish.sh go
+  [ "${status}" -ne 0 ]
+  [ ! -e "${STATE}/calls" ]
 }
