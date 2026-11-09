@@ -109,3 +109,102 @@ go_stub() {
   [ "${status}" -eq 0 ]
   [[ "$(cat "${BATS_TEST_TMPDIR}/where")" == *"${d}/bats/bin/bats" ]]
 }
+
+# native_build: target/native/x with a bats and a tool, and a hook recording its arguments, NATIVE_DIR, PATH and
+# the bats and tool it finds.
+native_build() {
+  mkdir -p target/native/x/bats/bin target/native/x/bin scripts/test
+  printf '#!/usr/bin/env bash\n' > target/native/x/bats/bin/bats
+  printf '#!/usr/bin/env bash\n' > target/native/x/bin/tool
+  printf '%s\n' "printf '%s\n' \"\$*\" > '${BATS_TEST_TMPDIR}/args'" \
+    "printf '%s\n' \"\${NATIVE_DIR:-unset}\" > '${BATS_TEST_TMPDIR}/native_dir'" \
+    "printf '%s\n' \"\${PATH}\" > '${BATS_TEST_TMPDIR}/path'" \
+    "command -v bats tool > '${BATS_TEST_TMPDIR}/where'" > scripts/test/test-native-integrity.local.sh
+}
+
+@test "host_platform: windows under MSYS2, Git Bash and Cygwin; posix otherwise" {
+  local u
+  for u in MINGW64_NT-10.0-20348 MSYS_NT-10.0-20348 CYGWIN_NT-10.0 Darwin Linux; do
+    stub uname "printf '%s\\n' '${u}'"
+    printf '%s=%s\n' "${u}" "$(bash -c 'source scripts/lib/platform.sh && host_platform')"
+  done > "${BATS_TEST_TMPDIR}/got"
+  [ "$(cat "${BATS_TEST_TMPDIR}/got")" = "$(printf '%s\n' MINGW64_NT-10.0-20348=windows MSYS_NT-10.0-20348=windows \
+    CYGWIN_NT-10.0=windows Darwin=posix Linux=posix)" ]
+}
+
+@test "native_path, windows: a drive-letter path becomes the runtime's POSIX form, with no drive colon" {
+  stub cygpath '[ "${1}" = -u ] && printf "/%s%s\n" "$(printf "%s" "${2:0:1}" | tr "[:upper:]" "[:lower:]")" "${2:2}"'
+  run bash -c 'source scripts/lib/native-path_windows.sh && native_path D:/a/knobs/knobs/target/native/windows-amd64'
+  [ "${status}" -eq 0 ]
+  [ "${output}" = '/d/a/knobs/knobs/target/native/windows-amd64' ]
+}
+
+@test "native_path, windows: without cygpath it fails, naming cygpath" {
+  run env PATH=/usr/bin:/bin bash -c 'source scripts/lib/native-path_windows.sh && native_path D:/a'
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'cygpath'* ]] || false
+}
+
+@test "native_path, posix: a path is unchanged" {
+  run bash -c 'source scripts/lib/native-path_posix.sh && native_path /work/target/native/darwin-arm64'
+  [ "${output}" = '/work/target/native/darwin-arm64' ]
+}
+
+@test "test-native-integrity.sh on Windows: PATH and NATIVE_DIR hold cygpath's form; bats and tools resolve" {
+  native_build
+  stub uname "printf 'MINGW64_NT-10.0-20348\\n'"
+  stub cygpath 'printf "%s\n" "${2}"'
+  run bash scripts/test/test-native-integrity.sh target/native/x
+  [ "${status}" -eq 0 ]
+  local -r dir="$(cd target/native/x && pwd)"
+  [ -n "$(calls_of cygpath | grep -F -- "-u ${dir}")" ]
+  [[ "$(cat "${BATS_TEST_TMPDIR}/path")" == "${dir}/bats/bin:${dir}/bin:"* ]] || false
+  [ "$(cat "${BATS_TEST_TMPDIR}/where")" = "$(printf '%s\n' "${dir}/bats/bin/bats" "${dir}/bin/tool")" ]
+  [ "$(cat "${BATS_TEST_TMPDIR}/native_dir")" = "${dir}" ]
+  [ -z "$(cat "${BATS_TEST_TMPDIR}/args")" ]
+}
+
+@test "test-native-integrity.sh on Windows without cygpath fails before running the hook" {
+  native_build
+  stub uname "printf 'MINGW64_NT-10.0-20348\\n'"
+  run env PATH="${WORK}/bin:/usr/bin:/bin" bash scripts/test/test-native-integrity.sh target/native/x
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'cygpath'* ]] || false
+  [ ! -e "${BATS_TEST_TMPDIR}/args" ]
+}
+
+@test "test-native-integrity.sh on posix: PATH and NATIVE_DIR are the absolute build directory" {
+  native_build
+  run bash scripts/test/test-native-integrity.sh target/native/x
+  [ "${status}" -eq 0 ]
+  local -r dir="$(cd target/native/x && pwd)"
+  [[ "$(cat "${BATS_TEST_TMPDIR}/path")" == "${dir}/bats/bin:${dir}/bin:"* ]] || false
+  [ "$(cat "${BATS_TEST_TMPDIR}/native_dir")" = "${dir}" ]
+  [ -z "$(cat "${BATS_TEST_TMPDIR}/args")" ]
+  [ -z "$(calls_of cygpath)" ]
+}
+
+@test "every scripts/lib/*_windows.sh has a _posix.sh partner defining the same public functions" {
+  local w p bad=''
+  # public_functions FILE: the functions FILE defines, less private ones (a leading _).
+  public_functions() { sed -n 's/^function \([A-Za-z][A-Za-z0-9_]*\)().*/\1/p' "${1}" | sort; }
+  for w in "${STANDARDS}"/scripts/lib/*_windows.sh "${STANDARDS}"/scripts/lib/*_posix.sh; do
+    case "${w}" in
+      *_windows.sh) p="${w%_windows.sh}_posix.sh" ;;
+      *) p="${w%_posix.sh}_windows.sh" ;;
+    esac
+    [ -f "${p}" ] || { bad+="${w##*/}: no partner ${p##*/}"$'\n'; continue; }
+    [ "$(public_functions "${w}")" = "$(public_functions "${p}")" ] || bad+="${w##*/} and ${p##*/} differ"$'\n'
+  done
+  [ -n "$(ls "${STANDARDS}"/scripts/lib/*_windows.sh)" ]
+  [ -z "${bad}" ] || { printf '%s' "${bad}"; return 1; }
+}
+
+@test "test-native-integrity.sh: a hook that rejects any argument still runs" {
+  native_build
+  printf '%s\n' '[ "${#}" -eq 0 ] || { printf "unexpected argument\n"; exit 1; }' \
+    "touch '${BATS_TEST_TMPDIR}/ran'" > scripts/test/test-native-integrity.local.sh
+  run bash scripts/test/test-native-integrity.sh target/native/x
+  [ "${status}" -eq 0 ]
+  [ -e "${BATS_TEST_TMPDIR}/ran" ]
+}

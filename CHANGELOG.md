@@ -14,6 +14,14 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- `governance/bash.md` Platform Variants (R43–R46, version 1.3.0): code that must differ on Windows lives in a pair
+  of libraries, `scripts/lib/<name>_posix.sh` and `<name>_windows.sh`, the shell form of Go's `_posix.go` /
+  `_windows.go` pairs. Both define the same public functions; a script sources one, chosen by `host_platform`
+  (`scripts/lib/platform.sh`), and never tests for Windows itself. A test checks every pair defines the same
+  public functions.
+- `test-native-integrity.sh` sets `NATIVE_DIR` for its project hook: the native build directory, absolute, in the
+  host's own form. The hook still gets no arguments.
+
 - `make ensure-container` (`scripts/ci/ensure-container.sh`), an order-only prerequisite of every canonical target
   that runs in a tool image: on a Mac it installs Apple container when missing (`setup-apple-container.sh`) and starts
   its system when stopped, so `make lint`, `audit`, `test` and the rest no longer fail on a stopped runtime. The commit
@@ -155,6 +163,10 @@ Corrections, clarifications, metadata: patch bump.
 - `build-native.sh` records the module root package as `.` in `tests.tsv`, with the binary `tests/_root[.exe]`, not by
   the dev image's absolute path (`/work`, `_work.exe`), so `test-native.sh` runs its tests on the native runner (#23).
   A package directory outside the repository fails the build, naming it.
+- `test-native-integrity.sh` puts the native build's `bats/bin` and `bin` on the hook's `PATH` in the host's own
+  form (`native_path`): `cygpath -u` on Windows (`scripts/lib/native-path_windows.sh`), so a drive-letter path
+  (`D:/a/...`) no longer splits at its colon and bats and the project's tools resolve from `PATH` (#24). Without
+  `cygpath` it fails, naming it. Other hosts are unchanged (`native-path_posix.sh`).
 - The `osv-scanner.toml` test reads the file with `awk`: the tool image has no `yq`, so CI failed it.
 - `refresh-governance` removes an old canonical copy whose staged content differs from both the tree and `HEAD`
   (`git rm -f`), instead of stopping.

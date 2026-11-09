@@ -3,8 +3,8 @@
 These rules govern all bash scripts in this project. They are non-negotiable.
 
 **Maturity:** Required
-**Version:** 1.2.0
-**Last Reviewed:** 2026-03-17
+**Version:** 1.3.0
+**Last Reviewed:** 2026-11-09
 
 Each rule has a stable canonical ID (`R1`–`R42`) used when these rules are
 cited elsewhere. Numbers do not renumber across edits.
@@ -216,3 +216,29 @@ Do NOT change the call site from `"${@:-}"` to `"$@"` — fix the body only.
     -e "s|@MY_VAR@|${MY_VAR}|g" \
     "${SCRIPT_DIR}/myscript-template.php")
   ```
+
+## Platform Variants
+
+The shell form of Go's `<name>_posix.go` / `<name>_windows.go` file pairs.
+
+- **R43.** Code that must differ on Windows lives in a pair of libraries, `scripts/lib/<name>_posix.sh` and
+  `scripts/lib/<name>_windows.sh`. `_posix` means every host but Windows (Go's `//go:build !windows`).
+- **R44.** Both files of a pair define the same public functions, with the same arguments and output. A helper
+  only one file needs is private: its name starts with `_`.
+- **R45.** A script sources one file of the pair, chosen by `host_platform` (`scripts/lib/platform.sh`), with one
+  literal `source` line per branch so shellcheck follows each:
+
+  ```bash
+  # shellcheck source=../lib/platform.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/../lib/platform.sh"
+  if [ "$(host_platform)" = 'windows' ]; then
+    # shellcheck source=../lib/native-path_windows.sh
+    source "$(dirname "${BASH_SOURCE[0]}")/../lib/native-path_windows.sh"
+  else
+    # shellcheck source=../lib/native-path_posix.sh
+    source "$(dirname "${BASH_SOURCE[0]}")/../lib/native-path_posix.sh"
+  fi
+  ```
+
+- **R46.** Outside `scripts/lib/platform.sh`, no script tests for Windows itself (`uname -s`, `OSTYPE`): it calls a
+  function of a pair.
