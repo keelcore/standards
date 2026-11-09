@@ -585,7 +585,7 @@ verify-release-checksums: | ensure-container
 
 set-dist-permissions: | ensure-container
 	@echo "🔑 Making dist binaries executable..."
-	DIST_OWNER='$(DIST_OWNER)' KEELCORE_DEV_ENV=DIST_OWNER bash scripts/dev/run.sh bash scripts/build/set-dist-permissions.sh
+	bash scripts/dev/run.sh bash scripts/build/set-dist-permissions.sh
 
 build-native: | ensure-container
 	@echo "🔨 Cross-building native test binaries for $(OS)/$(ARCH)..."
@@ -608,7 +608,7 @@ setup-grype: | ensure-container
 
 generate-release-metadata: | ensure-container
 	@echo "🧾 Generating release metadata..."
-	TAG='$(TAG)' KEELCORE_DEV_ENV='$(KEELCORE_DEV_ENV) TAG' bash scripts/dev/run.sh bash scripts/release/generate-release-metadata.sh
+	bash scripts/dev/run.sh bash scripts/release/generate-release-metadata.sh
 
 publish-release-images:
 	@echo "🐳 Building and pushing container images..."

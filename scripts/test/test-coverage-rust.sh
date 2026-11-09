@@ -10,6 +10,7 @@
 # Rust scope is detected but cargo-llvm-cov is not installed.
 # Environment: CARGO_COVERAGE_FEATURES (default empty).
 # Environment: CARGO_COVERAGE_IGNORE_REGEX (default src/bin/).
+# Environment: COVERAGE_DIR (default target/coverage).
 # Project hook: test-coverage-rust.local.sh runs first, when present, with this script's arguments
 # (scripts/lib/local-hook.sh: the same path, in the repository this runs in).
 
@@ -31,7 +32,7 @@ declare -rx CARGO_COVERAGE_FEATURES="${CARGO_COVERAGE_FEATURES:-}"
 declare -r OUT_DIR='target/llvm-cov'
 declare -r LCOV_PATH="${OUT_DIR}/lcov.info"
 # Shared coverage bucket where each language drops its LCOV for the aggregate.
-declare -r COVERAGE_DIR="${COVERAGE_DIR:-target/coverage}"
+declare -rx COVERAGE_DIR="${COVERAGE_DIR:-target/coverage}"
 
 function main() {
   exec 5>&1

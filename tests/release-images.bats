@@ -109,7 +109,7 @@ GH
   cat > "${WORK}/scripts/dev/run.sh" <<'RUN'
 #!/usr/bin/env bash
 source "${WORK}/bin/stub-lib"
-record "dev GRYPE_DB_AUTO_UPDATE=${GRYPE_DB_AUTO_UPDATE:-} $*"
+record "dev $*"
 maybe_fail "dev $*"
 if [ -n "${VERIFY_BARRIER:-}" ] && [[ "$*" =~ cosign\.sh\ verify\ .*@sha256:(max|min|fips)$ ]]; then
   barrier "verify-${BASH_REMATCH[1]}" "${VERIFY_BARRIER}"
@@ -160,16 +160,18 @@ call_count() { grep -cE "${1}" "${STATE}/calls" || true; }
 @test "publish-release-images.sh: the grype database is fetched once, before any scan, and scans leave it alone" {
   run ./scripts/release/publish-release-images.sh
   [ "${status}" -eq 0 ]
-  [ "$(call_count 'grype db update')" -eq 1 ]
+  [ "$(call_count 'grype --config target/grype.yaml db update')" -eq 1 ]
   local update first_scan
-  update="$(grep -n 'grype db update' "${STATE}/calls" | head -1 | cut -d: -f1)"
-  first_scan="$(grep -n 'grype sbom:' "${STATE}/calls" | head -1 | cut -d: -f1)"
+  update="$(grep -n 'grype --config target/grype.yaml db update' "${STATE}/calls" | head -1 | cut -d: -f1)"
+  first_scan="$(grep -n 'grype --config target/grype.yaml sbom:' "${STATE}/calls" | head -1 | cut -d: -f1)"
   [ "${update}" -lt "${first_scan}" ]
-  [ "$(call_count 'GRYPE_DB_AUTO_UPDATE=false grype sbom:')" -eq 6 ]
+  [ "$(call_count 'grype --config target/grype.yaml sbom:')" -eq 6 ]
+  grep -qx '  auto-update: false' target/grype.yaml
+  grep -qx '  cache-dir: target/grype-db' target/grype.yaml
 }
 
 @test "publish-release-images.sh: a scan finding fails the release before that image is pushed" {
-  export FAIL_ON='grype sbom:dist/sbom-min-arm64'
+  export FAIL_ON='grype --config target/grype.yaml sbom:dist/sbom-min-arm64'
   run ./scripts/release/publish-release-images.sh
   [ "${status}" -ne 0 ]
   [ "$(call_count 'docker push .*-min-arm64$')" -eq 0 ]
@@ -184,7 +186,7 @@ call_count() { grep -cE "${1}" "${STATE}/calls" || true; }
 }
 
 @test "publish-release-images.sh: a failure in max leaves the aliases where they were" {
-  export FAIL_ON='grype sbom:dist/sbom-max-amd64'
+  export FAIL_ON='grype --config target/grype.yaml sbom:dist/sbom-max-amd64'
   run ./scripts/release/publish-release-images.sh
   [ "${status}" -ne 0 ]
   [ "$(call_count 'imagetools create --tag ghcr.io/keelcore/keel:(v1|v1\.2|latest) ')" -eq 0 ]

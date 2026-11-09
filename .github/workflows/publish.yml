@@ -56,12 +56,10 @@ jobs:
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
-          KEELCORE_DEV_ENV: INPUT_TAG
       - run: make wait-for-publish ARGS="npm"
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
-          KEELCORE_DEV_ENV: INPUT_TAG
 
   publish-pypi:
     needs: ci-passed
@@ -89,7 +87,6 @@ jobs:
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
-          KEELCORE_DEV_ENV: INPUT_TAG
 
       - name: Attest PyPI provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
@@ -113,12 +110,10 @@ jobs:
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
-          KEELCORE_DEV_ENV: INPUT_TAG
       - run: make wait-for-publish ARGS="go"
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
-          KEELCORE_DEV_ENV: INPUT_TAG
 
   # The GitHub Release, after every package is published (github-release.yml; rerunnable for
   # any tag by dispatching that workflow).

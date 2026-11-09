@@ -80,6 +80,15 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Changed
 
+- **Breaking:** `run.sh` passes into the tool image every name the script it runs imports (R37), with the files that
+  script sources, its project hook and the scripts it runs by path (`env_import_chain`), when set; plus every
+  `GITHUB_*`, `RUNNER_*` and `ACTIONS_*` variable, `CI` and `TZ`. By name, in a private `--env-file` removed after
+  the run, so no value reaches the runtime's arguments (#22). `PASS_ENV` and `KEELCORE_DEV_ENV` are removed: a name a
+  repository needs in the image is a `declare -rx` in its own script or hook. A command that runs no script gets the
+  Actions context and `TZ` only; `publish-release-images.sh` gives grype its database settings in
+  `target/grype.yaml` (`--config`), not the environment.
+- `publish.sh` no longer exports the developer's `gh` token in local mode: the login reads it once; a
+  `publish.local.sh` hook that needs a token gets `GITHUB_TOKEN` from its caller.
 - **Breaking:** `update-dev-image-ref.sh` imports `GIT_INDEX_FILE` (default `DeadBeef`) and fails on the default, before
   any git call: a missing or nonexistent index reads as empty, so the name would be of an empty context. The commit
   hook sets it; by hand, name the index: `GIT_INDEX_FILE=.git/index make update-dev-image-ref`.
@@ -170,7 +179,9 @@ Corrections, clarifications, metadata: patch bump.
 - Every canonical bash file imports the environment variables it reads per `governance/bash.md` R37
   (`declare -rx NAME="${NAME:-<default>}"`, once per sourcing chain, at file scope, listed in its header), and sources
   with `source`, not `.` (R47). `make lint-bash` checks both over every repo-owned `*.sh` and `*.bash`
-  (`scripts/lib/env-imports.sh`), so a consumer's own scripts and hooks are checked too (#26).
+  (`scripts/lib/env-imports.sh`), so a consumer's own scripts and hooks are checked too (#26). A same-name import
+  not written with `declare -rx` (`readonly COVERAGE_DIR="${COVERAGE_DIR:-…}"`) fails too; the coverage scripts'
+  `COVERAGE_DIR` and `GO_COVERAGE_IGNORE_REGEX` now conform.
 - `build-native.sh` records the module root package as `.` in `tests.tsv`, with the binary `tests/_root[.exe]`, not by
   the dev image's absolute path (`/work`, `_work.exe`), so `test-native.sh` runs its tests on the native runner (#23).
   A package directory outside the repository fails the build, naming it.

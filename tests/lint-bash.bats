@@ -190,3 +190,16 @@ passes() {
   fails_on a.sh:4 FIRST_IN
   fails_on a.sh:4 SECOND_IN
 }
+
+@test "R37: a same-name import not written with declare -rx fails" {
+  local form
+  for form in 'readonly FOO="${FOO:-1}"' 'declare -r FOO="${FOO:-1}"' 'FOO="${FOO:-1}"' 'export FOO="${FOO:-1}"'; do
+    script a.sh '# Environment: FOO (default 1).' "${form}" 'function main() {' '  printf "%s" "${FOO}"' '}'
+    lint
+    fails_on a.sh:4 FOO || { printf 'form: %s\n' "${form}"; return 1; }
+    [[ "${output}" == *'declare -rx FOO="${FOO:-1}"'* ]] || { printf 'form: %s\n' "${form}"; return 1; }
+  done
+  script a.sh 'function main() {' '  local FOO="${FOO:-1}"' '  printf "%s" "${FOO}"' '}'
+  lint
+  fails_on a.sh:4 FOO
+}

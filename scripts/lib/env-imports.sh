@@ -29,6 +29,7 @@ function check_env_imports() {
 #   SET FILE LINE NAME            a name the file assigns
 #   IMP FILE LINE NAME DEFAULT SCOPE   a conforming import; SCOPE: file, function or after-main
 #   REN FILE LINE NAME            an import of NAME under another name
+#   BAD FILE LINE NAME DEFAULT    an import of NAME under its own name, not as declare -rx
 #   SRC FILE LINE PATH            a `source PATH` line
 #   DOT FILE LINE                 a `. PATH` line
 #   HDR FILE TEXT                 the header comment block, on one line
@@ -120,6 +121,8 @@ function env_import_records() {
         lhs = trimmed; sub(/^((readonly|declare|local|export)( -[a-zA-Z]+)* )?/, "", lhs); sub(/=.*$/, "", lhs)
         rhs = trimmed; sub(/^[^{]*\{/, "", rhs); sub(/:?[-=].*$/, "", rhs)
         if (lhs != rhs) printf "REN\t%s\t%d\t%s\n", FILENAME, FNR, rhs
+        else { def = trimmed; sub(/^[^{]*\{[A-Z_][A-Z0-9_]*:?[-=]/, "", def); sub(/\}"$/, "", def)
+          printf "BAD\t%s\t%d\t%s\t%s\n", FILENAME, FNR, rhs, def }
       }
       if (!starts_in_quote && match(trimmed, /^source[ \t]/)) printf "SRC\t%s\t%d\t%s\n", FILENAME, FNR, substr(trimmed, 8)
       if (!starts_in_quote && trimmed ~ /^\.[ \t]+[^ \t]/) printf "DOT\t%s\t%d\n", FILENAME, FNR
@@ -135,19 +138,54 @@ function env_import_records() {
 # env_import_edges RECORDS: `EDGE FILE LIB` for each `source` line whose path resolves to a file: a path naming
 # scripts/lib/NAME.sh is that file; a path relative to the file's own directory is resolved from it.
 function env_import_edges() {
-  local kind file path rel dir target
+  local kind file path target
   while IFS=$'\t' read -r kind file _ path; do
     [ "${kind}" = 'SRC' ] || continue
-    target=''
-    if [[ "${path}" =~ scripts/lib/([A-Za-z0-9_.-]+\.sh) ]]; then
-      target="scripts/lib/${BASH_REMATCH[1]}"
-    elif [[ "${path}" =~ ^\"\$\((dirname|cd).*\)\"?(/[A-Za-z0-9_./-]+\.sh)\"$ ]]; then
-      rel="${BASH_REMATCH[2]}"
-      dir="$(cd "$(dirname "${file}")$(dirname "${rel}")" 2> /dev/null && pwd -P)" || continue
-      target="${dir#"$(pwd -P)/"}/$(basename "${rel}")"
-    fi
+    target="$(env_source_target "${file}" "${path}")"
     [ -n "${target}" ] && [ -f "${target}" ] && printf 'EDGE\t%s\t%s\n' "${file}" "${target}"
   done <<< "${1}"
+}
+
+# env_source_target FILE PATH: the file `source PATH` in FILE names, relative to the repository root, whether or
+# not it exists; nothing when PATH is not one of the two forms env_import_edges resolves.
+function env_source_target() {
+  local -r file="${1}" path="${2}"
+  local rel dir
+  if [[ "${path}" =~ scripts/lib/([A-Za-z0-9_.-]+\.sh) ]]; then
+    printf 'scripts/lib/%s' "${BASH_REMATCH[1]}"
+  elif [[ "${path}" =~ ^\"\$\((dirname|cd).*\)\"?(/[A-Za-z0-9_./-]+\.sh)\"$ ]]; then
+    rel="${BASH_REMATCH[2]}"
+    dir="$(cd "$(dirname "${file}")$(dirname "${rel}")" 2> /dev/null && pwd -P)" || return 0
+    printf '%s/%s' "${dir#"$(pwd -P)/"}" "$(basename "${rel}")"
+  fi
+}
+
+# env_import_chain SCRIPT: the names SCRIPT imports (R37), with every file it sources, its project hook (the same
+# path with .local.sh, when there is one) and every scripts/.../*.sh it runs by path, transitively; one per line.
+# A file in the chain that is missing or unreadable fails, naming it on stderr. Run from the repository root.
+function env_import_chain() {
+  local -a queue=("${1}")
+  local seen=' ' names='' f i=0 line dep
+  while [ "${i}" -lt "${#queue[@]}" ]; do
+    f="${queue[${i}]}"
+    i=$((i + 1))
+    case "${seen}" in *" ${f} "*) continue ;; esac
+    seen+="${f} "
+    if [ ! -r "${f}" ]; then
+      printf '❌ %s: not readable; the environment it imports cannot be passed\n' "${f}" >&2
+      return 1
+    fi
+    names+="$(sed -n 's/^declare -rx \([A-Z_][A-Z0-9_]*\)="\${\1:-.*}"$/\1/p' "${f}")"$'\n'
+    [[ "${f}" == *.local.sh ]] || [ ! -f "${f%.sh}.local.sh" ] || queue+=("${f%.sh}.local.sh")
+    while IFS= read -r line; do
+      dep="$(env_source_target "${f}" "${line#source }")"
+      [ -z "${dep}" ] || queue+=("${dep}")
+    done < <(sed -n 's/^[[:space:]]*\(source .*\)$/\1/p' "${f}")
+    while IFS= read -r dep; do
+      [ ! -f "${dep}" ] || queue+=("${dep}")
+    done < <(grep -v '^[[:space:]]*#' "${f}" | grep -oE 'scripts/[A-Za-z0-9_./-]+\.sh' || true)
+  done
+  printf '%s' "${names}" | sed '/^$/d' | sort -u
 }
 
 # env_import_findings: reads the records and edges on stdin; prints the findings, sorted.
@@ -159,6 +197,7 @@ function env_import_findings() {
     $1 == "SET" { SET[$2, $4] = 1; SETLN[$2, $4] = SETLN[$2, $4] ? SETLN[$2, $4] : $3; FILES[$2] = 1 }
     $1 == "IMP" { I[++ni] = $2 SUBSEP $3 SUBSEP $4 SUBSEP $5 SUBSEP $6; FILES[$2] = 1 }
     $1 == "REN" { REN[$2, $3] = $4 }
+    $1 == "BAD" { printf "%s:%d: %s: imported without declare -rx; %s\n", $2, $3, $4, write($4, $5) }
     $1 == "DOT" { printf "%s:%d: .: source files with `source`, not `.`\n", $2, $3 }
     $1 == "HDR" { HDR[$2] = $3 }
     $1 == "EDGE" { EDGE[++ne] = $2 SUBSEP $3 }

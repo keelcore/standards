@@ -81,7 +81,7 @@ worktree_run() {
 while [ "${#}" -gt 0 ]; do
   case "${1}" in
     -v) case "${2}" in *:/work:*) mount="${2%%:*}" ;; esac; shift 2 ;;
-    -w | -e | -m) shift 2 ;;
+    -w | -e | -m | --env-file) shift 2 ;;
     ghcr.io/*) shift; break ;;
     *) shift ;;
   esac
