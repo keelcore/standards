@@ -141,12 +141,20 @@ Corrections, clarifications, metadata: patch bump.
 - The release notes and the bump level take the `CHANGELOG.md` `[Unreleased]` entries added since the previous tag
 - The release notes name the tool-image SBOMs by file (`<repository>-<image>.spdx.json`)
 
+### Removed
+
+- **Breaking:** `check-legal-drift.sh` no longer checks keel's `pkg/clisupport/` paths for every repository. It checks
+  the legal-file copies each repository lists in `config/legal-copies.local.txt` (`SOURCE<TAB>COPY` per line,
+  `scripts/lib/legal-copies.sh`); with no list there is nothing to check (#27). A repository that keeps copies adds
+  its list when it refreshes, or they go unchecked (keelcore/keel#38). The check runs in `make audit` and in the
+  commit hook, and a failure names `make ensure-legal-notices` (`scripts/ensure-legal-notices.sh`), which writes
+  each listed copy from its source.
+
 ### Fixed
 
-- `check-legal-drift.sh` checks the legal-file copies each repository lists in `config/legal-copies.local.txt`
-  (`SOURCE<TAB>COPY` per line, `scripts/lib/legal-copies.sh`), not keel's `pkg/clisupport/` paths; with no list
-  there is nothing to check (#27). It runs in `make audit` and in the commit hook, and a failure names
-  `make ensure-legal-notices` (`scripts/ensure-legal-notices.sh`), which writes each listed copy from its source.
+- `build-native.sh` records the module root package as `.` in `tests.tsv`, with the binary `tests/_root[.exe]`, not by
+  the dev image's absolute path (`/work`, `_work.exe`), so `test-native.sh` runs its tests on the native runner (#23).
+  A package directory outside the repository fails the build, naming it.
 - The `osv-scanner.toml` test reads the file with `awk`: the tool image has no `yq`, so CI failed it.
 - `refresh-governance` removes an old canonical copy whose staged content differs from both the tree and `HEAD`
   (`git rm -f`), instead of stopping.
