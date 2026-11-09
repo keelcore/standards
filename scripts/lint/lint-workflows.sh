@@ -54,11 +54,13 @@ function validate_args() {
   fi
 }
 
+# run_zizmor: online with a token; without one, offline and with no GH_TOKEN in its environment: zizmor reads
+# GH_TOKEN as --gh-token and rejects an empty one.
 function run_zizmor() {
-  local -a mode=('--offline')
-  [ -z "${GH_TOKEN}" ] || mode=()
+  local -a run=(zizmor) mode=()
+  [ -n "${GH_TOKEN}" ] || { run=(env -u GH_TOKEN zizmor); mode=('--offline'); }
   [ ! -f "${ZIZMOR_CONFIG}" ] || mode+=(--config "${ZIZMOR_CONFIG}")
-  zizmor ${mode[@]+"${mode[@]}"} "${WORKFLOWS}"
+  "${run[@]}" ${mode[@]+"${mode[@]}"} "${WORKFLOWS}"
 }
 
 function require_tool() {
