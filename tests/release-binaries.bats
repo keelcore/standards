@@ -64,3 +64,14 @@ setup() {
   run bash scripts/lint/lint-vex.sh
   [ "${status}" -eq 0 ]
 }
+
+@test "make set-dist-permissions: on Linux, DIST_OWNER reaches the script in the dev image" {
+  printf 'include .standards/templates/Makefile.canonical\n' > Makefile
+  printf '#!/usr/bin/env bash\nprintf "%%s" "${DIST_OWNER-unset}" > "%s/owner"\n' "${WORK}" > scripts/dev/run.sh
+  printf '#!/usr/bin/env bash\n' > scripts/ci/ensure-container.sh
+  stub uname 'echo Linux'
+  stub id 'if [ "${1}" = "-u" ]; then echo 1001; else echo 121; fi'
+  run make set-dist-permissions
+  [ "${status}" -eq 0 ] || { printf '%s\n' "${output}"; return 1; }
+  [ "$(cat "${WORK}/owner")" = '1001:121' ]
+}

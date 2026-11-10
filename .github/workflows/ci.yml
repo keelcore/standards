@@ -91,6 +91,7 @@ jobs:
 
       - run: make lint-newlines
       - run: make lint-markdown
+      - run: make lint-adapters-local
       - run: make check-clean-tree
 
   lint-workflows:

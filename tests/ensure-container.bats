@@ -49,11 +49,17 @@ hook_check() {
   run bash -c "log() { printf '%s\n' \"\${1}\"; }; source '${LIB}'; require_container_system"
 }
 
-@test "make: every canonical target that runs in a tool image ensures the container runtime first" {
+# A recipe runs a tool image or the container runtime when it calls scripts/dev/ or scripts/container/, or a
+# script that runs them itself (update-pins.sh, publish-release-images.sh, verify-release.sh).
+@test "make: every target that runs in a tool image ensures the container runtime first" {
+  local db
+  db="$(cd "${STANDARDS}" && make -pRrq -f Makefile : 2> /dev/null)" || true
   run awk '
-    /^[a-zA-Z0-9_-]+:/ { header = $0; name = $1 }
-    /scripts\/dev\/run\.sh/ && header !~ /\|.*ensure-container/ { print name }
-  ' "${STANDARDS}/templates/Makefile.canonical"
+    /^[a-zA-Z0-9_-]+:/ { header = $0; name = $1; sub(/:$/, "", name); next }
+    /^$/ { name = "" }
+    name != "" && /^\t/ && /scripts\/(dev|container)\/|update-pins\.sh|publish-release-images\.sh|verify-release\.sh/ \
+      && header !~ /\|.*(^| )ensure-container( |$)/ { print name; name = "" }
+  ' <<< "${db}"
   [ "${status}" -eq 0 ]
   [ -z "${output}" ] || { printf 'targets without | ensure-container:\n%s\n' "${output}"; return 1; }
 }

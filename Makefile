@@ -20,6 +20,14 @@ include templates/Makefile.canonical
 
 .PHONY: test-integration-local
 .PHONY: create-release-local
+.PHONY: lint-adapters-local
+
+lint: lint-adapters-local
+
+## Every governance document linked from the Claude adapter — also run by `make lint`
+lint-adapters-local: | ensure-container
+	@echo "🔍 Checking the Claude adapter links every governance document..."
+	bash scripts/dev/run.sh bash scripts/lint/lint-adapters.local.sh
 
 ## BATS suites under tests/ — also delegated to by canonical test-integration.sh (`make test-integration`)
 test-integration-local:

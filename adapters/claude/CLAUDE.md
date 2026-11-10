@@ -48,6 +48,14 @@ See [.standards/governance/runtime.md](.standards/governance/runtime.md).
 
 See [.standards/governance/api-management.md](.standards/governance/api-management.md).
 
+## Architecture Review Board
+
+See [.standards/governance/arb.md](.standards/governance/arb.md).
+
+## Release Policy Standards
+
+See [.standards/governance/release-policy.md](.standards/governance/release-policy.md).
+
 ## AI Conduct Standards
 
 See [.standards/governance/ai/conduct.md](.standards/governance/ai/conduct.md).

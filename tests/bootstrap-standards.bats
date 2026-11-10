@@ -77,3 +77,17 @@ bootstrap() {
   [ -L .github/copilot-instructions.md ]
   [ "$(git config core.hooksPath)" = 'scripts/hooks' ]
 }
+
+@test "bootstrap: CLAUDE.md links every governance document, by a path that resolves from the repository root" {
+  bootstrap
+  [ "${status}" -eq 0 ] || { echo "${output}"; return 1; }
+  [ "$(readlink CLAUDE.md)" = '.standards/adapters/claude/CLAUDE.md' ]
+  local f link missing=''
+  while IFS= read -r f; do
+    grep -qF "](${f})" CLAUDE.md || missing="${missing} ${f}"
+  done < <(find .standards/governance -type f -name '*.md' | sort)
+  [ -z "${missing}" ] || { printf 'not linked:%s\n' "${missing}"; return 1; }
+  while IFS= read -r link; do
+    [ -e "${link}" ] || { printf 'does not resolve: %s\n' "${link}"; return 1; }
+  done < <(grep -oE '\]\(\.standards/[^)]+\)' CLAUDE.md | sed -e 's/^](//' -e 's/)$//')
+}

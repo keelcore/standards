@@ -176,6 +176,17 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `adapters/claude/CLAUDE.md`, which every consumer's `CLAUDE.md` links to, links `governance/arb.md` and
+  `governance/release-policy.md`, so every governance document is in scope (#28). `make lint` runs
+  `lint-adapters-local` (`scripts/lint/lint-adapters.local.sh`, standards only), and CI runs it: it fails on a
+  governance document the adapter does not link, and on a link to one that does not exist.
+- `DIST_OWNER` is exported from `templates/Makefile.canonical`, so `make set-dist-permissions` hands `dist/` back to
+  the invoking user on Linux again; since v0.11.0 it reached the dev image empty, and the release upload failed on
+  root-owned files (#31).
+- `update-pins`, `publish-dev-image`, `push-dev-image`, `merge-dev-image`, `pull-dev-image`, `update-dev-image-ref`,
+  `publish-release-images` and `verify-release` take `| ensure-container`, as the other tool-image targets do: on a
+  Mac with the container system stopped they start it instead of failing (#32). The test reads the merged make
+  database, so a consumer's own rules are checked as well.
 - The release scripts resolve their tag with one function, `release_tag` (`scripts/lib/release-tag.sh`): `INPUT_TAG`
   when set, else `GITHUB_REF_NAME` when `GITHUB_REF_TYPE` is `tag`, else fail, naming both. A manual
   (`workflow_dispatch`) release from a branch used the branch name as the version: `wait-for-publish.sh go` polled
