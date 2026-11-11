@@ -221,7 +221,8 @@ function verify_tool_images() {
     for digest in "${digest}" ${arches}; do
       ref="${image%:*}@${digest}"
       log "🔍 tool image ${image}: ${ref}"
-      verify_image "${ref}" "${TOOL_IDENTITY[@]}"
+      # Not the list on stdin: cosign (run.sh: docker run -i) would take the rest of it.
+      verify_image "${ref}" "${TOOL_IDENTITY[@]}" < /dev/null
     done
   done <<< "$(release_tool_images)"
 }

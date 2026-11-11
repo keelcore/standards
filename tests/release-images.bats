@@ -486,3 +486,12 @@ tool_image_refs() {
     done
   done
 }
+
+@test "verify-release.sh: a dev-image run that reads stdin (docker run -i) does not end the list of tool images" {
+  verify_env
+  tool_image_refs
+  printf 'while IFS= read -r -t 1 _; do :; done || true\n' >> "${WORK}/scripts/dev/run.sh"
+  run bash scripts/release/verify-release.sh
+  [ "${status}" -eq 0 ]
+  calls 'gh attestation verify oci://ghcr\.io/keelcore/keel-certs@sha256:max --repo keelcore/keel$'
+}

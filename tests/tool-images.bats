@@ -218,3 +218,11 @@ job_block() {
   [[ "${merge}" != *attest-build-provenance* ]] || false
   job_block "${STANDARDS}/.github/workflows/ci.yml" dev-image | grep -q 'attestations: write'
 }
+
+@test "publish.sh merge: a dev-image run that reads stdin (docker run -i) does not end the list of images" {
+  merge_fakes
+  printf '#!/usr/bin/env bash\nwhile IFS= read -r -t 1 _; do :; done || true\necho "run.sh $*" >> "%s/calls"\n' "${WORK}" > scripts/dev/run.sh
+  GITHUB_TOKEN=t GITHUB_ACTOR=a run bash scripts/dev/publish.sh merge
+  [ "${status}" -eq 0 ]
+  grep -qE "^run\.sh bash scripts/release/sign-image\.sh ghcr\.io/keelcore/widget-certs@sha256:${HEX} ctx-[0-9a-f]{16}$" "${WORK}/calls"
+}

@@ -89,7 +89,8 @@ function registry_login() {
 }
 
 # for_each_image FN [ARG...]: FN NAME HASH BASE ARG... for every tool image (tool_images); images that
-# build on the .standards dev image come after the others.
+# build on the .standards dev image come after the others. FN never reads the list: run.sh (docker run -i)
+# would take the rest of it.
 function for_each_image() {
   local -r fn="${1}"
   shift
@@ -99,14 +100,14 @@ function for_each_image() {
     [ -n "${name}" ] || continue
     dev_has_base . "${name}" && continue
     hash="$(dev_context_hash . "${name}")"
-    "${fn}" "${name}" "${hash}" '' "$@"
+    "${fn}" "${name}" "${hash}" '' "$@" < /dev/null
   done <<< "${list}"
   while IFS=$'\t' read -r name _; do
     [ -n "${name}" ] || continue
     dev_has_base . "${name}" || continue
     base="$(standards_ref)"
     hash="$(dev_context_hash . "${name}" "${base}")"
-    "${fn}" "${name}" "${hash}" "${base}" "$@"
+    "${fn}" "${name}" "${hash}" "${base}" "$@" < /dev/null
   done <<< "${list}"
 }
 
