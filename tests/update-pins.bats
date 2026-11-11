@@ -876,3 +876,17 @@ zed_assets() {
   UPDATE_PINS_PROGRESS_SECONDS=30 verify
   [ $(( SECONDS - started )) -lt 20 ]
 }
+
+@test "unpinned: a listed tool image's build-time packages are bound to its image" {
+  mkdir -p scripts/certs config
+  printf 'FROM scratch\nRUN apk add ca-certificates\n' > scripts/certs/Dockerfile.certs
+  printf 'example.invalid/consumer-certs:ctx-1\n' > scripts/certs/Dockerfile.certs.image.ref
+  printf 'certs\tscripts/certs/Dockerfile.certs\tscripts/certs\n' > config/tool-images.local.txt
+  # Not listed: a name beside it binds nothing.
+  printf 'FROM scratch\nRUN apk add openssl\n' > scripts/certs/Dockerfile.other
+  printf 'example.invalid/consumer-other:ctx-1\n' > scripts/certs/Dockerfile.other.image.ref
+  commit
+  pins
+  [ -z "$(row 'apk:ca-certificates')" ]
+  [[ "$(row 'apk:openssl')" == *'unpinned'* ]] || false
+}

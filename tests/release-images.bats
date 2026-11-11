@@ -228,8 +228,8 @@ verify_env() {
   [ "${status}" -eq 0 ]
   [[ "${output}" == *'Release v1.2.3 verified'* ]] || false
   [ "$(call_count 'cosign\.sh verify-attestation .*--type openvex ')" -eq 3 ]
-  [ "$(call_count 'gh attestation verify oci://')" -eq 3 ]
-  [ "$(call_count 'cosign\.sh verify-attestation .*spdx\.dev')" -eq 6 ]
+  [ "$(call_count 'gh attestation verify oci://')" -eq 9 ]
+  [ "$(call_count 'cosign\.sh verify-attestation .*spdx\.dev')" -eq 9 ]
   [ "$(call_count 'cosign\.sh verify-blob ')" -eq 7 ]
   [ "$(call_count 'gh attestation verify dist/')" -eq 6 ]
   [ "$(call_count 'imagetools inspect ghcr.io/keelcore/keel:(v1|v1\.2|latest) ')" -eq 3 ]
@@ -250,7 +250,7 @@ rmdir "${STATE}/gh-running" 2> /dev/null || true
 GH
   run bash scripts/release/verify-release.sh
   [ "${status}" -eq 0 ]
-  [ "$(call_count '^gh attestation verify')" -eq 9 ]
+  [ "$(call_count '^gh attestation verify')" -eq 15 ]
   [ ! -f "${STATE}/gh-overlaps" ]
 }
 
@@ -394,4 +394,95 @@ GH
   run ./scripts/release/publish-release-images.sh
   [ "${status}" -eq 0 ]
   calls 'docker build .*--label io\.keelcore\.dev-image=ghcr\.io/keelcore/keel-dev:ctx-abc'
+}
+
+# tool_image_refs: the release was built in keel-dev and a listed keel-certs image.
+tool_image_refs() {
+  mkdir -p containers/dev scripts/certs
+  printf 'ghcr.io/keelcore/keel-dev:ctx-1\n' > containers/dev/image.ref
+  printf 'certs\tscripts/certs/Dockerfile.certs\tscripts/certs\n' > config/tool-images.local.txt
+  printf 'ghcr.io/keelcore/keel-certs:ctx-2\n' > scripts/certs/Dockerfile.certs.image.ref
+}
+
+@test "publish-release-images.sh: each image is labelled with every tool image that built the release" {
+  tool_image_refs
+  run ./scripts/release/publish-release-images.sh
+  [ "${status}" -eq 0 ]
+  calls 'docker build .*--label io\.keelcore\.tool-images=ghcr\.io/keelcore/keel-dev:ctx-1 ghcr\.io/keelcore/keel-certs:ctx-2 '
+}
+
+@test "verify-release.sh: each tool image the release names has its signature, SBOM and provenance" {
+  verify_env
+  tool_image_refs
+  run bash scripts/release/verify-release.sh
+  [ "${status}" -eq 0 ]
+  local image
+  for image in keel-dev keel-certs; do
+    calls "cosign\.sh verify --certificate-identity-regexp \^https://github\\\\\.com/keelcore/keel/\\\\\.github/workflows/ .*ghcr\.io/keelcore/${image}@sha256:max$"
+    calls "cosign\.sh verify-attestation .*--type https://spdx\.dev/Document ghcr\.io/keelcore/${image}@sha256:max$"
+    calls "cosign\.sh verify-attestation .*--type https://slsa\.dev/provenance/v1 ghcr\.io/keelcore/${image}@sha256:max$"
+    calls "gh attestation verify oci://ghcr\.io/keelcore/${image}@sha256:max --repo keelcore/keel$"
+  done
+}
+
+@test "publish-release-images.sh: each index gets the canonical signature, SBOM and provenance, after its OpenVEX" {
+  run ./scripts/release/publish-release-images.sh
+  [ "${status}" -eq 0 ]
+  local flavor vex canonical
+  for flavor in max min fips; do
+    vex="$(grep -n "cosign\.sh attest --yes --predicate .*openvex.* ghcr\.io/keelcore/keel@sha256:${flavor}$" "${STATE}/calls" | head -1 | cut -d: -f1)"
+    canonical="$(grep -n "^dev bash scripts/release/sign-image\.sh ghcr\.io/keelcore/keel@sha256:${flavor} v1\.2\.3$" "${STATE}/calls" | head -1 | cut -d: -f1)"
+    [ -n "${vex}" ] && [ -n "${canonical}" ]
+    [ "${vex}" -lt "${canonical}" ]
+  done
+}
+
+@test "verify-release.sh: each release index has its SBOM and provenance in the registry, as every image does" {
+  verify_env
+  run bash scripts/release/verify-release.sh
+  [ "${status}" -eq 0 ]
+  local flavor
+  for flavor in max min fips; do
+    calls "cosign\.sh verify-attestation .*--type https://spdx\.dev/Document ghcr\.io/keelcore/keel@sha256:${flavor}$"
+    calls "cosign\.sh verify-attestation .*--type https://slsa\.dev/provenance/v1 ghcr\.io/keelcore/keel@sha256:${flavor}$"
+  done
+}
+
+@test "publish-release-images.sh: each arch image gets the canonical signature, SBOM and provenance, after its own SBOM" {
+  run ./scripts/release/publish-release-images.sh
+  [ "${status}" -eq 0 ]
+  local image sbom canonical
+  for image in v1.2.3-amd64 v1.2.3-arm64 v1.2.3-min-amd64 v1.2.3-min-arm64 v1.2.3-fips-amd64 v1.2.3-fips-arm64; do
+    sbom="$(grep -n "cosign\.sh attest --yes --predicate dist/sbom-.* ghcr\.io/keelcore/keel@sha256:${image}$" "${STATE}/calls" | head -1 | cut -d: -f1)"
+    canonical="$(grep -n "^dev bash scripts/release/sign-image\.sh ghcr\.io/keelcore/keel@sha256:${image} v1\.2\.3$" "${STATE}/calls" | head -1 | cut -d: -f1)"
+    [ -n "${sbom}" ] && [ -n "${canonical}" ]
+    [ "${sbom}" -lt "${canonical}" ]
+  done
+}
+
+@test "verify-release.sh: each arch image has its SBOM and provenance in the registry and GitHub's store, as every image does" {
+  verify_env
+  run bash scripts/release/verify-release.sh
+  [ "${status}" -eq 0 ]
+  local arch
+  for arch in a b; do
+    calls "cosign\.sh verify-attestation .*--type https://slsa\.dev/provenance/v1 ghcr\.io/keelcore/keel@sha256:${arch}$"
+    calls "gh attestation verify oci://ghcr\.io/keelcore/keel@sha256:${arch} --repo keelcore/keel$"
+  done
+}
+
+@test "verify-release.sh: each arch image behind a tool image has its signature, SBOM and provenance" {
+  verify_env
+  tool_image_refs
+  run bash scripts/release/verify-release.sh
+  [ "${status}" -eq 0 ]
+  local image arch
+  for image in keel-dev keel-certs; do
+    for arch in a b; do
+      calls "cosign\.sh verify --certificate-identity-regexp \^https://github\\\\\.com/keelcore/keel/\\\\\.github/workflows/ .*ghcr\.io/keelcore/${image}@sha256:${arch}$"
+      calls "cosign\.sh verify-attestation .*--type https://spdx\.dev/Document ghcr\.io/keelcore/${image}@sha256:${arch}$"
+      calls "cosign\.sh verify-attestation .*--type https://slsa\.dev/provenance/v1 ghcr\.io/keelcore/${image}@sha256:${arch}$"
+      calls "gh attestation verify oci://ghcr\.io/keelcore/${image}@sha256:${arch} --repo keelcore/keel$"
+    done
+  done
 }

@@ -13,7 +13,8 @@ scripts/ci/pr-policy.sh	scripts/ci/check-pr-policy.sh
 scripts/ci/secret-scan.sh	scripts/ci/check-secrets.sh
 scripts/ci/verify-canonical-scripts.sh	scripts/ci/verify-canonical.sh
 scripts/dev/pull.sh	scripts/dev/pull-dev-image.sh
-scripts/dev/sign-image.sh	scripts/dev/sign-dev-image.sh
+scripts/dev/sign-image.sh	scripts/release/sign-image.sh
+scripts/dev/sign-dev-image.sh	scripts/release/sign-image.sh
 scripts/dev/write-image-ref.sh	scripts/dev/update-dev-image-ref.sh
 scripts/git_precommit.sh	scripts/run-pre-commit.sh
 scripts/governance-refresh.sh	scripts/refresh-governance.sh

@@ -14,6 +14,35 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- Tool images at any build file path (#33). `config/tool-images.local.txt` lists a repository's tool images not
+  built from `containers/NAME/Containerfile`, one per line: `NAME<TAB>BUILD FILE<TAB>CONTEXT DIR`. A listed image is
+  identified by its build file and the files it copies from its context dir, named
+  `ghcr.io/keelcore/<repo>-NAME:ctx-<hash>`, and its name is written beside its build file as
+  `<BUILD FILE>.image.ref` by the pre-commit hook and `make update-dev-image-ref` (from the staged files, no
+  network). `publish.sh` and `dev-image.yml` build, push, merge and sign it as they do `containers/*` images, and
+  `run.sh --image NAME` and `dev_tool_image NAME` (`scripts/lib/dev-image.sh`) give a script its reference: the
+  published image, else a local build of the same context. `tool_images` lists every tool image; a malformed line,
+  a bad name or one another image has fails, naming the line. A repository without the list behaves as before.
+- Every container image gets the same treatment when it is pushed, from one canonical script,
+  `scripts/release/sign-image.sh` (replaces `scripts/dev/sign-dev-image.sh`; `make sign-image REF=` replaces
+  `make sign-dev-image`): a keyless cosign signature, an SPDX SBOM attestation (`generate-sbom.sh`, scanned from the
+  registry) and SLSA build provenance (`https://slsa.dev/provenance/v1`, GitHub's workflow build type), both attested
+  into GHCR beside the image, and the provenance bundle, read back from GHCR, posted to GitHub's attestation store so
+  `gh attestation verify` finds it too. Each step is skipped when already done. `publish.sh merge` runs it for every
+  tool image index (`standards-dev` and `standards-pypi` included: images published before this get it on the next
+  merge run), and `publish-release-images.sh` for every release index, after its OpenVEX; both also run it for each
+  arch image behind an index (a release arch image keeps its own SBOM, scanned before the push). No workflow step
+  attests a container image; the `dev-image` merge job and its `ci.yml` caller grant `attestations: write`.
+  `verify-release.sh` checks the same signature, SBOM and provenance (registry and GitHub's store) on every release
+  index, every tool image the release names, and each arch image behind them. A consumer's release workflow no longer
+  needs its own `actions/attest-build-provenance` step for images.
+- Releases name every tool image their build used: a `Tool-Image:` tag trailer for each, the
+  `io.keelcore.tool-images` image label, and `dev-image.txt` (in `SHA256SUMS`), which lists each one, the dev image
+  first; `build-release-assets.sh` writes a build-environment SBOM for each. `verify-release.sh` checks each one's
+  signature, SBOM and provenance.
+- `update-pins.sh`: package installs in a listed build file with its `<BUILD FILE>.image.ref` are bound to that
+  image, not reported as unpinned, as for `containers/NAME/Containerfile`.
+
 - `governance/bash.md` Platform Variants (R43–R46, version 1.3.0): code that must differ on Windows lives in a pair
   of libraries, `scripts/lib/<name>_posix.sh` and `<name>_windows.sh`, the shell form of Go's `_posix.go` /
   `_windows.go` pairs. Both define the same public functions; a script sources one, chosen by `host_platform`

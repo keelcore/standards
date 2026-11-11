@@ -2,7 +2,7 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
-**Maturity:** Required **Version:** 1.8.0 **Last Reviewed:** 2026-11-11
+**Maturity:** Required **Version:** 1.9.0 **Last Reviewed:** 2026-11-11
 
 ## Core Principle
 
@@ -277,6 +277,11 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
   toolchain, e.g. `pypi`). Base images are pinned by digest; each tool is installed at build time by its
   `scripts/ci/setup-<tool>.sh`, which verifies a committed checksum, commit SHA, lockfile integrity or the Go
   checksum database. A consumer's dev image builds `FROM` the `.standards` dev image (`ARG BASE_DEV_IMAGE`).
+  A tool image is identified by its build file, wherever it lives: a repository lists its other tool images in
+  `config/tool-images.local.txt`, one per line, `NAME<TAB>BUILD FILE<TAB>CONTEXT DIR` (nothing moves into
+  `containers/`). A listed image is named, published, signed and attested exactly as a `containers/NAME` image; its
+  name is written beside its build file as `<BUILD FILE>.image.ref`. A script uses one by name (`run.sh --image
+  NAME`, or `dev_tool_image NAME` from `scripts/lib/dev-image.sh`), never by building its own `:latest`.
 - **Build time only:** packages and tools are installed when the image is built; nothing is installed or updated
   when a target runs. The Containerfile sets `ARG KEELCORE_IMAGE_BUILD=1` (build-time only); outside that build a
   `setup-<tool>.sh` checks the baked tool and version and fails, never installs. One `COPY` + `RUN` per tool: a
@@ -300,12 +305,15 @@ need `make`, `bash`, `git` and the container runtime (Apple `container` on macOS
   credential read per `container system start`.
 - **Builder size:** Apple `container` builds use `KEELCORE_BUILD_CPUS` (4) and `KEELCORE_BUILD_MEMORY` (8g), and a
   builder running at another size is restarted at that size.
-- **Identity:** an image is identified by its build context (the Containerfile, every file it copies, and its base
-  image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per architecture, joined into
-  a multi-arch index and signed keyless. `run.sh` uses, in order: `ctx-<hash>` of the tree's context on this machine; the
-  published `ctx-<hash>`; a local build of it. The pre-commit hook writes `containers/NAME/image.ref`, so each commit
-  names the image built from it: `<repository>:ctx-<hash>`, computed from the staged files with no network and no
-  image. Every release bundle carries that name (`governance/release-policy.md`).
+- **Identity:** an image is identified by its build context (the build file, every file it copies from its context
+  directory, and its base image). The `dev-image` workflow publishes it to GHCR as `ctx-<hash>`, built natively per
+  architecture, joined into a multi-arch index; the index and each arch image are signed keyless, with an SPDX SBOM
+  attestation and SLSA build provenance (`scripts/release/sign-image.sh`). `run.sh` uses, in order: `ctx-<hash>` of
+  the tree's context on this machine; the published `ctx-<hash>`; a local build of it. The pre-commit hook writes
+  `containers/NAME/image.ref` (a listed image: `<BUILD FILE>.image.ref`), so each commit names the image built from
+  it: `<repository>:ctx-<hash>`, computed from the staged files with no network and no image. Every release bundle
+  carries those names
+  (`governance/release-policy.md`).
 - **Publish once per context:** `dev-image.yml` is a reusable workflow. The project's `ci.yml` calls it as its first
   job on every push to `main` (`publish.sh` skips a context GHCR already holds), and every job that runs tool
   targets `needs:` it, so those jobs pull the one image. Pull requests do not publish; their jobs pull a published
@@ -362,7 +370,8 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
 
 In a consumer, a pin located in a canonical file (byte-identical to its `.standards` copy) is held by `.standards`:
 the `.standards` release carries it, and the consumer never gates on or applies it. A tool image's name
-(`containers/NAME/image.ref`) is not a pin here: the hook keeps it equal to the commit's build context.
+(`containers/NAME/image.ref`, `<BUILD FILE>.image.ref`) is not a pin here: the hook keeps it equal to the commit's
+build context. The packages a tool image's build file installs are bound to that image, not reported as unpinned.
 
 Projects extend discovery, holds, verification targets and appliers through `scripts/release/update-pins.local.sh`.
 
@@ -383,7 +392,14 @@ Projects extend discovery, holds, verification targets and appliers through `scr
 ### SLSA Provenance Attestation
 
 - Release workflows must produce SLSA build provenance for all published artifacts.
-- Use `actions/attest-build-provenance` or `slsa-github-generator` for SLSA Level 3 attestations.
+- Other artifacts (binaries, packages): `actions/attest-build-provenance` or `slsa-github-generator`.
+- Container images: every published image index and each arch image behind it, tool images and release images
+  alike, gets the same treatment
+  from one canonical script when it is pushed, `scripts/release/sign-image.sh` (run by `publish.sh merge` and
+  `publish-release-images.sh`): a keyless cosign signature, an SPDX SBOM attestation and SLSA build provenance
+  (`https://slsa.dev/provenance/v1`, GitHub's workflow build type), both attested into the registry beside the
+  image, and the provenance bundle also stored in GitHub's attestation store. No workflow step attests a container
+  image; the job grants `id-token`, `packages` and `attestations: write`. `verify-release` checks all of it.
 - Attestations must be attached to GitHub Releases alongside the binaries.
 
 ### Artifact Signing
@@ -407,8 +423,8 @@ Projects extend discovery, holds, verification targets and appliers through `scr
   modules compiled into it). A package archive is cataloged by its own ecosystem's metadata only — files it merely
   carries (another tool's lockfile) are not its dependencies. A source-tree SBOM is not a release SBOM.
 - The build environment has SBOMs of its own: one per tool image the release was built and tested in
-  (`containers/*/image.ref`), listing the OS packages and tools it holds, including the pinned tools a cataloger
-  cannot identify (from the image's installers).
+  (`containers/*/image.ref` and each listed `<BUILD FILE>.image.ref`), listing the OS packages and tools it holds,
+  including the pinned tools a cataloger cannot identify (from the image's installers).
 - Each artifact's provenance is attached as its registry published it (npm attestations, PyPI provenance, GitHub
   build attestations, the Go checksum database record).
 - Both are attached to the GitHub Release, covered by `SHA256SUMS`, and signed (`make build-release-assets`).

@@ -696,3 +696,21 @@ stale_pin() {
   run git tag -l --format='%(contents:body)' v1.2.4
   [[ "${output}" != *'Dev-Image:'* ]] || false
 }
+
+@test "bundle: the signed tag names every tool image, listed ones included" {
+  ready_at v1.2.3
+  mkdir -p containers/dev scripts/certs config
+  printf 'ghcr.io/acme/widget-dev:ctx-abc\n' > containers/dev/image.ref
+  printf 'certs\tscripts/certs/Dockerfile.certs\tscripts/certs\n' > config/tool-images.local.txt
+  printf 'FROM scratch\n' > scripts/certs/Dockerfile.certs
+  printf 'ghcr.io/acme/widget-certs:ctx-def\n' > scripts/certs/Dockerfile.certs.image.ref
+  git add -A
+  git commit --quiet -m 'tool images'
+  git push --quiet
+  run bash "${DRIVER}"
+  [ "${status}" -eq 0 ]
+  run git tag -l --format='%(contents:body)' v1.2.4
+  [[ "${output}" == *'Dev-Image: ghcr.io/acme/widget-dev:ctx-abc'* ]] || false
+  [[ "${output}" == *'Tool-Image: ghcr.io/acme/widget-dev:ctx-abc'* ]] || false
+  [[ "${output}" == *'Tool-Image: ghcr.io/acme/widget-certs:ctx-def'* ]] || false
+}

@@ -76,3 +76,51 @@ push() {
   [ "${status}" -eq 0 ]
   [ "$(cat out/dev-image.txt)" = 'ghcr.io/acme/widget-dev:ctx-abc' ]
 }
+
+# list_tool_images: a listed certs image and a containers/pypi image beside the dev image.
+list_tool_images() {
+  mkdir -p scripts/certs containers/pypi
+  printf 'certs\tscripts/certs/Dockerfile.certs\tscripts/certs\n' > config/tool-images.local.txt
+  printf 'FROM scratch\n' > scripts/certs/Dockerfile.certs
+  printf 'ghcr.io/acme/widget-certs:ctx-def\n' > scripts/certs/Dockerfile.certs.image.ref
+  printf 'ghcr.io/acme/widget-pypi:ctx-123\n' > containers/pypi/image.ref
+}
+
+@test "generate-release-checksums.sh: dev-image.txt names every tool image, the dev image first" {
+  list_tool_images
+  cp "${STANDARDS}/scripts/release/generate-release-checksums.sh" scripts/release/
+  cp "${STANDARDS}/config/release-binaries.txt" config/ 2> /dev/null || true
+  mkdir -p dist
+  printf 'bin\n' > dist/widget-linux-amd64
+  run bash scripts/release/generate-release-checksums.sh
+  [ "${status}" -eq 0 ]
+  [ "$(cat dist/dev-image.txt)" = "$(printf 'ghcr.io/acme/widget-dev:ctx-abc\nghcr.io/acme/widget-pypi:ctx-123\nghcr.io/acme/widget-certs:ctx-def')" ]
+  grep -q 'dist/dev-image.txt' dist/SHA256SUMS
+}
+
+@test "build-release-assets.sh: dev-image.txt names every tool image at the tag; each name's file is listed" {
+  list_tool_images
+  sed -n '/^function copy_dev_image()/,/^}/p' "${STANDARDS}/scripts/release/build-release-assets.sh" > copy.sh
+  git add -A && git -c user.name=t -c user.email=t@example.invalid commit --quiet -m x
+  git -c user.name=t -c user.email=t@example.invalid tag -a v1.2.3 -m v
+  printf 'ghcr.io/acme/widget-certs:ctx-later\n' > scripts/certs/Dockerfile.certs.image.ref
+  mkdir -p out
+  run bash -c "source ./copy.sh; copy_dev_image v1.2.3 out"
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "$(printf 'containers/dev/image.ref\ncontainers/pypi/image.ref\nscripts/certs/Dockerfile.certs.image.ref')" ]
+  [ "$(cat out/dev-image.txt)" = "$(printf 'ghcr.io/acme/widget-dev:ctx-abc\nghcr.io/acme/widget-pypi:ctx-123\nghcr.io/acme/widget-certs:ctx-def')" ]
+}
+
+@test "build-release-assets.sh: a listed image's build-environment tools come from its own build file" {
+  sed -n '/^function image_tools()/,/^}/p; /^function tag_file()/,/^}/p' \
+    "${STANDARDS}/scripts/release/build-release-assets.sh" > tools.sh
+  mkdir -p scripts/certs scripts/ci
+  printf 'FROM scratch\nCOPY scripts/ci/setup-foo.sh /s\n' > scripts/certs/Dockerfile.certs
+  printf "readonly FOO_VERSION='1.2.0'\nurl=https://github.com/acme/foo/releases/download/v\${FOO_VERSION}/foo\n" \
+    > scripts/ci/setup-foo.sh
+  git add -A && git -c user.name=t -c user.email=t@example.invalid commit --quiet -m x
+  git -c user.name=t -c user.email=t@example.invalid tag -a v1.2.3 -m v
+  run bash -c "source ./tools.sh; image_tools v1.2.3 scripts/certs/Dockerfile.certs"
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == "foo"$'\t'"1.2.0"$'\t'"pkg:github/acme/foo@v1.2.0"* ]] || false
+}

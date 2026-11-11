@@ -131,7 +131,7 @@ export TZ := UTC
 .PHONY: run-dev-shell
 .PHONY: push-dev-image
 .PHONY: merge-dev-image
-.PHONY: sign-dev-image
+.PHONY: sign-image
 .PHONY: update-dev-image-ref
 .PHONY: pull-dev-image
 .PHONY: publish-dev-image
@@ -445,13 +445,15 @@ generate-pins-doc: | ensure-container
 	@echo "📌 Writing docs/current_pins.md..."
 	bash scripts/release/update-pins.sh --discover-only --pins-md docs/current_pins.md
 
-## Tool images (containers/NAME/Containerfile): every tool target above runs in one, with
-## the repository mounted read-only (scripts/dev/run.sh). run-dev-shell opens a shell in the dev
-## image. The dev-image workflow publishes them: dev-image-push ARCH=amd64|arm64 builds and
-## pushes natively per architecture, dev-image-merge joins and signs the multi-arch index,
-## dev-image-sign REF=<repository@digest> signs one. update-dev-image-ref names the image this commit
-## builds in containers/NAME/image.ref, as the pre-commit hook does. publish-dev-image
-## (macOS) builds and pushes every unpublished image.
+## Tool images (containers/NAME/Containerfile, and each build file config/tool-images.local.txt lists):
+## every tool target above runs in one, with the repository mounted read-only (scripts/dev/run.sh).
+## run-dev-shell opens a shell in the dev image. The dev-image workflow publishes them:
+## push-dev-image ARCH=amd64|arm64 builds and pushes natively per architecture, merge-dev-image joins
+## the multi-arch index and gives it and each arch image what every published image gets
+## (scripts/release/sign-image.sh: a signature, an SBOM and SLSA provenance); sign-image REF=<repository@digest> does that for one image,
+## from a GitHub Actions job. update-dev-image-ref names the
+## image this commit builds in containers/NAME/image.ref (a listed image: <BUILD FILE>.image.ref), as
+## the pre-commit hook does. publish-dev-image (macOS) builds and pushes every unpublished image.
 run-dev-shell: | ensure-container
 	@echo "🐚 Shell in the dev image (repository read-only; target/ writable)..."
 	bash scripts/dev/run.sh bash
@@ -464,9 +466,9 @@ merge-dev-image: | ensure-container
 	@echo "📦 Publishing multi-arch tool images..."
 	bash scripts/dev/publish.sh merge
 
-sign-dev-image: | ensure-container
-	@echo "🔏 Signing $(REF)..."
-	bash scripts/dev/run.sh bash scripts/dev/sign-dev-image.sh $(REF)
+sign-image: | ensure-container
+	@echo "🔏 Signing $(REF), with its SBOM and provenance..."
+	bash scripts/dev/run.sh bash scripts/release/sign-image.sh $(REF)
 
 update-dev-image-ref: | ensure-container
 	@echo "📌 Naming the tool images this commit builds..."

@@ -1,6 +1,6 @@
 # Release Policy
 
-**Maturity:** Required **Version:** 1.4.0 **Last Reviewed:** 2026-11-04
+**Maturity:** Required **Version:** 1.5.0 **Last Reviewed:** 2026-11-11
 
 This document covers how a project that follows the keelcore standards tags and releases a version. The authoritative
 policy lives in [`ci.md`](ci.md) under **Release Tagging**. This document is the developer-facing how-to that
@@ -160,7 +160,10 @@ nothing is published.
 
 Every bundle names the dev image that built it, as `containers/dev/image.ref` holds at the tag: the signed tag
 (`Dev-Image:` trailer), the GitHub release (`dev-image.txt`, in `SHA256SUMS`), container images (label
-`io.keelcore.dev-image`), the Helm chart (annotation of that name), and the npm and PyPI packages.
+`io.keelcore.dev-image`), the Helm chart (annotation of that name), and the npm and PyPI packages. It also names
+every tool image its build used (`containers/*/image.ref` and each listed `<BUILD FILE>.image.ref`, by
+`ctx-<hash>`): a `Tool-Image:` trailer for each, the image label `io.keelcore.tool-images`, and `dev-image.txt`,
+which lists each one, the dev image first. `verify-release` checks each one's signature, SBOM and provenance.
 
 A dry run prints the version and the full tag message without prompting, tagging or pushing, and reports failed
 preconditions and stale pins as warnings. CI picks up the pushed tag and runs the release pipeline (build, sign, SBOM, publish).
