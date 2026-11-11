@@ -2,7 +2,7 @@
 
 These rules govern all CI workflow and script work. They are non-negotiable.
 
-**Maturity:** Required **Version:** 1.7.0 **Last Reviewed:** 2026-11-04
+**Maturity:** Required **Version:** 1.8.0 **Last Reviewed:** 2026-11-11
 
 ## Core Principle
 
@@ -259,6 +259,9 @@ Rules:
   - Correct: `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2`
   - Incorrect: `actions/checkout@v4`
 - Use Dependabot (`dependabot.yml`) with `package-ecosystem: github-actions` to keep SHA pins current.
+- Within a workflow, every step from one action repository uses one ref: `github/codeql-action/init` and
+  `github/codeql-action/analyze` fail at different versions. `make lint-workflows` checks it, and `dependabot.yml`
+  groups `github/codeql-action*` so its sub-actions move together.
 
 ## Toolchain Version
 
@@ -336,8 +339,12 @@ Pins are refreshed by `make update-pins` (`scripts/release/update-pins.sh`), not
    number: a `0.y.z` update stays in major 0) is report-only, adopted by naming the pin:
    `make update-pins MAJOR='NAME'`. GitHub Actions (actions and runner images) move to a new major like any other
    update: CI proves them, and a red commit is never published (`make wait-for-ci`).
-3. **Dependabot union:** open Dependabot PRs and alerts join the candidate set; the newer candidate wins, and the
-   report's `SOURCE` column says which side proposed it.
+3. **Dependabot union:** open Dependabot PRs and alerts join the candidate set, and the report's `SOURCE` column says
+   which side proposed the candidate. A PR is held to the same eligibility as update-pins' own candidates (the
+   cooldown, no prereleases, majors report-only): a PR for the version update-pins chose makes `SOURCE` `both`, and a
+   PR for a newer one is a note, never a candidate. An alert's patched version is a security fix and is taken without
+   a cooldown when it is newer. Every `dependabot.yml` ecosystem also sets `cooldown: default-days: 14`, so Dependabot
+   opens no PR the cooldown would hold back (security updates are not delayed).
 4. **Verification:** each stale pin is applied alone in a throwaway git worktree of the staged tree (HEAD plus the
    index, submodules at their staged commits plus their uncommitted changes, so pins verify against what the next
    commit holds), exercised by the make targets mapped to its kind, and rolled back; a failing pin never stops the

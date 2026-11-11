@@ -1,3 +1,6 @@
+# Dependency update proposals. Each ecosystem waits out the 14-day cooldown make update-pins applies
+# (governance/ci.md), so an open PR never offers update-pins a release it would itself hold back; security
+# updates are not delayed. The github/codeql-action steps move as one: init and analyze fail at different versions.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -5,6 +8,12 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 14
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
     commit-message:
       prefix: "chore(ci)"
     labels:
@@ -16,6 +25,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 14
     commit-message:
       prefix: "chore(deps)"
     labels:
@@ -26,6 +37,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 14
     commit-message:
       prefix: "chore(deps)"
     labels:
@@ -36,6 +49,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 14
     commit-message:
       prefix: "chore(deps)"
     labels:

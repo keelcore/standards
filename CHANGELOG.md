@@ -176,6 +176,19 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `.github/workflows/codeql.yml` pins `github/codeql-action/analyze` back to v4.39.1, the version `init` runs: CodeQL
+  fails when its steps differ, and v4.39.3 is still in its cooldown. `update-pins` took v4.39.3 for `analyze` alone
+  from an open Dependabot PR, which had no cooldown and bumped the one sub-action.
+- `update-pins` holds open Dependabot PRs to its own eligibility: the 14-day cooldown, no prereleases, majors
+  report-only. A PR for the version update-pins chose makes `SOURCE` `both`; a PR for a newer one is a note
+  (`not eligible`), never the candidate. Before, the newer of the two always won, so a PR inside the cooldown, or for
+  a prerelease, was applied. An alert's patched version is still taken without a cooldown, as a security fix.
+- `make lint-workflows` fails when one workflow pins two steps from the same action repository to different refs,
+  naming both. `update-pins` verifies an action pin with it, so a bump that splits a release's sub-actions no longer
+  passes (`governance/ci.md` 1.8.0, Action Version Pinning).
+- `.github/dependabot.yml` and `templates/dependabot.yml`: every ecosystem sets `cooldown: default-days: 14`, the
+  cooldown `update-pins` applies, so an open Dependabot PR never offers it a release it would hold back; security
+  updates are not delayed. `github/codeql-action*` updates are grouped, so its sub-actions move together.
 - `adapters/claude/CLAUDE.md`, which every consumer's `CLAUDE.md` links to, links `governance/arb.md` and
   `governance/release-policy.md`, so every governance document is in scope (#28). `make lint` runs
   `lint-adapters-local` (`scripts/lint/lint-adapters.local.sh`, standards only), and CI runs it: it fails on a

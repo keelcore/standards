@@ -361,10 +361,41 @@ dependabot() {
   commit
 }
 
-@test "dependabot: a newer PR candidate wins and SOURCE is both" {
+# dependabot_pr TITLE: one more open Dependabot PR, #10.
+dependabot_pr() {
+  local -r url='https://api.github.com/repos/acme/consumer/pulls?state=open&per_page=100'
+  fixture "${url}" "$(jq --arg t "${1}" '. + [{number: 10, user: {login: "dependabot[bot]"}, title: $t}]' \
+    "${FIX}/$(printf '%s' "${url}" | tr -c 'A-Za-z0-9._-' '_')")"
+}
+
+@test "dependabot: a PR for a release update-pins would not take is a note only; the candidate stays" {
   dependabot
   pins
-  [[ "$(row 'actions/checkout')" == *'v4.5.0'*'stale'*'both'*'update-pins: v4.4.0, dependabot: v4.5.0 (PR #7)'* ]] || false
+  [[ "$(row 'actions/checkout')" == *'v4.4.0'*'stale'*'update-pins'*'(dependabot: v4.5.0, PR #7: not eligible)'* ]] || false
+  [[ "$(row 'actions/checkout')" != *'both'* ]] || false
+}
+
+@test "dependabot: a PR for the release update-pins chose makes SOURCE both" {
+  dependabot
+  dependabot_pr 'chore(ci): bump actions/checkout from 4.2.2 to 4.4.0'
+  pins
+  [[ "$(row 'actions/checkout')" == *'v4.4.0'*'stale'*'both'* ]] || false
+}
+
+@test "dependabot: a PR inside the cooldown leaves the pin in cooldown" {
+  dependabot
+  dependabot_pr 'Bump FOO from 1.2.0 to 1.3.0'
+  pins
+  [[ "$(row 'FOO')" == *'v1.3.0'*'cooldown'* ]] || false
+  [[ "$(row 'FOO')" != *'stale'* ]] || false
+}
+
+@test "dependabot: a PR newer than a current pin leaves it current" {
+  dependabot
+  dependabot_pr 'Bump example.com/cur from 1.0.0 to 1.0.2'
+  fixture 'https://api.github.com/repos/acme/consumer/dependabot/alerts?state=open&per_page=100' '[]'
+  pins
+  [[ "$(row 'example.com/cur')" == *'current'*'(dependabot: v1.0.2, PR #10: not eligible)'* ]] || false
 }
 
 @test "dependabot: an alert makes a current pin stale with SOURCE dependabot" {

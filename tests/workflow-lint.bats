@@ -64,3 +64,43 @@ setup() {
   [ "${status}" -eq 0 ] || { printf '%s\n' "${output}"; return 1; }
   calls_of zizmor | grep -q -- '--offline'
 }
+
+# workflow FILE USES...: a workflow at .github/workflows/FILE with one step per USES.
+workflow() {
+  local -r file="${1}"
+  shift
+  mkdir -p .github/workflows
+  {
+    printf 'on: push\njobs:\n  a:\n    runs-on: ubuntu-26.04\n    steps:\n'
+    local u
+    for u in "$@"; do printf '      - uses: %s\n' "${u}"; done
+  } > ".github/workflows/${file}"
+}
+
+@test "lint-workflows.sh: two steps from one action repository at different refs fail, naming both" {
+  workflow codeql.yml 'github/codeql-action/init@aaaa  # v4.39.1' 'github/codeql-action/analyze@bbbb  # v4.39.3'
+  run bash scripts/lint/lint-workflows.sh
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'.github/workflows/codeql.yml'*'github/codeql-action'*'aaaa'*'bbbb'* ]] || false
+}
+
+@test "lint-workflows.sh: one action repository at one ref, and other repositories at their own, pass" {
+  workflow codeql.yml 'actions/checkout@cccc' 'github/codeql-action/init@aaaa' "'github/codeql-action/analyze@aaaa'" \
+    './.github/actions/local' 'docker://alpine:3'
+  run bash scripts/lint/lint-workflows.sh
+  [ "${status}" -eq 0 ] || { printf '%s\n' "${output}"; return 1; }
+}
+
+@test "lint-workflows.sh: each workflow is checked on its own" {
+  workflow codeql.yml 'github/codeql-action/init@aaaa' 'github/codeql-action/analyze@aaaa'
+  workflow scorecard.yml 'github/codeql-action/upload-sarif@bbbb'
+  run bash scripts/lint/lint-workflows.sh
+  [ "${status}" -eq 0 ] || { printf '%s\n' "${output}"; return 1; }
+}
+
+@test "lint-workflows.sh: this repository's workflows pin each action repository to one ref" {
+  rm -rf .github
+  cp -R "${STANDARDS}/.github" .github
+  run bash scripts/lint/lint-workflows.sh
+  [ "${status}" -eq 0 ] || { printf '%s\n' "${output}"; return 1; }
+}

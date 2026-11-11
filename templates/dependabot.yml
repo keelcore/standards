@@ -1,7 +1,16 @@
-# Dependency update proposals. Add one entry per ecosystem the repository uses (gomod, npm, docker).
+# Dependency update proposals. Add one entry per ecosystem the repository uses (gomod, npm, docker), each with the
+# same cooldown: the 14 days make update-pins applies (governance/ci.md), so an open PR never offers update-pins a
+# release it would itself hold back; security updates are not delayed. The github/codeql-action steps move as one:
+# init and analyze fail at different versions.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
