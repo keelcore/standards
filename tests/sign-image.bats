@@ -28,13 +28,20 @@ setup() {
   export GITHUB_SHA=0123456789abcdef0123456789abcdef01234567 GITHUB_REF=refs/heads/main GITHUB_EVENT_NAME=push
   export GITHUB_REPOSITORY_ID=11 GITHUB_REPOSITORY_OWNER_ID=22 GITHUB_RUN_ID=33 GITHUB_RUN_ATTEMPT=1
   export RUNNER_ENVIRONMENT=github-hosted
+  export ACTIONS_ID_TOKEN_REQUEST_URL='https://token.example/req?api-version=2.0' ACTIONS_ID_TOKEN_REQUEST_TOKEN=o
 }
 
 # fakes: cosign verify passes once state/signed exists, verify-attestation once state/<type> exists, and
 # attest keeps each predicate it is given; generate-sbom writes the SBOM it is asked for; curl answers as
-# GHCR (the provenance bundle under the sha256-<digest> tag) and the GitHub attestations API (state/github
-# holds one attestation), keeping what is posted.
+# GHCR (the provenance bundle under the sha256-<digest> tag; with state/stale, one built by another workflow),
+# the GitHub attestations API (state/github holds one attestation; state/refuse refuses a post), keeping what
+# is posted, and the job's OIDC token endpoint (the called workflow, dev-image.yml, under ci.yml).
 fakes() {
+  local -r builder='https://github.com/keelcore/widget/.github/workflows'
+  local good stale claims
+  good="$(printf '{"predicate":{"runDetails":{"builder":{"id":"%s/dev-image.yml@refs/heads/main"}}}}' "${builder}" | base64 | tr -d '\n')"
+  stale="$(printf '{"predicate":{"runDetails":{"builder":{"id":"%s/ci.yml@refs/heads/main"}}}}' "${builder}" | base64 | tr -d '\n')"
+  claims="$(printf '{"job_workflow_ref":"keelcore/widget/.github/workflows/dev-image.yml@refs/heads/main"}' | base64 | tr -d '\n=' | tr '/+' '_-')"
   cat > "${WORK}/bin/cosign" <<'EOF'
 #!/usr/bin/env bash
 echo "cosign $*" >> "${WORK}/calls"
@@ -47,7 +54,10 @@ key="$(printf '%s' "${type}" | tr -c 'A-Za-z0-9' '_')"
 case "${sub}" in
   verify) [ -e "${WORK}/state/signed" ] ;;
   verify-attestation) [ -e "${WORK}/state/${key}" ] ;;
-  attest) cp "${predicate}" "${WORK}/predicate-${key}.json" ;;
+  attest)
+    cp "${predicate}" "${WORK}/predicate-${key}.json"
+    # The provenance just attested is the registry's newest.
+    [ "${key}" != https___slsa_dev_provenance_v1 ] || rm -f "${WORK}/state/stale" ;;
 esac
 EOF
   cat > scripts/release/generate-sbom.sh <<'EOF'
@@ -70,10 +80,15 @@ case "\${url}" in
     printf '{"manifests":[{"digest":"sha256:sig","annotations":{"dev.sigstore.bundle.predicateType":"https://sigstore.dev/cosign/sign/v1"}},{"digest":"sha256:prov","annotations":{"dev.sigstore.bundle.predicateType":"https://slsa.dev/provenance/v1"}}]}' ;;
   'https://ghcr.io/v2/keelcore/widget-certs/manifests/sha256:prov') printf '{"layers":[{"digest":"sha256:bundle"}]}' ;;
   'https://ghcr.io/v2/keelcore/widget-certs/blobs/sha256:bundle')
-    printf '{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json","dsseEnvelope":{}}' ;;
+    payload="${good}"
+    [ ! -e "${WORK}/state/stale" ] || payload="${stale}"
+    printf '{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json","dsseEnvelope":{"payload":"%s"}}' "\${payload}" ;;
   'https://api.github.com/repos/keelcore/widget/attestations/sha256:${HEX}?predicate_type=provenance')
     if [ -e "${WORK}/state/github" ]; then printf '{"attestations":[{"bundle":{}}]}'; else printf '{"attestations":[]}'; fi ;;
-  'https://api.github.com/repos/keelcore/widget/attestations') printf '{"id":1}' ;;
+  'https://api.github.com/repos/keelcore/widget/attestations')
+    if [ -e "${WORK}/state/refuse" ]; then printf '{"message":"Invalid Argument - values do not match"}'; exit 22; fi
+    printf '{"id":1}' ;;
+  'https://token.example/req?api-version=2.0&audience=sigstore') printf '{"value":"h.%s.s"}' "${claims}" ;;
   *) exit 22 ;;
 esac
 EOF
@@ -110,7 +125,9 @@ done_already() {
   [ "$(jq -r '.buildDefinition.internalParameters.github.runner_environment' "${p}")" = 'github-hosted' ]
   [ "$(jq -r '.buildDefinition.resolvedDependencies[0].uri' "${p}")" = 'git+https://github.com/keelcore/widget@refs/heads/main' ]
   [ "$(jq -r '.buildDefinition.resolvedDependencies[0].digest.gitCommit' "${p}")" = "${GITHUB_SHA}" ]
-  [ "$(jq -r '.runDetails.builder.id' "${p}")" = 'https://github.com/keelcore/widget/.github/workflows/ci.yml@refs/heads/main' ]
+  # The builder is the workflow the job ran in (the token's job_workflow_ref), not its caller: GitHub's store
+  # refuses provenance whose builder is not the signing certificate's workflow.
+  [ "$(jq -r '.runDetails.builder.id' "${p}")" = 'https://github.com/keelcore/widget/.github/workflows/dev-image.yml@refs/heads/main' ]
   [ "$(jq -r '.runDetails.metadata.invocationId' "${p}")" = 'https://github.com/keelcore/widget/actions/runs/33/attempts/1' ]
 }
 
@@ -143,4 +160,22 @@ done_already() {
   run bash scripts/release/sign-image.sh ghcr.io/keelcore/widget-certs:ctx-abc
   [ "${status}" -ne 0 ]
   [[ "${output}" == *'Usage: sign-image.sh REPOSITORY@sha256:DIGEST'* ]] || false
+}
+
+@test "sign-image.sh: registry provenance from another builder is attested again before it is posted" {
+  done_already
+  rm "${WORK}/state/github"
+  touch "${WORK}/state/stale"
+  run bash scripts/release/sign-image.sh "${REF}" ctx-abc
+  [ "${status}" -eq 0 ]
+  grep -qE "^cosign attest --yes --type https://slsa\.dev/provenance/v1 --predicate [^ ]+ ${REF}$" "${WORK}/calls"
+  [ "$(jq -r '.bundle.dsseEnvelope.payload | @base64d | fromjson | .predicate.runDetails.builder.id' "${WORK}/posted.json")" \
+    = 'https://github.com/keelcore/widget/.github/workflows/dev-image.yml@refs/heads/main' ]
+}
+
+@test "sign-image.sh: a post GitHub's store refuses fails with GitHub's reason" {
+  touch "${WORK}/state/refuse"
+  run bash scripts/release/sign-image.sh "${REF}" ctx-abc
+  [ "${status}" -ne 0 ]
+  [[ "${output}" == *'Invalid Argument - values do not match'* ]] || false
 }

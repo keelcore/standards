@@ -15,7 +15,10 @@
 # Usage: sign-image.sh REPOSITORY@sha256:DIGEST [VERSION]   (VERSION: the SBOM's; default the digest)
 # Env: DOCKER_CONFIG (the job's registry login, read-only), else GITHUB_TOKEN and GITHUB_ACTOR (a login of its
 # own); GITHUB_TOKEN (GitHub's attestation API); ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN
-# (the signing certificate); the GitHub Actions run context below (the provenance).
+# (the signing certificate, and the workflow it names: the provenance's builder); the GitHub Actions run context
+# below (the provenance).
+# Environment: ACTIONS_ID_TOKEN_REQUEST_TOKEN (default empty).
+# Environment: ACTIONS_ID_TOKEN_REQUEST_URL (default empty).
 # Environment: DOCKER_CONFIG (default empty).
 # Environment: GITHUB_ACTOR (default empty).
 # Environment: GITHUB_API_URL (default https://api.github.com).
@@ -47,6 +50,8 @@ set -o pipefail
 # shellcheck source=../lib/local-hook.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/local-hook.sh"
 
+declare -rx ACTIONS_ID_TOKEN_REQUEST_TOKEN="${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
+declare -rx ACTIONS_ID_TOKEN_REQUEST_URL="${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
 declare -rx DOCKER_CONFIG="${DOCKER_CONFIG:-}"
 declare -rx GITHUB_ACTOR="${GITHUB_ACTOR:-}"
 declare -rx GITHUB_API_URL="${GITHUB_API_URL:-https://api.github.com}"
@@ -108,7 +113,8 @@ function validate_args() {
 # validate_env: the GitHub Actions run context the signature and the provenance come from.
 function validate_env() {
   local name
-  for name in GITHUB_REPOSITORY GITHUB_TOKEN GITHUB_WORKFLOW_REF GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT; do
+  for name in GITHUB_REPOSITORY GITHUB_TOKEN GITHUB_WORKFLOW_REF GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT \
+    ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN; do
     [ -n "${!name}" ] && continue
     log "❌ ${name} is not set: sign-image.sh runs in a GitHub Actions job (id-token, packages and attestations: write)"
     exit 1
@@ -134,13 +140,16 @@ function attest_sbom() {
 }
 
 # attest_provenance REF: SLSA v1 build provenance for this run, in the predicate GitHub's own
-# actions/attest-build-provenance writes (build type https://actions.github.io/buildtypes/workflow/v1).
+# actions/attest-build-provenance writes (build type https://actions.github.io/buildtypes/workflow/v1): the
+# workflow is the run's (a caller, for a called workflow), the builder the job's (builder_id).
 function attest_provenance() {
   local -r ref="${1}" predicate="$(mktemp)"
   local -r workflow="${GITHUB_WORKFLOW_REF#"${GITHUB_REPOSITORY}/"}"
+  local builder
+  builder="$(builder_id)"
   jq -n \
     --arg server "${GITHUB_SERVER_URL}" --arg repo "${GITHUB_REPOSITORY}" \
-    --arg path "${workflow%@*}" --arg wref "${workflow#*@}" --arg workflow_ref "${GITHUB_WORKFLOW_REF}" \
+    --arg path "${workflow%@*}" --arg wref "${workflow#*@}" --arg builder "${builder}" \
     --arg ref "${GITHUB_REF}" --arg sha "${GITHUB_SHA}" --arg event "${GITHUB_EVENT_NAME}" \
     --arg repo_id "${GITHUB_REPOSITORY_ID}" --arg owner_id "${GITHUB_REPOSITORY_OWNER_ID}" \
     --arg runner "${RUNNER_ENVIRONMENT}" --arg run "${GITHUB_RUN_ID}" --arg attempt "${GITHUB_RUN_ATTEMPT}" '{
@@ -152,7 +161,7 @@ function attest_provenance() {
         resolvedDependencies: [{uri: ("git+" + $server + "/" + $repo + "@" + $ref), digest: {gitCommit: $sha}}]
       },
       runDetails: {
-        builder: {id: ($server + "/" + $workflow_ref)},
+        builder: {id: $builder},
         metadata: {invocationId: ($server + "/" + $repo + "/actions/runs/" + $run + "/attempts/" + $attempt)}
       }
     }' > "${predicate}"
@@ -169,14 +178,52 @@ function github_has_provenance() {
   [ "${count:-0}" -gt 0 ]
 }
 
-# store_provenance REF: post the provenance bundle the registry holds for REF to GitHub's attestation store.
+# store_provenance REF: post the provenance bundle the registry holds for REF to GitHub's attestation store,
+# which takes only provenance whose builder is the workflow its certificate names: a bundle from another
+# builder (a caller's, before builder_id) is attested again first. A refusal fails with GitHub's reason.
 function store_provenance() {
-  local -r ref="${1}" body="$(mktemp)"
-  registry_provenance_bundle "${ref}" | jq '{bundle: .}' > "${body}"
-  github_api "/repos/${GITHUB_REPOSITORY}/attestations" -X POST -H 'Content-Type: application/json' \
-    --data-binary "@${body}" > /dev/null
-  rm -f "${body}"
+  local -r ref="${1}" bundle="$(mktemp)" body="$(mktemp)"
+  local builder response
+  builder="$(builder_id)"
+  registry_provenance_bundle "${ref}" > "${bundle}"
+  if [ "$(bundle_builder "${bundle}")" != "${builder}" ]; then
+    log "ℹ️  the registry's provenance for ${ref} names another builder; attesting it again"
+    attest_provenance "${ref}"
+    registry_provenance_bundle "${ref}" > "${bundle}"
+  fi
+  jq '{bundle: .}' "${bundle}" > "${body}"
+  if ! response="$(github_api "/repos/${GITHUB_REPOSITORY}/attestations" -X POST \
+    -H 'Content-Type: application/json' --data-binary "@${body}")"; then
+    log "❌ GitHub's attestation store refused the provenance of ${ref}: ${response}"
+    exit 1
+  fi
+  rm -f "${bundle}" "${body}"
   log "✅ stored the provenance of ${ref} in GitHub's attestation store"
+}
+
+# bundle_builder FILE: the builder a provenance bundle's statement names.
+function bundle_builder() {
+  jq -r '.dsseEnvelope.payload // empty | @base64d | fromjson | .predicate.runDetails.builder.id // empty' "${1}"
+}
+
+# builder_id: the provenance's builder, as GitHub's own names it: the workflow the job runs in (for a called
+# workflow, it, not its caller: GITHUB_WORKFLOW_REF), the one the signing certificate names.
+function builder_id() {
+  local workflow
+  workflow="$(job_workflow_ref)" || return 1
+  printf '%s/%s' "${GITHUB_SERVER_URL}" "${workflow}"
+}
+
+# job_workflow_ref: the job_workflow_ref claim of the job's OIDC token (Sigstore's audience).
+function job_workflow_ref() {
+  local token claims
+  token="$(curl -fsS --connect-timeout 30 --max-time 60 -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+    "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sigstore" | jq -r '.value')"
+  claims="$(cut -d. -f2 <<< "${token}" | tr '_-' '/+')"
+  while [ $(( ${#claims} % 4 )) -ne 0 ]; do
+    claims+='='
+  done
+  base64 -d <<< "${claims}" | jq -er '.job_workflow_ref'
 }
 
 # registry_provenance_bundle REF: the newest Sigstore bundle carrying REF's SLSA provenance, read from the
@@ -208,11 +255,11 @@ function registry_token() {
     "https://${1}/token?scope=repository:${2}:pull" | jq -r '.token'
 }
 
-# github_api PATH [CURL ARG...]: GitHub's REST API with the job's token.
+# github_api PATH [CURL ARG...]: GitHub's REST API with the job's token; a failure prints GitHub's reason.
 function github_api() {
   local -r path="${1}"
   shift
-  curl -fsS --connect-timeout 30 --max-time 120 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+  curl --fail-with-body -sS --connect-timeout 30 --max-time 120 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
     -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' "$@" "${GITHUB_API_URL}${path}"
 }
 

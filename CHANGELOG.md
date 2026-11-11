@@ -205,6 +205,10 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `scripts/release/sign-image.sh`: the SLSA provenance's builder is the workflow the job runs in (the OIDC token's
+  `job_workflow_ref`: `dev-image.yml`, not its caller `ci.yml`), as in GitHub's own provenance; GitHub's
+  attestation store refused the caller's (`422`, the builder does not match the certificate). Provenance already in
+  the registry with another builder is attested again before it is posted, and a refused post logs GitHub's reason.
 - `.github/workflows/codeql.yml` pins `github/codeql-action/analyze` back to v4.39.1, the version `init` runs: CodeQL
   fails when its steps differ, and v4.39.3 is still in its cooldown. `update-pins` took v4.39.3 for `analyze` alone
   from an open Dependabot PR, which had no cooldown and bumped the one sub-action.
