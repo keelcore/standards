@@ -552,6 +552,36 @@ dependabot_pr() {
   grep -qF "FROM node:22.1.1-slim@sha256:${FOO_NEW_HEX} AS node" Containerfile.node
 }
 
+@test "verify --apply: a Go toolchain pin moves the golang base image with it" {
+  printf 'FROM golang:1.27.3@%s\nFROM golang:1.27.3-trixie@%s AS go\n' "${DIGEST}" "${DIGEST}" > Containerfile.go
+  fixture 'digest:golang:1.27.3' "${DIGEST}"
+  fixture 'digest:golang:1.27.3-trixie' "${DIGEST}"
+  fixture 'digest:golang:1.27.5' "sha256:${FOO_NEW_HEX}"
+  fixture 'digest:golang:1.27.5-trixie' "sha256:${FOO_OLD_HEX}"
+  checkout_fixture
+  commit
+  verify --apply
+  grep -q 'toolchain go1.27.5' go.mod
+  grep -qxF "FROM golang:1.27.5@sha256:${FOO_NEW_HEX}" Containerfile.go
+  grep -qxF "FROM golang:1.27.5-trixie@sha256:${FOO_OLD_HEX} AS go" Containerfile.go
+}
+
+@test "verify --apply: a Python pin moves the python base image with it" {
+  printf '3.12.15\n' > .python-version
+  printf 'FROM python:3.12.15-slim-trixie@%s\n' "${DIGEST}" > Containerfile.py
+  printf '#!/usr/bin/env bash\ncase "${1}" in\n  verify) [ "${2}" = python ] && printf lint ;;\n  apply) exit 3 ;;\nesac\nexit 0\n' \
+    > scripts/release/update-pins.local.sh
+  fixture 'https://api.github.com/repos/actions/python-versions/releases?per_page=100' "$(jq -n \
+    --arg old "$(iso 30)" '[{tag_name: "3.12.16-100", draft: false, prerelease: false, published_at: $old}]')"
+  fixture 'digest:python:3.12.15-slim-trixie' "${DIGEST}"
+  fixture 'digest:python:3.12.16-slim-trixie' "sha256:${FOO_NEW_HEX}"
+  checkout_fixture
+  commit
+  verify --apply
+  grep -qx '3.12.16' .python-version
+  grep -qxF "FROM python:3.12.16-slim-trixie@sha256:${FOO_NEW_HEX}" Containerfile.py
+}
+
 @test "--pins-md: every pin and floating input as a Markdown table" {
   run bash scripts/release/update-pins.sh --discover-only --pins-md current_pins.md
   [ "${status}" -eq 0 ]

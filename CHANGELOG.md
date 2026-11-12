@@ -205,6 +205,12 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Fixed
 
+- `update-pins` moves the base image that supplies a language with its version pin: a `toolchain` bump moves every
+  `golang:X.Y.Z[-variant]@sha256:` image and a `python` bump every `python:X.Y.Z[-variant]@sha256:` image to the new
+  tag and its current digest, as a `node` bump already moved `node:` images. Before, an image pin only refreshed its
+  digest under the old tag, so `go.mod` went to `go1.27.4` while `containers/dev/Containerfile` stayed on
+  `golang:1.27.3`, and `.python-version` went to 3.12.16 while `containers/pypi/Containerfile` stayed on
+  `python:3.12.15`. Both images now match their pins (`golang:1.27.4`, `python:3.12.16-slim-trixie`).
 - `scripts/release/sign-image.sh`: the SLSA provenance's builder is the workflow the job runs in (the OIDC token's
   `job_workflow_ref`: `dev-image.yml`, not its caller `ci.yml`), as in GitHub's own provenance; GitHub's
   attestation store refused the caller's (`422`, the builder does not match the certificate). Provenance already in
