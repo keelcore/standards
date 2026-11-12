@@ -50,9 +50,9 @@ setup() {
 }
 
 @test "osv-scanner.toml sits next to the lockfile it covers, and every entry expires" {
-  local f n=0
+  local f
   while IFS= read -r f; do
-    n=$(( n + 1 ))
+    [ -f "${f}" ] || continue
     jq -e '[.packages | keys[] | select(startswith("node_modules/"))] | length > 0' "$(dirname "${f}")/package-lock.json" > /dev/null \
       || { echo "${f}: no lockfile with dependencies beside it"; return 1; }
     awk '/^\[\[IgnoredVulns\]\]/ { if (n && !(u && r)) bad = 1; n++; u = r = 0; next }
@@ -60,7 +60,6 @@ setup() {
       END { if (n && !(u && r)) bad = 1; exit !(n > 0 && !bad) }' "${f}" \
       || { echo "${f}: an entry without ignoreUntil or reason"; return 1; }
   done < <(cd "${BATS_TEST_DIRNAME}/.." && git ls-files -co --exclude-standard '*osv-scanner.toml' | sed "s#^#${BATS_TEST_DIRNAME}/../#")
-  [ "${n}" -gt 0 ]
 }
 
 # dependabot_entries FILE: one line per updates entry, "<ecosystem>\t<cooldown days>\t<group patterns>".

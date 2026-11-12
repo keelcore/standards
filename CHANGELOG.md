@@ -293,6 +293,10 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Security
 
+- The pinned markdownlint takes `minimatch` 11.0.3 through an npm override, fixing
+  [GHSA-g3hv-75wg-m249](https://osv.dev/GHSA-g3hv-75wg-m249); `markdownlint-cli` 0.50.0 still asks for `~10.2.6`.
+  The exception for it is gone, and with it `scripts/ci/markdownlint/osv-scanner.toml`. OSV reports no advisory for
+  any package in that lockfile (#15).
 - Releases also publish each signature as `<file>.sigstore.json` and each GitHub build attestation's provenance as
   `<file>.intoto.jsonl` (`scripts/lib/scorecard-assets.sh`), the names OpenSSF Scorecard's Signed-Releases check reads;
   `verify-release-blobs.sh` treats the `.sigstore.json` copies as signatures, not release files.
