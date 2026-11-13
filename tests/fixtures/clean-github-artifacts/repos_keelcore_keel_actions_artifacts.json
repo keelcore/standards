@@ -1,1 +1,19 @@
-{"total_count":2,"artifacts":[{"id":11,"name":"dist","workflow_run":{"head_sha":"2222222222222222222222222222222222222222"}},{"id":12,"name":"old-dist","workflow_run":{"head_sha":"9999999999999999999999999999999999999999"}}]}
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 11,
+      "name": "dist",
+      "workflow_run": {
+        "head_sha": "2222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "id": 12,
+      "name": "old-dist",
+      "workflow_run": {
+        "head_sha": "9999999999999999999999999999999999999999"
+      }
+    }
+  ]
+}

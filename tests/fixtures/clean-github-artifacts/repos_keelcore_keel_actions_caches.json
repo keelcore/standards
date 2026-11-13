@@ -1,1 +1,25 @@
-{"total_count":4,"actions_caches":[{"id":21,"key":"go-main","ref":"refs/heads/main"},{"id":22,"key":"go-pr","ref":"refs/pull/5/merge"},{"id":23,"key":"go-tag","ref":"refs/tags/v1.0.0"},{"id":24,"key":"go-old-tag","ref":"refs/tags/v0.9.0"}]}
+{
+  "total_count": 4,
+  "actions_caches": [
+    {
+      "id": 21,
+      "key": "go-main",
+      "ref": "refs/heads/main"
+    },
+    {
+      "id": 22,
+      "key": "go-pr",
+      "ref": "refs/pull/5/merge"
+    },
+    {
+      "id": 23,
+      "key": "go-tag",
+      "ref": "refs/tags/v1.0.0"
+    },
+    {
+      "id": 24,
+      "key": "go-old-tag",
+      "ref": "refs/tags/v0.9.0"
+    }
+  ]
+}

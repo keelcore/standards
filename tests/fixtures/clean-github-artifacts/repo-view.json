@@ -1,1 +1,6 @@
-{"nameWithOwner":"keelcore/keel","defaultBranchRef":{"name":"main"}}
+{
+  "nameWithOwner": "keelcore/keel",
+  "defaultBranchRef": {
+    "name": "main"
+  }
+}

@@ -1,1 +1,7 @@
-{"attestations":[{"bundle":{}}]}
+{
+  "attestations": [
+    {
+      "bundle": {}
+    }
+  ]
+}

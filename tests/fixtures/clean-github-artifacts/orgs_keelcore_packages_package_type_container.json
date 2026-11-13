@@ -1,1 +1,26 @@
-[{"name":"keel","repository":{"full_name":"keelcore/keel"}},{"name":"keel-old","repository":{"full_name":"keelcore/keel"}},{"name":"keel-dev","repository":{"full_name":"keelcore/keel"}},{"name":"standards-dev","repository":{"full_name":"keelcore/standards"}}]
+[
+  {
+    "name": "keel",
+    "repository": {
+      "full_name": "keelcore/keel"
+    }
+  },
+  {
+    "name": "keel-old",
+    "repository": {
+      "full_name": "keelcore/keel"
+    }
+  },
+  {
+    "name": "keel-dev",
+    "repository": {
+      "full_name": "keelcore/keel"
+    }
+  },
+  {
+    "name": "standards-dev",
+    "repository": {
+      "full_name": "keelcore/standards"
+    }
+  }
+]

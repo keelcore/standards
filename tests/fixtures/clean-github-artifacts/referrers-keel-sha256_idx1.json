@@ -1,1 +1,8 @@
-{"schemaVersion":2,"manifests":[{"digest":"sha256:ref1"}]}
+{
+  "schemaVersion": 2,
+  "manifests": [
+    {
+      "digest": "sha256:ref1"
+    }
+  ]
+}
