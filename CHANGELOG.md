@@ -14,6 +14,16 @@ Corrections, clarifications, metadata: patch bump.
 
 ### Added
 
+- `make clean-github-artifacts` (`scripts/release/clean-github-artifacts.sh`, no arguments) deletes what a
+  repository published on GitHub from any commit but HEAD and its release tag: workflow runs (with their logs and
+  artifacts), Actions artifacts and caches, deployments, releases (their tags stay), package versions and the
+  attestations of the images and release assets it deletes. A kept image keeps every manifest it references
+  (platform images, build attestations, signatures, referrers), and the tool images HEAD names in `*image.ref` stay.
+  The repository is `GITROOT`, else the nearest directory at or above the working directory holding a `.git`
+  directory, so it serves any repository, and run from `.standards/` it cleans the consumer. It prints what it keeps
+  and deletes, asks for the repository name before deleting (a dry run without a terminal), and verifies afterwards
+  that nothing stale is left and the kept release, images and tags are unchanged. `tests/clean-github-artifacts.bats`
+  tests it against a stubbed GitHub.
 - Tool images at any build file path (#33). `config/tool-images.local.txt` lists a repository's tool images not
   built from `containers/NAME/Containerfile`, one per line: `NAME<TAB>BUILD FILE<TAB>CONTEXT DIR`. A listed image is
   identified by its build file and the files it copies from its context dir, named
